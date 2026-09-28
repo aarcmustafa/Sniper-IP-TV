@@ -2,26 +2,30 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- أذونات الشبكة والإنترنت الضرورية لاتصال IPTV -->
+    <!-- أذونات الإنترنت والشبكة الضرورية للاتصال بالسيرفرات -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
-    <!-- توافقية مع أجهزة التلفاز شاشات Android TV بدون شاشة لمس -->
-    <uses-feature
-        android:name="android.hardware.touchscreen"
-        android:required="false" />
+    <!-- إلزام النظام بأن التطبيق مخصص لشاشات Android TV & Google TV -->
     <uses-feature
         android:name="android.software.leanback"
+        android:required="true" />
+        
+    <!-- عدم اشتراط وجود شاشة لمس (لأن التلفاز يعمل بجهاز التحكم / الريموت) -->
+    <uses-feature
+        android:name="android.hardware.touchscreen"
         android:required="false" />
 
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
+        android:banner="@drawable/tv_banner"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.AppCompat.DayNight.NoActionBar"
         android:usesCleartextTraffic="true"
+        android:networkSecurityConfig="@xml/network_security_config"
         tools:targetApi="31">
 
         <activity
@@ -30,13 +34,7 @@
             android:configChanges="orientation|screenSize|keyboardHidden|screenLayout"
             android:launchMode="singleTop">
 
-            <!-- تشغيل التطبيق في الهواتف والأجهزة اللوحية -->
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-
-            <!-- ظهور التطبيق في الواجهة الرئيسية لشاشات Android TV -->
+            <!-- مُشغّل الواجهة الرئيسي الخاص بشاشات Android TV & Google TV فقط -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
@@ -47,4 +45,4 @@
     </application>
 
 </manifest>
-                    
+    
