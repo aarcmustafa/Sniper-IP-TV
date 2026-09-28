@@ -50,7 +50,6 @@ android {
 }
 
 dependencies {
-    // AndroidX & Compose الأساسية
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
     implementation("androidx.activity:activity-compose:1.8.2")
@@ -58,20 +57,24 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
+    implementation("androidx.compose.material3:material3")
+    
+    // شاشة الترحيب الرسمية (Splash Screen API)
+    implementation("androidx.core:core-splashscreen:1.0.1")
     
     // واجهات Android TV المخصصة
     implementation("androidx.tv:tv-material:1.0.0-alpha10")
 
-    // ExoPlayer Media3 (للبث الذكي ومنع التقطيع)
+    // ExoPlayer Media3 للبث
     implementation("androidx.media3:media3-exoplayer:1.2.0")
     implementation("androidx.media3:media3-ui:1.2.0")
     implementation("androidx.media3:media3-datasource:1.2.0")
 
-    // Retrofit & Gson (للاتصال بـ Xtream API)
+    // Retrofit & Gson
     implementation("com.squareup.retrofit2:retrofit:2.9.0")
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
     implementation("com.google.code.gson:gson:2.10.1")
 
-    // Coroutines (المهام المتعددة وجلب البيانات)
+    // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 }
