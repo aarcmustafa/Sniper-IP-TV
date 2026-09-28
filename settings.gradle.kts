@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Sniper-IP-TV"
+rootProject.name = "STTITEN-IP-TV"
 include(":app")
