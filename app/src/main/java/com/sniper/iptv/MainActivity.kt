@@ -5,7 +5,9 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -80,6 +82,30 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
+fun CustomOutlinedTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    modifier: Modifier = Modifier
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        textStyle = LocalTextStyle.current.copy(color = Color.White),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedTextColor = Color.White,
+            unfocusedTextColor = Color.White,
+            focusedBorderColor = Color(0xFF38BDF8),
+            unfocusedBorderColor = Color.Gray,
+            focusedLabelColor = Color(0xFF38BDF8),
+            unfocusedLabelColor = Color.LightGray,
+            cursorColor = Color(0xFF38BDF8)
+        ),
+        modifier = modifier
+    )
+}
+@Composable
 fun SttitenIptvApp() {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("SttitenPrefs", Context.MODE_PRIVATE) }
@@ -104,11 +130,36 @@ fun SttitenIptvApp() {
     var videoDecoder by remember { mutableStateOf(prefs.getString("videoDecoder", "Hardware") ?: "Hardware") }
     var parentalPin by remember { mutableStateOf(prefs.getString("parentalPin", "1234") ?: "1234") }
 
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let {
+            scope.launch {
+                isLoading = true
+                errorMessage = ""
+                try {
+                    val content = context.contentResolver.openInputStream(it)?.bufferedReader()?.use { reader -> reader.readText() } ?: ""
+                    if (content.isNotEmpty()) {
+                        m3uMediaList.clear()
+                        m3uMediaList.addAll(parseM3UContent(content))
+                        loginType = "m3u"
+                        currentScreen = "dashboard"
+                    } else {
+                        errorMessage = "الملف المختار فارغ!"
+                    }
+                } catch (e: Exception) {
+                    errorMessage = "خطأ في قراءة الملف: ${e.localizedMessage}"
+                }
+                isLoading = false
+            }
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize().background(Color(0xFF0F172A))) {
         when (currentScreen) {
             "splash" -> SplashScreen(
                 onTimeout = {
-                    currentScreen = if (serverUrl.isNotEmpty() || m3uUrlInput.isNotEmpty()) "dashboard" else "login"
+                    currentScreen = if (serverUrl.isNotEmpty() || m3uUrlInput.isNotEmpty() || m3uMediaList.isNotEmpty()) "dashboard" else "login"
                 }
             )
 
@@ -134,15 +185,28 @@ fun SttitenIptvApp() {
                         isLoading = false
                     }
                 },
+                onSelectLocalFile = {
+                    filePickerLauncher.launch("*/*")
+                },
                 onLoadXtream = {
-                    prefs.edit()
-                        .putString("serverUrl", serverUrl)
-                        .putString("username", username)
-                        .putString("password", password)
-                        .putString("loginType", "xtream")
-                        .apply()
-                    loginType = "xtream"
-                    currentScreen = "dashboard"
+                    scope.launch {
+                        isLoading = true
+                        errorMessage = ""
+                        val isValid = validateXtreamCredentials(serverUrl, username, password)
+                        if (isValid) {
+                            prefs.edit()
+                                .putString("serverUrl", serverUrl)
+                                .putString("username", username)
+                                .putString("password", password)
+                                .putString("loginType", "xtream")
+                                .apply()
+                            loginType = "xtream"
+                            currentScreen = "dashboard"
+                        } else {
+                            errorMessage = "كود Xtream غير صالح أو منتهي الصلاحية!"
+                        }
+                        isLoading = false
+                    }
                 },
                 errorMessage = errorMessage
             )
@@ -262,27 +326,75 @@ fun LoginScreen(
     serverUrl: String, onServerChange: (String) -> Unit,
     username: String, onUserChange: (String) -> Unit,
     password: String, onPassChange: (String) -> Unit,
-    onLoadM3u: () -> Unit, onLoadXtream: () -> Unit, errorMessage: String
+    onLoadM3u: () -> Unit,
+    onSelectLocalFile: () -> Unit,
+    onLoadXtream: () -> Unit,
+    errorMessage: String
 ) {
-    Column(modifier = Modifier.fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
         Text("STTITEN IP TV", style = MaterialTheme.typography.headlineLarge, color = Color(0xFF38BDF8))
         Spacer(modifier = Modifier.height(20.dp))
-        OutlinedTextField(value = m3uUrl, onValueChange = onM3uChange, label = { Text("رابط ملف M3U / M3U8") }, modifier = Modifier.fillMaxWidth())
+        
+        CustomOutlinedTextField(
+            value = m3uUrl,
+            onValueChange = onM3uChange,
+            label = "رابط ملف M3U / M3U8 الأونلاين",
+            modifier = Modifier.fillMaxWidth()
+        )
         Spacer(modifier = Modifier.height(8.dp))
-        Button(onClick = onLoadM3u, modifier = Modifier.fillMaxWidth()) { Text("تحميل عبر رابط M3U") }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = onLoadM3u, modifier = Modifier.weight(1f)) {
+                Text("تحميل عبر رابط M3U")
+            }
+            Button(
+                onClick = onSelectLocalFile,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB))
+            ) {
+                Text("فتح ملف M3U محلي (USB/تلفاز)")
+            }
+        }
+        
         Spacer(modifier = Modifier.height(16.dp))
         Divider(color = Color.Gray)
         Spacer(modifier = Modifier.height(16.dp))
-        OutlinedTextField(value = serverUrl, onValueChange = onServerChange, label = { Text("رابط سيرفر Xtream") }, modifier = Modifier.fillMaxWidth())
+        
+        CustomOutlinedTextField(
+            value = serverUrl,
+            onValueChange = onServerChange,
+            label = "رابط سيرفر Xtream (مثال: http://domain.com:8080)",
+            modifier = Modifier.fillMaxWidth()
+        )
         Spacer(modifier = Modifier.height(8.dp))
-        OutlinedTextField(value = username, onValueChange = onUserChange, label = { Text("اسم المستخدم") }, modifier = Modifier.fillMaxWidth())
+        CustomOutlinedTextField(
+            value = username,
+            onValueChange = onUserChange,
+            label = "اسم المستخدم",
+            modifier = Modifier.fillMaxWidth()
+        )
         Spacer(modifier = Modifier.height(8.dp))
-        OutlinedTextField(value = password, onValueChange = onPassChange, label = { Text("كلمة المرور") }, modifier = Modifier.fillMaxWidth())
+        CustomOutlinedTextField(
+            value = password,
+            onValueChange = onPassChange,
+            label = "كلمة المرور",
+            modifier = Modifier.fillMaxWidth()
+        )
         Spacer(modifier = Modifier.height(8.dp))
-        Button(onClick = onLoadXtream, modifier = Modifier.fillMaxWidth()) { Text("تسجيل الدخول عبر Xtream") }
+        Button(onClick = onLoadXtream, modifier = Modifier.fillMaxWidth()) {
+            Text("تسجيل الدخول عبر Xtream")
+        }
+        
         if (errorMessage.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(10.dp))
-            Text(errorMessage, color = Color.Red)
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = errorMessage, 
+                color = Color(0xFFEF4444), 
+                style = MaterialTheme.typography.bodyLarge
+            )
         }
     }
 }
@@ -312,7 +424,6 @@ fun DashboardScreen(
         SimpleDateFormat(if (timeFormat24h) "HH:mm" else "hh:mm a", Locale.getDefault()).format(Date())
     }
 
-    // جلب الباقات فور تغيير التبويب
     LaunchedEffect(selectedTab) {
         isCategoryLoading = true
         currentMediaItems = emptyList()
@@ -324,7 +435,6 @@ fun DashboardScreen(
                 currentMediaItems = fetchXtreamItemsByCategory(serverUrl, username, password, categories.first())
             }
         } else {
-            // M3U Logic
             val groups = m3uMediaItems.filter { it.type == selectedTab }.map { it.group }.distinct()
             categories = groups.map { CategoryData(id = it, name = it, type = selectedTab) }
             if (categories.isNotEmpty()) {
@@ -340,7 +450,6 @@ fun DashboardScreen(
     }
 
     Row(modifier = Modifier.fillMaxSize().background(Color(0xFF0F172A))) {
-        // الشريط الجانبي للباقات
         Column(modifier = Modifier.width(300.dp).fillMaxHeight().background(Color(0xFF1E293B)).padding(16.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text("STTITEN IP TV", color = Color(0xFF38BDF8), style = MaterialTheme.typography.titleMedium)
@@ -357,7 +466,13 @@ fun DashboardScreen(
             Spacer(modifier = Modifier.height(8.dp))
             Button(onClick = onLogout, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Color.Red)) { Text("تسجيل الخروج") }
             Spacer(modifier = Modifier.height(12.dp))
-            OutlinedTextField(value = searchQuery, onValueChange = { searchQuery = it }, label = { Text("بحث...") }, modifier = Modifier.fillMaxWidth())
+            
+            CustomOutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                label = "بحث...",
+                modifier = Modifier.fillMaxWidth()
+            )
             Spacer(modifier = Modifier.height(12.dp))
             
             LazyColumn(modifier = Modifier.weight(1f)) {
@@ -390,7 +505,6 @@ fun DashboardScreen(
             }
         }
 
-        // منطقة عرض القنوات/الأفلام الخاصة بالباقة المحددة
         Box(modifier = Modifier.weight(1f).fillMaxHeight().padding(16.dp)) {
             if (isCategoryLoading) {
                 CircularProgressIndicator(color = Color(0xFF38BDF8), modifier = Modifier.align(Alignment.Center))
@@ -487,6 +601,7 @@ fun SeriesDetailsScreen(seriesName: String, episodes: List<MediaItemData>, onEpi
         }
     }
 }
+
 private var downloadCache: SimpleCache? = null
 
 fun getSttitenCache(context: Context): SimpleCache {
@@ -643,25 +758,69 @@ fun SettingsScreen(
 ) {
     Column(modifier = Modifier.fillMaxSize().background(Color(0xFF0F172A)).padding(32.dp)) {
         Text("إعدادات STTITEN IP TV", style = MaterialTheme.typography.headlineMedium, color = Color(0xFF38BDF8))
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(20.dp))
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
             Text("صيغة الوقت (24 ساعة)", color = Color.White)
             Switch(checked = timeFormat24h, onCheckedChange = onTimeFormatChange)
         }
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp))
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
             Text("تشغيل عبر مشغل خارجي", color = Color.White)
             Switch(checked = isExternalPlayer, onCheckedChange = onPlayerTypeChange)
         }
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp))
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
             Text("فك التشفير: $videoDecoder", color = Color.White)
             Button(onClick = { onDecoderChange(if (videoDecoder == "Hardware") "Software" else "Hardware") }) { Text("تبديل") }
         }
+        Spacer(modifier = Modifier.height(12.dp))
+        CustomOutlinedTextField(
+            value = parentalPin,
+            onValueChange = onPinChange,
+            label = "رمز الرقابة الأبوية (PIN)",
+            modifier = Modifier.fillMaxWidth()
+        )
+        
+        Spacer(modifier = Modifier.height(20.dp))
+        Divider(color = Color.Gray.copy(alpha = 0.5f))
         Spacer(modifier = Modifier.height(16.dp))
-        OutlinedTextField(value = parentalPin, onValueChange = onPinChange, label = { Text("رمز الرقابة الأبوية (PIN)") }, modifier = Modifier.fillMaxWidth())
+        
+        Text("حول التطبيق", style = MaterialTheme.typography.titleLarge, color = Color(0xFF38BDF8))
+        Spacer(modifier = Modifier.height(8.dp))
+        Surface(
+            color = Color(0xFF1E293B),
+            shape = MaterialTheme.shapes.medium,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("اسم التطبيق: STTITEN IP TV", color = Color.White, style = MaterialTheme.typography.bodyLarge)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text("المطور: جلولي مصطفى", color = Color.White, style = MaterialTheme.typography.bodyMedium)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text("الإصدار: v1.0.0", color = Color.LightGray, style = MaterialTheme.typography.bodySmall)
+            }
+        }
+
         Spacer(modifier = Modifier.weight(1f))
         Button(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text("حفظ والعودة") }
+    }
+}
+suspend fun validateXtreamCredentials(server: String, user: String, pass: String): Boolean = withContext(Dispatchers.IO) {
+    if (server.isEmpty() || user.isEmpty() || pass.isEmpty()) return@withContext false
+    val cleanServer = if (server.endsWith("/")) server.dropLast(1) else server
+    val url = "$cleanServer/player_api.php?username=$user&password=$pass"
+    try {
+        val responseText = URL(url).readText()
+        val json = JSONObject(responseText)
+        val userInfo = json.optJSONObject("user_info")
+        if (userInfo != null) {
+            val auth = userInfo.optInt("auth", 0)
+            val status = userInfo.optString("status", "")
+            return@withContext (auth == 1 && status.equals("Active", ignoreCase = true))
+        }
+        false
+    } catch (e: Exception) {
+        false
     }
 }
 
@@ -689,6 +848,7 @@ fun parseM3UContent(content: String): List<MediaItemData> {
 suspend fun fetchUrlContent(urlString: String): String = withContext(Dispatchers.IO) {
     try { URL(urlString).readText() } catch (e: Exception) { "" }
 }
+
 suspend fun fetchXtreamCategories(
     server: String,
     user: String,
@@ -696,6 +856,7 @@ suspend fun fetchXtreamCategories(
     type: ContentType
 ): List<CategoryData> = withContext(Dispatchers.IO) {
     val categoriesList = mutableListOf<CategoryData>()
+    val cleanServer = if (server.endsWith("/")) server.dropLast(1) else server
     val action = when (type) {
         ContentType.LIVE -> "get_live_categories"
         ContentType.VOD -> "get_vod_categories"
@@ -703,7 +864,7 @@ suspend fun fetchXtreamCategories(
     }
 
     try {
-        val url = "$server/player_api.php?username=$user&password=$pass&action=$action"
+        val url = "$cleanServer/player_api.php?username=$user&password=$pass&action=$action"
         val responseText = URL(url).readText()
         val jsonArray = JSONArray(responseText)
 
@@ -728,13 +889,14 @@ suspend fun fetchXtreamItemsByCategory(
     category: CategoryData
 ): List<MediaItemData> = withContext(Dispatchers.IO) {
     val items = mutableListOf<MediaItemData>()
+    val cleanServer = if (server.endsWith("/")) server.dropLast(1) else server
     val action = when (category.type) {
         ContentType.LIVE -> "get_live_streams"
         ContentType.VOD -> "get_vod_streams"
         ContentType.SERIES -> "get_series"
     }
 
-    val url = "$server/player_api.php?username=$user&password=$pass&action=$action&category_id=${category.id}"
+    val url = "$cleanServer/player_api.php?username=$user&password=$pass&action=$action&category_id=${category.id}"
 
     try {
         val responseText = URL(url).readText()
@@ -749,7 +911,7 @@ suspend fun fetchXtreamItemsByCategory(
                         MediaItemData(
                             id = id,
                             name = obj.optString("name", "قناة بدون اسم"),
-                            url = "$server/live/$user/$pass/$id.ts",
+                            url = "$cleanServer/live/$user/$pass/$id.ts",
                             type = ContentType.LIVE,
                             group = category.name,
                             logo = obj.optString("stream_icon", "")
@@ -764,7 +926,7 @@ suspend fun fetchXtreamItemsByCategory(
                         MediaItemData(
                             id = id,
                             name = obj.optString("name", "فيلم بدون اسم"),
-                            url = "$server/movie/$user/$pass/$id.$ext",
+                            url = "$cleanServer/movie/$user/$pass/$id.$ext",
                             type = ContentType.VOD,
                             group = category.name,
                             logo = obj.optString("stream_icon", ""),
@@ -799,8 +961,9 @@ suspend fun fetchXtreamItemsByCategory(
 
 suspend fun fetchSeriesEpisodes(server: String, user: String, pass: String, seriesId: String): List<MediaItemData> = withContext(Dispatchers.IO) {
     val episodesList = mutableListOf<MediaItemData>()
+    val cleanServer = if (server.endsWith("/")) server.dropLast(1) else server
     try {
-        val url = "$server/player_api.php?username=$user&password=$pass&action=get_series_info&series_id=$seriesId"
+        val url = "$cleanServer/player_api.php?username=$user&password=$pass&action=get_series_info&series_id=$seriesId"
         val json = JSONObject(URL(url).readText())
         val episodesObj = json.optJSONObject("episodes")
         episodesObj?.keys()?.forEach { seasonKey ->
@@ -812,7 +975,7 @@ suspend fun fetchSeriesEpisodes(server: String, user: String, pass: String, seri
                     val epNum = ep.optString("episode_num", "1")
                     val title = ep.optString("title", "الحلقة $epNum")
                     val ext = ep.optString("container_extension", "mp4")
-                    val epUrl = "$server/series/$user/$pass/$epId.$ext"
+                    val epUrl = "$cleanServer/series/$user/$pass/$epId.$ext"
                     episodesList.add(MediaItemData(epId, "الموسم $seasonKey - $title", epUrl, ContentType.VOD, "الموسم $seasonKey", ""))
                 }
             }
