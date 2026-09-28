@@ -465,6 +465,26 @@ fun SeriesDetailsScreen(seriesName: String, episodes: List<MediaItemData>, onEpi
         }
     }
 }
+import androidx.media3.datasource.cache.CacheDataSource
+import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
+import androidx.media3.datasource.cache.SimpleCache
+import androidx.media3.database.StandaloneDatabaseProvider
+import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.source.ProgressiveMediaSource
+import java.io.File
+
+private var downloadCache: SimpleCache? = null
+
+fun getSttitenCache(context: Context): SimpleCache {
+    if (downloadCache == null) {
+        val cacheDir = File(context.cacheDir, "sttiten_media_cache")
+        val evictor = LeastRecentlyUsedCacheEvictor(200 * 1024 * 1024) 
+        val databaseProvider = StandaloneDatabaseProvider(context)
+        downloadCache = SimpleCache(cacheDir, evictor, databaseProvider)
+    }
+    return downloadCache!!
+}
+
 @Composable
 fun PlayerScreen(
     videoUrl: String, 
@@ -480,8 +500,18 @@ fun PlayerScreen(
     val maxRetries = 3
 
     val exoPlayer = remember {
+        val cache = getSttitenCache(context)
+        val upstreamFactory = DefaultHttpDataSource.Factory()
+        val cacheDataSourceFactory = CacheDataSource.Factory()
+            .setCache(cache)
+            .setUpstreamDataSourceFactory(upstreamFactory)
+            .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+
+        val mediaSource = ProgressiveMediaSource.Factory(cacheDataSourceFactory)
+            .createMediaSource(MediaItem.fromUri(videoUrl))
+
         ExoPlayer.Builder(context).build().apply {
-            setMediaItem(MediaItem.fromUri(videoUrl))
+            setMediaSource(mediaSource)
             prepare()
             playWhenReady = true
         }
