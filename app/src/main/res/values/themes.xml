@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.App.Starting" parent="Theme.SplashScreen">
+        <!-- لون الخلفية لشاشة الترحيب -->
+        <item name="windowSplashScreenBackground">#0B0F19</item>
+        <!-- الشعار في منتصف شاشة الترحيب (تأكد من وجود ملف splash_logo.png في drawable) -->
+        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_logo</item>
+        <!-- الثيم الذي ينتقل إليه التطبيق بعد انتهاء الـ Splash -->
+        <item name="postSplashScreenTheme">@android:style/Theme.DeviceDefault.NoActionBar</item>
+    </style>
+</resources>
