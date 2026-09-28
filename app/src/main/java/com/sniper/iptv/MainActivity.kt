@@ -34,6 +34,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -471,8 +472,12 @@ fun PlayerScreen(
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var retryCount by remember { mutableStateOf(0) }
+    val maxRetries = 3
 
     val exoPlayer = remember {
         ExoPlayer.Builder(context).build().apply {
@@ -487,11 +492,27 @@ fun PlayerScreen(
             override fun onPlaybackStateChanged(playbackState: Int) {
                 isLoading = playbackState == Player.STATE_BUFFERING || 
                             playbackState == Player.STATE_IDLE
+                
+                if (playbackState == Player.STATE_READY) {
+                    retryCount = 0
+                    errorMessage = null
+                }
             }
 
             override fun onPlayerError(error: PlaybackException) {
-                errorMessage = "عذراً، فشل تشغيل البث: ${error.localizedDescription ?: "خطأ غير معروف"}"
-                isLoading = false
+                if (retryCount < maxRetries) {
+                    retryCount++
+                    errorMessage = "انقطع الاتصال. جاري إعادة المحاولة (محاولة $retryCount من $maxRetries)..."
+                    
+                    scope.launch {
+                        delay(3000)
+                        exoPlayer.prepare()
+                        exoPlayer.playWhenReady = true
+                    }
+                } else {
+                    errorMessage = "عذراً، تعذر الاتصال بالبث بعد عدة محاولات."
+                    isLoading = false
+                }
             }
         }
         
@@ -539,13 +560,28 @@ fun PlayerScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    if (retryCount <= maxRetries && error.contains("جاري إعادة المحاولة")) {
+                        CircularProgressIndicator(color = Color(0xFF38BDF8))
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
                     Text(
                         text = error, 
-                        color = Color.Red, 
+                        color = if (retryCount > maxRetries) Color.Red else Color.White, 
                         style = MaterialTheme.typography.bodyLarge
                     )
                     Spacer(modifier = Modifier.height(16.dp))
-                    Button(onClick = onBack) {
+                    if (retryCount > maxRetries) {
+                        Button(onClick = {
+                            retryCount = 0
+                            errorMessage = null
+                            exoPlayer.prepare()
+                            exoPlayer.playWhenReady = true
+                        }) {
+                            Text("إعادة المحاولة يدوياً")
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(onClick = onBack, colors = ButtonDefaults.buttonColors(containerColor = Color.Gray)) {
                         Text("العودة للقائمة الرئيسية")
                     }
                 }
