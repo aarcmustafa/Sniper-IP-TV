@@ -72,6 +72,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+
 @Composable
 fun SttitenIptvApp() {
     val context = LocalContext.current
@@ -214,7 +215,7 @@ fun SttitenIptvApp() {
                 parentalPin = parentalPin,
                 onPinChange = { 
                     parentalPin = it
-                    prefs.edit().putBoolean("parentalPin", it).apply()
+                    prefs.edit().putString("parentalPin", it).apply()
                 },
                 onBack = { currentScreen = "dashboard" }
             )
@@ -227,6 +228,7 @@ fun SttitenIptvApp() {
         }
     }
 }
+
 @Composable
 fun SplashScreen(onTimeout: () -> Unit) {
     LaunchedEffect(Unit) {
@@ -252,7 +254,6 @@ fun SplashScreen(onTimeout: () -> Unit) {
         }
     }
 }
-
 @Composable
 fun LoginScreen(
     m3uUrl: String, onM3uChange: (String) -> Unit,
@@ -264,7 +265,7 @@ fun LoginScreen(
     Column(modifier = Modifier.fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         Text("STTITEN IP TV", style = MaterialTheme.typography.headlineLarge, color = Color(0xFF38BDF8))
         Spacer(modifier = Modifier.height(20.dp))
-        OutlinedTextField(value = m3uUrl, onValueChange = m3uChange, label = { Text("رابط ملف M3U / M3U8") }, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(value = m3uUrl, onValueChange = onM3uChange, label = { Text("رابط ملف M3U / M3U8") }, modifier = Modifier.fillMaxWidth())
         Spacer(modifier = Modifier.height(8.dp))
         Button(onClick = onLoadM3u, modifier = Modifier.fillMaxWidth()) { Text("تحميل عبر رابط M3U") }
         Spacer(modifier = Modifier.height(16.dp))
@@ -283,6 +284,7 @@ fun LoginScreen(
         }
     }
 }
+
 @Composable
 fun DashboardScreen(
     mediaItems: List<MediaItemData>,
@@ -308,7 +310,7 @@ fun DashboardScreen(
 
     Row(modifier = Modifier.fillMaxSize().background(Color(0xFF0F172A))) {
         Column(modifier = Modifier.width(300.dp).fillMaxHeight().background(Color(0xFF1E293B)).padding(16.dp)) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterAlignment) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text("STTITEN IP TV", color = Color(0xFF38BDF8), style = MaterialTheme.typography.titleMedium)
                 Text(currentTime, color = Color.White, style = MaterialTheme.typography.bodyMedium)
             }
@@ -351,7 +353,6 @@ fun DashboardScreen(
         }
     }
 }
-
 @Composable
 fun ChannelRowItem(item: MediaItemData, onMediaSelected: (MediaItemData) -> Unit) {
     var isFocused by remember { mutableStateOf(false) }
@@ -369,8 +370,8 @@ fun ChannelRowItem(item: MediaItemData, onMediaSelected: (MediaItemData) -> Unit
             .clickable { onMediaSelected(item) },
         shape = MaterialTheme.shapes.small
     ) {
-        Row(modifier = Modifier.padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterAlignment) {
-            Row(verticalAlignment = Alignment.CenterAlignment) {
+        Row(modifier = Modifier.padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 if (item.logo.isNotEmpty()) {
                     AsyncImage(model = item.logo, contentDescription = null, modifier = Modifier.size(32.dp))
                     Spacer(modifier = Modifier.width(8.dp))
@@ -413,7 +414,7 @@ fun VodGridItem(item: MediaItemData, onMediaSelected: (MediaItemData) -> Unit) {
 @Composable
 fun SeriesDetailsScreen(seriesName: String, episodes: List<MediaItemData>, onEpisodeSelected: (MediaItemData) -> Unit, onBack: () -> Unit) {
     Column(modifier = Modifier.fillMaxSize().background(Color(0xFF0F172A)).padding(24.dp)) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterAlignment) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text(seriesName, style = MaterialTheme.typography.headlineMedium, color = Color(0xFF38BDF8))
             Button(onClick = onBack) { Text("العودة") }
         }
@@ -588,17 +589,17 @@ fun SettingsScreen(
     Column(modifier = Modifier.fillMaxSize().background(Color(0xFF0F172A)).padding(32.dp)) {
         Text("إعدادات STTITEN IP TV", style = MaterialTheme.typography.headlineMedium, color = Color(0xFF38BDF8))
         Spacer(modifier = Modifier.height(24.dp))
-        Row(verticalAlignment = Alignment.CenterAlignment, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
             Text("صيغة الوقت (24 ساعة)", color = Color.White)
             Switch(checked = timeFormat24h, onCheckedChange = onTimeFormatChange)
         }
         Spacer(modifier = Modifier.height(16.dp))
-        Row(verticalAlignment = Alignment.CenterAlignment, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
             Text("تشغيل عبر مشغل خارجي", color = Color.White)
             Switch(checked = isExternalPlayer, onCheckedChange = onPlayerTypeChange)
         }
         Spacer(modifier = Modifier.height(16.dp))
-        Row(verticalAlignment = Alignment.CenterAlignment, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
             Text("فك التشفير: $videoDecoder", color = Color.White)
             Button(onClick = { onDecoderChange(if (videoDecoder == "Hardware") "Software" else "Hardware") }) { Text("تبديل") }
         }
@@ -608,7 +609,6 @@ fun SettingsScreen(
         Button(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text("حفظ والعودة") }
     }
 }
-
 fun parseM3UContent(content: String): List<MediaItemData> {
     val items = mutableListOf<MediaItemData>()
     val lines = content.lines()
