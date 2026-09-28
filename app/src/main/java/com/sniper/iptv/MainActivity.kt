@@ -28,6 +28,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
@@ -173,6 +175,7 @@ fun SttitenIptvApp() {
             "player" -> selectedMedia?.let { media ->
                 PlayerScreen(
                     videoUrl = media.url,
+                    videoDecoder = videoDecoder,
                     onBack = { currentScreen = "dashboard" }
                 )
             }
@@ -462,8 +465,15 @@ fun SeriesDetailsScreen(seriesName: String, episodes: List<MediaItemData>, onEpi
     }
 }
 @Composable
-fun PlayerScreen(videoUrl: String, onBack: () -> Unit) {
+fun PlayerScreen(
+    videoUrl: String, 
+    videoDecoder: String = "Hardware", 
+    onBack: () -> Unit
+) {
     val context = LocalContext.current
+    var isLoading by remember { mutableStateOf(true) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
     val exoPlayer = remember {
         ExoPlayer.Builder(context).build().apply {
             setMediaItem(MediaItem.fromUri(videoUrl))
@@ -471,11 +481,76 @@ fun PlayerScreen(videoUrl: String, onBack: () -> Unit) {
             playWhenReady = true
         }
     }
-    DisposableEffect(videoUrl) { onDispose { exoPlayer.release() } }
+
+    DisposableEffect(videoUrl) {
+        val listener = object : Player.Listener {
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                isLoading = playbackState == Player.STATE_BUFFERING || 
+                            playbackState == Player.STATE_IDLE
+            }
+
+            override fun onPlayerError(error: PlaybackException) {
+                errorMessage = "عذراً، فشل تشغيل البث: ${error.localizedDescription ?: "خطأ غير معروف"}"
+                isLoading = false
+            }
+        }
+        
+        exoPlayer.addListener(listener)
+        
+        onDispose {
+            exoPlayer.removeListener(listener)
+            exoPlayer.release()
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
-        AndroidView(factory = { ctx -> PlayerView(ctx).apply { player = exoPlayer; useController = true } }, modifier = Modifier.fillMaxSize())
-        Button(onClick = onBack, modifier = Modifier.padding(16.dp)) { Text("العودة") }
+        AndroidView(
+            factory = { ctx ->
+                PlayerView(ctx).apply {
+                    player = exoPlayer
+                    useController = true
+                }
+            },
+            modifier = Modifier.fillMaxSize()
+        )
+
+        Button(
+            onClick = onBack,
+            modifier = Modifier.padding(16.dp).align(Alignment.TopStart),
+            colors = ButtonDefaults.buttonColors(containerColor = Color.Black.copy(alpha = 0.6f))
+        ) {
+            Text("العودة", color = Color.White)
+        }
+
+        if (isLoading && errorMessage == null) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(color = Color(0xFF38BDF8))
+            }
+        }
+
+        errorMessage?.let { error ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.85f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = error, 
+                        color = Color.Red, 
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(onClick = onBack) {
+                        Text("العودة للقائمة الرئيسية")
+                    }
+                }
+            }
+        }
     }
 }
 
