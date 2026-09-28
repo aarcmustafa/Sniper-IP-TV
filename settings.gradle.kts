@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "STTITEN IP TV"
+rootProject.name = "Sttiten IP TV"
 include(":app")
