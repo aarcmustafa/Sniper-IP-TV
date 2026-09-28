@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.SttitenIptv" parent="@android:style/Theme.Material.NoTitleBar">
+    <style name="Theme.SttitenIptv" parent="Theme.AppCompat.NoActionBar">
         <!-- ألوان شريط الحالة والخلفية -->
         <item name="android:statusBarColor">#0F172A</item>
         <item name="android:navigationBarColor">#0F172A</item>
