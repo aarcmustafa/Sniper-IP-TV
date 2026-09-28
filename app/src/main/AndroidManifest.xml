@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- صلاحيات الاتصال بالإنترنت وفحص حالة الشبكة لتفعيل الكاش وإعادة المحاولة -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
+    <!-- ميزات دعم أجهزة التلفاز (Android TV Boxes) وتشغيل التطبيق بدون شاشة لمس -->
     <uses-feature
         android:name="android.software.leanback"
         android:required="false" />
@@ -14,24 +16,22 @@
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
-        android:label="STTITEN IP TV"
+        android:label="STTITEN IPTV"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.App.Starting">
+        android:theme="@style/Theme.SttitenIptv">
         
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:banner="@mipmap/ic_launcher"
-            android:icon="@mipmap/ic_launcher"
-            android:label="STTITEN IP TV">
+            android:theme="@style/Theme.SttitenIptv">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+                <!-- لضمان ظهور التطبيق تلقائياً في واجهة تطبيقات التلفاز الذكي -->
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
     </application>
 
 </manifest>
-        
