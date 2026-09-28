@@ -32,6 +32,12 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
+import androidx.media3.datasource.cache.CacheDataSource
+import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
+import androidx.media3.datasource.cache.SimpleCache
+import androidx.media3.database.StandaloneDatabaseProvider
+import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import coil.compose.AsyncImage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -39,6 +45,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
 import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.*
@@ -296,7 +303,7 @@ fun LoginScreen(
     onLoadM3u: () -> Unit, onLoadXtream: () -> Unit, errorMessage: String
 ) {
     Column(modifier = Modifier.fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        Text("STTITEN IPTV", style = MaterialTheme.typography.headlineLarge, color = Color(0xFF38BDF8))
+        Text("STTITEN IP TV", style = MaterialTheme.typography.headlineLarge, color = Color(0xFF38BDF8))
         Spacer(modifier = Modifier.height(20.dp))
         OutlinedTextField(value = m3uUrl, onValueChange = onM3uChange, label = { Text("رابط ملف M3U / M3U8") }, modifier = Modifier.fillMaxWidth())
         Spacer(modifier = Modifier.height(8.dp))
@@ -344,7 +351,7 @@ fun DashboardScreen(
     Row(modifier = Modifier.fillMaxSize().background(Color(0xFF0F172A))) {
         Column(modifier = Modifier.width(300.dp).fillMaxHeight().background(Color(0xFF1E293B)).padding(16.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterAlignment) {
-                Text("STTITEN IPTV", color = Color(0xFF38BDF8), style = MaterialTheme.typography.titleMedium)
+                Text("STTITEN IP TV", color = Color(0xFF38BDF8), style = MaterialTheme.typography.titleMedium)
                 Text(currentTime, color = Color.White, style = MaterialTheme.typography.bodyMedium)
             }
             Spacer(modifier = Modifier.height(12.dp))
@@ -386,6 +393,7 @@ fun DashboardScreen(
         }
     }
 }
+
 @Composable
 fun ChannelRowItem(item: MediaItemData, onMediaSelected: (MediaItemData) -> Unit) {
     var isFocused by remember { mutableStateOf(false) }
@@ -443,7 +451,6 @@ fun VodGridItem(item: MediaItemData, onMediaSelected: (MediaItemData) -> Unit) {
         }
     }
 }
-
 @Composable
 fun SeriesDetailsScreen(seriesName: String, episodes: List<MediaItemData>, onEpisodeSelected: (MediaItemData) -> Unit, onBack: () -> Unit) {
     Column(modifier = Modifier.fillMaxSize().background(Color(0xFF0F172A)).padding(24.dp)) {
@@ -465,13 +472,6 @@ fun SeriesDetailsScreen(seriesName: String, episodes: List<MediaItemData>, onEpi
         }
     }
 }
-import androidx.media3.datasource.cache.CacheDataSource
-import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
-import androidx.media3.datasource.cache.SimpleCache
-import androidx.media3.database.StandaloneDatabaseProvider
-import androidx.media3.datasource.DefaultHttpDataSource
-import androidx.media3.exoplayer.source.ProgressiveMediaSource
-import java.io.File
 
 private var downloadCache: SimpleCache? = null
 
@@ -619,7 +619,6 @@ fun PlayerScreen(
         }
     }
 }
-
 @Composable
 fun SettingsScreen(
     timeFormat24h: Boolean, onTimeFormatChange: (Boolean) -> Unit,
@@ -629,7 +628,7 @@ fun SettingsScreen(
     onBack: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize().background(Color(0xFF0F172A)).padding(32.dp)) {
-        Text("إعدادات STTITEN IPTV", style = MaterialTheme.typography.headlineMedium, color = Color(0xFF38BDF8))
+        Text("إعدادات STTITEN IP TV", style = MaterialTheme.typography.headlineMedium, color = Color(0xFF38BDF8))
         Spacer(modifier = Modifier.height(24.dp))
         Row(verticalAlignment = Alignment.CenterAlignment, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
             Text("صيغة الوقت (24 ساعة)", color = Color.White)
