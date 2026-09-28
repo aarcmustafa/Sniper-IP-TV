@@ -403,6 +403,7 @@ fun LoginScreen(
         }
     }
 }
+
 @Composable
 fun DashboardScreen(
     loginType: String,
@@ -526,7 +527,6 @@ fun DashboardScreen(
         }
     }
 }
-
 @Composable
 fun ChannelRowItem(item: MediaItemData, onMediaSelected: (MediaItemData) -> Unit) {
     var isFocused by remember { mutableStateOf(false) }
@@ -635,8 +635,8 @@ fun PlayerScreen(
     val exoPlayer = remember {
         val cache = getSttitenCache(context)
         
-        // دعم حركة مرور HTTP وتتبع التوجيه تلقائياً
         val upstreamFactory = DefaultHttpDataSource.Factory()
+            .setUserAgent("IPTVSmartersPro/1.0.0")
             .setAllowCrossProtocolRedirects(true)
             .setConnectTimeoutMs(15000)
             .setReadTimeoutMs(15000)
@@ -758,6 +758,7 @@ fun PlayerScreen(
         }
     }
 }
+
 @Composable
 fun SettingsScreen(
     timeFormat24h: Boolean, onTimeFormatChange: (Boolean) -> Unit,
@@ -815,8 +816,6 @@ fun SettingsScreen(
         Button(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text("حفظ والعودة") }
     }
 }
-
-// دالة تنظيف وتنسيق رابط السيرفر
 fun formatServerUrl(server: String): String {
     var clean = server.trim()
     if (!clean.startsWith("http://") && !clean.startsWith("https://")) {
@@ -828,7 +827,51 @@ fun formatServerUrl(server: String): String {
     return clean
 }
 
-// دالة التحقق المفصلة من بيانات Xtream
+suspend fun fetchUrlContent(urlString: String): String = withContext(Dispatchers.IO) {
+    var url = URL(urlString)
+    var connection = url.openConnection() as HttpURLConnection
+    try {
+        connection.apply {
+            connectTimeout = 15000
+            readTimeout = 15000
+            requestMethod = "GET"
+            setRequestProperty("User-Agent", "IPTVSmartersPro/1.0.0")
+            setRequestProperty("Accept", "*/*")
+            instanceFollowRedirects = true
+        }
+
+        var responseCode = connection.responseCode
+
+        if (responseCode == HttpURLConnection.HTTP_MOVED_PERM || 
+            responseCode == HttpURLConnection.HTTP_MOVED_TEMP || 
+            responseCode == 307 || responseCode == 308) {
+            
+            val newUrl = connection.getHeaderField("Location")
+            connection.disconnect()
+            
+            url = URL(newUrl)
+            connection = (url.openConnection() as HttpURLConnection).apply {
+                connectTimeout = 15000
+                readTimeout = 15000
+                requestMethod = "GET"
+                setRequestProperty("User-Agent", "IPTVSmartersPro/1.0.0")
+            }
+            responseCode = connection.responseCode
+        }
+
+        if (responseCode == HttpURLConnection.HTTP_OK) {
+            connection.inputStream.bufferedReader().use { it.readText() }
+        } else {
+            ""
+        }
+    } catch (e: Exception) {
+        e.printStackTrace()
+        ""
+    } finally {
+        connection.disconnect()
+    }
+}
+
 suspend fun validateXtreamCredentials(server: String, user: String, pass: String): Pair<Boolean, String> = withContext(Dispatchers.IO) {
     if (server.isBlank() || user.isBlank() || pass.isBlank()) {
         return@withContext Pair(false, "يرجى إدخال جميع البيانات المطلوبة")
@@ -838,31 +881,28 @@ suspend fun validateXtreamCredentials(server: String, user: String, pass: String
     val urlString = "$cleanServer/player_api.php?username=${user.trim()}&password=${pass.trim()}"
 
     try {
-        val url = URL(urlString)
-        val connection = (url.openConnection() as HttpURLConnection).apply {
-            connectTimeout = 12000
-            readTimeout = 12000
-            requestMethod = "GET"
+        val responseText = fetchUrlContent(urlString)
+        
+        if (responseText.isEmpty()) {
+            return@withContext Pair(false, "السيرفر لم يرجع بيانات، تحقق من العنوان والإنترنت")
         }
 
-        val responseCode = connection.responseCode
-        if (responseCode == 200) {
-            val responseText = connection.inputStream.bufferedReader().use { it.readText() }
-            val json = JSONObject(responseText)
-            val userInfo = json.optJSONObject("user_info")
+        val json = JSONObject(responseText)
+        val userInfo = json.optJSONObject("user_info")
 
-            if (userInfo != null) {
-                val auth = userInfo.optInt("auth", 0)
-                if (auth == 1) {
-                    return@withContext Pair(true, "")
-                } else {
-                    return@withContext Pair(false, "اسم المستخدم أو كلمة المرور غير صحيحة")
-                }
+        if (userInfo != null) {
+            val auth = userInfo.optInt("auth", 0)
+            val status = userInfo.optString("status", "")
+            
+            if (auth == 1 && status != "Disabled" && status != "Expired") {
+                return@withContext Pair(true, "")
+            } else if (status == "Expired") {
+                return@withContext Pair(false, "اشتراك Xtream منتهي الصلاحية")
+            } else {
+                return@withContext Pair(false, "اسم المستخدم أو كلمة المرور غير صحيحة")
             }
-            return@withContext Pair(false, "السيرفر لم يرجع بيانات معتمدة")
-        } else {
-            return@withContext Pair(false, "رمز الاستجابة من السيرفر: $responseCode")
         }
+        return@withContext Pair(false, "استجابة غير معتمدة من السيرفر")
     } catch (e: MalformedURLException) {
         return@withContext Pair(false, "صيغة رابط السيرفر غير صحيحة")
     } catch (e: UnknownHostException) {
@@ -893,10 +933,6 @@ fun parseM3UContent(content: String): List<MediaItemData> {
     return items
 }
 
-suspend fun fetchUrlContent(urlString: String): String = withContext(Dispatchers.IO) {
-    try { URL(urlString).readText() } catch (e: Exception) { "" }
-}
-
 suspend fun fetchXtreamCategories(
     server: String,
     user: String,
@@ -913,15 +949,16 @@ suspend fun fetchXtreamCategories(
 
     try {
         val url = "$cleanServer/player_api.php?username=${user.trim()}&password=${pass.trim()}&action=$action"
-        val responseText = URL(url).readText()
-        val jsonArray = JSONArray(responseText)
-
-        for (i in 0 until jsonArray.length()) {
-            val obj = jsonArray.getJSONObject(i)
-            val catId = obj.optString("category_id", "")
-            val catName = obj.optString("category_name", "بدون عنوان")
-            if (catId.isNotEmpty()) {
-                categoriesList.add(CategoryData(id = catId, name = catName, type = type))
+        val responseText = fetchUrlContent(url)
+        if (responseText.isNotEmpty()) {
+            val jsonArray = JSONArray(responseText)
+            for (i in 0 until jsonArray.length()) {
+                val obj = jsonArray.getJSONObject(i)
+                val catId = obj.optString("category_id", "")
+                val catName = obj.optString("category_name", "بدون عنوان")
+                if (catId.isNotEmpty()) {
+                    categoriesList.add(CategoryData(id = catId, name = catName, type = type))
+                }
             }
         }
     } catch (e: Exception) {
@@ -947,59 +984,61 @@ suspend fun fetchXtreamItemsByCategory(
     val url = "$cleanServer/player_api.php?username=${user.trim()}&password=${pass.trim()}&action=$action&category_id=${category.id}"
 
     try {
-        val responseText = URL(url).readText()
-        val jsonArray = JSONArray(responseText)
-
-        for (i in 0 until jsonArray.length()) {
-            val obj = jsonArray.getJSONObject(i)
+        val responseText = fetchUrlContent(url)
+        if (responseText.isNotEmpty()) {
+            val jsonArray = JSONArray(responseText)
             val cleanUser = user.trim()
             val cleanPass = pass.trim()
-            when (category.type) {
-                ContentType.LIVE -> {
-                    val id = obj.optString("stream_id", "")
-                    items.add(
-                        MediaItemData(
-                            id = id,
-                            name = obj.optString("name", "قناة بدون اسم"),
-                            url = "$cleanServer/live/$cleanUser/$cleanPass/$id.ts",
-                            type = ContentType.LIVE,
-                            group = category.name,
-                            logo = obj.optString("stream_icon", "")
-                        )
-                    )
-                }
 
-                ContentType.VOD -> {
-                    val id = obj.optString("stream_id", "")
-                    val ext = obj.optString("container_extension", "mp4")
-                    items.add(
-                        MediaItemData(
-                            id = id,
-                            name = obj.optString("name", "فيلم بدون اسم"),
-                            url = "$cleanServer/movie/$cleanUser/$cleanPass/$id.$ext",
-                            type = ContentType.VOD,
-                            group = category.name,
-                            logo = obj.optString("stream_icon", ""),
-                            plot = obj.optString("plot", ""),
-                            rating = obj.optString("rating", "")
+            for (i in 0 until jsonArray.length()) {
+                val obj = jsonArray.getJSONObject(i)
+                when (category.type) {
+                    ContentType.LIVE -> {
+                        val id = obj.optString("stream_id", "")
+                        items.add(
+                            MediaItemData(
+                                id = id,
+                                name = obj.optString("name", "قناة بدون اسم"),
+                                url = "$cleanServer/live/$cleanUser/$cleanPass/$id.ts",
+                                type = ContentType.LIVE,
+                                group = category.name,
+                                logo = obj.optString("stream_icon", "")
+                            )
                         )
-                    )
-                }
+                    }
 
-                ContentType.SERIES -> {
-                    val id = obj.optString("series_id", "")
-                    items.add(
-                        MediaItemData(
-                            id = id,
-                            name = obj.optString("name", "مسلسل بدون اسم"),
-                            url = "",
-                            type = ContentType.SERIES,
-                            group = category.name,
-                            logo = obj.optString("cover", ""),
-                            plot = obj.optString("plot", ""),
-                            rating = obj.optString("rating", "")
+                    ContentType.VOD -> {
+                        val id = obj.optString("stream_id", "")
+                        val ext = obj.optString("container_extension", "mp4")
+                        items.add(
+                            MediaItemData(
+                                id = id,
+                                name = obj.optString("name", "فيلم بدون اسم"),
+                                url = "$cleanServer/movie/$cleanUser/$cleanPass/$id.$ext",
+                                type = ContentType.VOD,
+                                group = category.name,
+                                logo = obj.optString("stream_icon", ""),
+                                plot = obj.optString("plot", ""),
+                                rating = obj.optString("rating", "")
+                            )
                         )
-                    )
+                    }
+
+                    ContentType.SERIES -> {
+                        val id = obj.optString("series_id", "")
+                        items.add(
+                            MediaItemData(
+                                id = id,
+                                name = obj.optString("name", "مسلسل بدون اسم"),
+                                url = "",
+                                type = ContentType.SERIES,
+                                group = category.name,
+                                logo = obj.optString("cover", ""),
+                                plot = obj.optString("plot", ""),
+                                rating = obj.optString("rating", "")
+                            )
+                        )
+                    }
                 }
             }
         }
@@ -1016,19 +1055,22 @@ suspend fun fetchSeriesEpisodes(server: String, user: String, pass: String, seri
         val cleanUser = user.trim()
         val cleanPass = pass.trim()
         val url = "$cleanServer/player_api.php?username=$cleanUser&password=$cleanPass&action=get_series_info&series_id=$seriesId"
-        val json = JSONObject(URL(url).readText())
-        val episodesObj = json.optJSONObject("episodes")
-        episodesObj?.keys()?.forEach { seasonKey ->
-            val seasonArray = episodesObj.optJSONArray(seasonKey)
-            if (seasonArray != null) {
-                for (i in 0 until seasonArray.length()) {
-                    val ep = seasonArray.getJSONObject(i)
-                    val epId = ep.optString("id", "")
-                    val epNum = ep.optString("episode_num", "1")
-                    val title = ep.optString("title", "الحلقة $epNum")
-                    val ext = ep.optString("container_extension", "mp4")
-                    val epUrl = "$cleanServer/series/$cleanUser/$cleanPass/$epId.$ext"
-                    episodesList.add(MediaItemData(epId, "الموسم $seasonKey - $title", epUrl, ContentType.VOD, "الموسم $seasonKey", ""))
+        val responseText = fetchUrlContent(url)
+        if (responseText.isNotEmpty()) {
+            val json = JSONObject(responseText)
+            val episodesObj = json.optJSONObject("episodes")
+            episodesObj?.keys()?.forEach { seasonKey ->
+                val seasonArray = episodesObj.optJSONArray(seasonKey)
+                if (seasonArray != null) {
+                    for (i in 0 until seasonArray.length()) {
+                        val ep = seasonArray.getJSONObject(i)
+                        val epId = ep.optString("id", "")
+                        val epNum = ep.optString("episode_num", "1")
+                        val title = ep.optString("title", "الحلقة $epNum")
+                        val ext = ep.optString("container_extension", "mp4")
+                        val epUrl = "$cleanServer/series/$cleanUser/$cleanPass/$epId.$ext"
+                        episodesList.add(MediaItemData(epId, "الموسم $seasonKey - $title", epUrl, ContentType.VOD, "الموسم $seasonKey", ""))
+                    }
                 }
             }
         }
