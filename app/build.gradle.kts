@@ -51,7 +51,7 @@ android {
 
 dependencies {
     implementation("androidx.core:core-ktx:1.12.0")
-    // مكتبة شاشة الترحيب لحل خطأ الربط (Linking Error)
+    implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("androidx.core:core-splashscreen:1.0.1")
     
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
