@@ -77,7 +77,8 @@ fun SttitenIptvApp() {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("SttitenPrefs", Context.MODE_PRIVATE) }
     val scope = rememberCoroutineScope()
-    var currentScreen by remember { mutableStateOf("login") }
+    
+    var currentScreen by remember { mutableStateOf("splash") }
     
     val mediaList = remember { mutableStateListOf<MediaItemData>() }
     var selectedMedia by remember { mutableStateOf<MediaItemData?>(null) }
@@ -97,6 +98,12 @@ fun SttitenIptvApp() {
 
     Box(modifier = Modifier.fillMaxSize().background(Color(0xFF0F172A))) {
         when (currentScreen) {
+            "splash" -> SplashScreen(
+                onTimeout = {
+                    currentScreen = if (serverUrl.isNotEmpty() || m3uUrlInput.isNotEmpty()) "dashboard" else "login"
+                }
+            )
+
             "login" -> LoginScreen(
                 m3uUrl = m3uUrlInput, onM3uChange = { m3uUrlInput = it },
                 serverUrl = serverUrl, onServerChange = { serverUrl = it },
@@ -207,7 +214,7 @@ fun SttitenIptvApp() {
                 parentalPin = parentalPin,
                 onPinChange = { 
                     parentalPin = it
-                    prefs.edit().putString("parentalPin", it).apply()
+                    prefs.edit().putBoolean("parentalPin", it).apply()
                 },
                 onBack = { currentScreen = "dashboard" }
             )
@@ -220,80 +227,32 @@ fun SttitenIptvApp() {
         }
     }
 }
-fun parseM3UContent(content: String): List<MediaItemData> {
-    val items = mutableListOf<MediaItemData>()
-    val lines = content.lines()
-    var currentTitle = ""
-    var currentGroup = "عام"
-    var currentLogo = ""
-    for (line in lines) {
-        val trimmed = line.trim()
-        if (trimmed.startsWith("#EXTINF:")) {
-            Regex("group-title=\"([^\"]*)\"").find(trimmed)?.let { currentGroup = it.groupValues[1] }
-            Regex("tvg-logo=\"([^\"]*)\"").find(trimmed)?.let { currentLogo = it.groupValues[1] }
-            val commaIndex = trimmed.lastIndexOf(',')
-            if (commaIndex != -1) currentTitle = trimmed.substring(commaIndex + 1).trim()
-        } else if (trimmed.isNotEmpty() && !trimmed.startsWith("#")) {
-            items.add(MediaItemData(UUID.randomUUID().toString(), currentTitle.ifEmpty { "قناة" }, trimmed, ContentType.LIVE, currentGroup, currentLogo))
-            currentTitle = ""; currentLogo = ""
+@Composable
+fun SplashScreen(onTimeout: () -> Unit) {
+    LaunchedEffect(Unit) {
+        delay(2000)
+        onTimeout()
+    }
+
+    Box(
+        modifier = Modifier.fillMaxSize().background(Color(0xFF0F172A)),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = "STTITEN IP TV",
+                style = MaterialTheme.typography.headlineLarge,
+                color = Color(0xFF38BDF8)
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            CircularProgressIndicator(color = Color(0xFF38BDF8))
         }
     }
-    return items
 }
 
-suspend fun fetchUrlContent(urlString: String): String = withContext(Dispatchers.IO) {
-    try { URL(urlString).readText() } catch (e: Exception) { "" }
-}
-
-suspend fun fetchAllXtreamData(server: String, user: String, pass: String): List<MediaItemData> = withContext(Dispatchers.IO) {
-    val allItems = mutableListOf<MediaItemData>()
-    try {
-        val liveJson = JSONArray(URL("$server/player_api.php?username=$user&password=$pass&action=get_live_streams").readText())
-        for (i in 0 until liveJson.length()) {
-            val obj = liveJson.getJSONObject(i)
-            val id = obj.optString("stream_id", "")
-            allItems.add(MediaItemData(id, obj.optString("name", ""), "$server/live/$user/$pass/$id.ts", ContentType.LIVE, obj.optString("category_name", "بث حي"), obj.optString("stream_icon", "")))
-        }
-        val vodJson = JSONArray(URL("$server/player_api.php?username=$user&password=$pass&action=get_vod_streams").readText())
-        for (i in 0 until vodJson.length()) {
-            val obj = vodJson.getJSONObject(i)
-            val id = obj.optString("stream_id", "")
-            val ext = obj.optString("container_extension", "mp4")
-            allItems.add(MediaItemData(id, obj.optString("name", ""), "$server/movie/$user/$pass/$id.$ext", ContentType.VOD, obj.optString("category_name", "أفلام"), obj.optString("stream_icon", ""), obj.optString("plot", ""), obj.optString("rating", "")))
-        }
-        val seriesJson = JSONArray(URL("$server/player_api.php?username=$user&password=$pass&action=get_series").readText())
-        for (i in 0 until seriesJson.length()) {
-            val obj = seriesJson.getJSONObject(i)
-            val id = obj.optString("series_id", "")
-            allItems.add(MediaItemData(id, obj.optString("name", ""), "", ContentType.SERIES, obj.optString("category_name", "مسلسلات"), obj.optString("cover", ""), obj.optString("plot", ""), obj.optString("rating", "")))
-        }
-    } catch (e: Exception) { e.printStackTrace() }
-    allItems
-}
-
-suspend fun fetchSeriesEpisodes(server: String, user: String, pass: String, seriesId: String): List<MediaItemData> = withContext(Dispatchers.IO) {
-    val episodesList = mutableListOf<MediaItemData>()
-    try {
-        val url = "$server/player_api.php?username=$user&password=$pass&action=get_series_info&series_id=$seriesId"
-        val json = JSONObject(URL(url).readText())
-        val episodesObj = json.optJSONObject("episodes")
-        episodesObj?.keys()?.forEach { seasonKey ->
-            val seasonArray = episodesObj.optJSONArray(seasonKey)
-            if (seasonArray != null) {
-                for (i in 0 until seasonArray.length()) {
-                    val ep = seasonArray.getJSONObject(i)
-                    val epId = ep.optString("id", "")
-                    val epNum = ep.optString("episode_num", "1")
-                    val title = ep.optString("title", "الحلقة $epNum")
-                    val ext = ep.optString("container_extension", "mp4")
-                    val epUrl = "$server/series/$user/$pass/$epId.$ext"
-                    episodesList.add(MediaItemData(epId, "الموسم $seasonKey - $title", epUrl, ContentType.VOD, "الموسم $seasonKey", ""))
-                }
-            }
-        }
-    } catch (e: Exception) { e.printStackTrace() }
-    episodesList
-}
 @Composable
 fun LoginScreen(
     m3uUrl: String, onM3uChange: (String) -> Unit,
@@ -305,7 +264,7 @@ fun LoginScreen(
     Column(modifier = Modifier.fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         Text("STTITEN IP TV", style = MaterialTheme.typography.headlineLarge, color = Color(0xFF38BDF8))
         Spacer(modifier = Modifier.height(20.dp))
-        OutlinedTextField(value = m3uUrl, onValueChange = onM3uChange, label = { Text("رابط ملف M3U / M3U8") }, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(value = m3uUrl, onValueChange = m3uChange, label = { Text("رابط ملف M3U / M3U8") }, modifier = Modifier.fillMaxWidth())
         Spacer(modifier = Modifier.height(8.dp))
         Button(onClick = onLoadM3u, modifier = Modifier.fillMaxWidth()) { Text("تحميل عبر رابط M3U") }
         Spacer(modifier = Modifier.height(16.dp))
@@ -324,7 +283,6 @@ fun LoginScreen(
         }
     }
 }
-
 @Composable
 fun DashboardScreen(
     mediaItems: List<MediaItemData>,
@@ -451,6 +409,7 @@ fun VodGridItem(item: MediaItemData, onMediaSelected: (MediaItemData) -> Unit) {
         }
     }
 }
+
 @Composable
 fun SeriesDetailsScreen(seriesName: String, episodes: List<MediaItemData>, onEpisodeSelected: (MediaItemData) -> Unit, onBack: () -> Unit) {
     Column(modifier = Modifier.fillMaxSize().background(Color(0xFF0F172A)).padding(24.dp)) {
@@ -472,7 +431,6 @@ fun SeriesDetailsScreen(seriesName: String, episodes: List<MediaItemData>, onEpi
         }
     }
 }
-
 private var downloadCache: SimpleCache? = null
 
 fun getSttitenCache(context: Context): SimpleCache {
@@ -649,4 +607,79 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.weight(1f))
         Button(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text("حفظ والعودة") }
     }
+}
+
+fun parseM3UContent(content: String): List<MediaItemData> {
+    val items = mutableListOf<MediaItemData>()
+    val lines = content.lines()
+    var currentTitle = ""
+    var currentGroup = "عام"
+    var currentLogo = ""
+    for (line in lines) {
+        val trimmed = line.trim()
+        if (trimmed.startsWith("#EXTINF:")) {
+            Regex("group-title=\"([^\"]*)\"").find(trimmed)?.let { currentGroup = it.groupValues[1] }
+            Regex("tvg-logo=\"([^\"]*)\"").find(trimmed)?.let { currentLogo = it.groupValues[1] }
+            val commaIndex = trimmed.lastIndexOf(',')
+            if (commaIndex != -1) currentTitle = trimmed.substring(commaIndex + 1).trim()
+        } else if (trimmed.isNotEmpty() && !trimmed.startsWith("#")) {
+            items.add(MediaItemData(UUID.randomUUID().toString(), currentTitle.ifEmpty { "قناة" }, trimmed, ContentType.LIVE, currentGroup, currentLogo))
+            currentTitle = ""; currentLogo = ""
+        }
+    }
+    return items
+}
+
+suspend fun fetchUrlContent(urlString: String): String = withContext(Dispatchers.IO) {
+    try { URL(urlString).readText() } catch (e: Exception) { "" }
+}
+
+suspend fun fetchAllXtreamData(server: String, user: String, pass: String): List<MediaItemData> = withContext(Dispatchers.IO) {
+    val allItems = mutableListOf<MediaItemData>()
+    try {
+        val liveJson = JSONArray(URL("$server/player_api.php?username=$user&password=$pass&action=get_live_streams").readText())
+        for (i in 0 until liveJson.length()) {
+            val obj = liveJson.getJSONObject(i)
+            val id = obj.optString("stream_id", "")
+            allItems.add(MediaItemData(id, obj.optString("name", ""), "$server/live/$user/$pass/$id.ts", ContentType.LIVE, obj.optString("category_name", "بث حي"), obj.optString("stream_icon", "")))
+        }
+        val vodJson = JSONArray(URL("$server/player_api.php?username=$user&password=$pass&action=get_vod_streams").readText())
+        for (i in 0 until vodJson.length()) {
+            val obj = vodJson.getJSONObject(i)
+            val id = obj.optString("stream_id", "")
+            val ext = obj.optString("container_extension", "mp4")
+            allItems.add(MediaItemData(id, obj.optString("name", ""), "$server/movie/$user/$pass/$id.$ext", ContentType.VOD, obj.optString("category_name", "أفلام"), obj.optString("stream_icon", ""), obj.optString("plot", ""), obj.optString("rating", "")))
+        }
+        val seriesJson = JSONArray(URL("$server/player_api.php?username=$user&password=$pass&action=get_series").readText())
+        for (i in 0 until seriesJson.length()) {
+            val obj = seriesJson.getJSONObject(i)
+            val id = obj.optString("series_id", "")
+            allItems.add(MediaItemData(id, obj.optString("name", ""), "", ContentType.SERIES, obj.optString("category_name", "مسلسلات"), obj.optString("cover", ""), obj.optString("plot", ""), obj.optString("rating", "")))
+        }
+    } catch (e: Exception) { e.printStackTrace() }
+    allItems
+}
+
+suspend fun fetchSeriesEpisodes(server: String, user: String, pass: String, seriesId: String): List<MediaItemData> = withContext(Dispatchers.IO) {
+    val episodesList = mutableListOf<MediaItemData>()
+    try {
+        val url = "$server/player_api.php?username=$user&password=$pass&action=get_series_info&series_id=$seriesId"
+        val json = JSONObject(URL(url).readText())
+        val episodesObj = json.optJSONObject("episodes")
+        episodesObj?.keys()?.forEach { seasonKey ->
+            val seasonArray = episodesObj.optJSONArray(seasonKey)
+            if (seasonArray != null) {
+                for (i in 0 until seasonArray.length()) {
+                    val ep = seasonArray.getJSONObject(i)
+                    val epId = ep.optString("id", "")
+                    val epNum = ep.optString("episode_num", "1")
+                    val title = ep.optString("title", "الحلقة $epNum")
+                    val ext = ep.optString("container_extension", "mp4")
+                    val epUrl = "$server/series/$user/$pass/$epId.$ext"
+                    episodesList.add(MediaItemData(epId, "الموسم $seasonKey - $title", epUrl, ContentType.VOD, "الموسم $seasonKey", ""))
+                }
+            }
+        }
+    } catch (e: Exception) { e.printStackTrace() }
+    episodesList
 }
