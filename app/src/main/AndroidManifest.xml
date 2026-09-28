@@ -2,16 +2,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- أذونات الإنترنت والشبكة الضرورية للاتصال بالسيرفرات -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
-    <!-- إلزام النظام بأن التطبيق مخصص لشاشات Android TV & Google TV -->
     <uses-feature
         android:name="android.software.leanback"
         android:required="true" />
         
-    <!-- عدم اشتراط وجود شاشة لمس (لأن التلفاز يعمل بجهاز التحكم / الريموت) -->
     <uses-feature
         android:name="android.hardware.touchscreen"
         android:required="false" />
@@ -34,7 +31,6 @@
             android:configChanges="orientation|screenSize|keyboardHidden|screenLayout"
             android:launchMode="singleTop">
 
-            <!-- مُشغّل الواجهة الرئيسي الخاص بشاشات Android TV & Google TV فقط -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
@@ -45,4 +41,3 @@
     </application>
 
 </manifest>
-    
