@@ -1,0 +1,4 @@
+-keep class com.stitten.stitteniptv.** { *; }
+-keep class androidx.media3.** { *; }
+-dontwarn okhttp3.**
+-dontwarn okio.**
