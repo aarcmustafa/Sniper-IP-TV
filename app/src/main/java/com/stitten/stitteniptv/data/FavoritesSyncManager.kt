@@ -11,7 +11,6 @@ class FavoritesSyncManager @Inject constructor(context: Context) {
     private val prefs: SharedPreferences =
         context.getSharedPreferences("stitten_fav_sync", Context.MODE_PRIVATE)
 
-    // ============== القنوات ==============
     fun markChannel(name: String) {
         if (name.isBlank()) return
         prefs.edit().putBoolean("ch:${normalize(name)}", true).apply()
@@ -29,7 +28,6 @@ class FavoritesSyncManager @Inject constructor(context: Context) {
         prefs.all.filter { it.key.startsWith("ch:") && it.value == true }
             .keys.map { it.removePrefix("ch:") }.toSet()
 
-    // ============== الأفلام ==============
     fun markMovie(name: String) {
         if (name.isBlank()) return
         prefs.edit().putBoolean("mv:${normalize(name)}", true).apply()
@@ -47,7 +45,6 @@ class FavoritesSyncManager @Inject constructor(context: Context) {
         prefs.all.filter { it.key.startsWith("mv:") && it.value == true }
             .keys.map { it.removePrefix("mv:") }.toSet()
 
-    // ============== المسلسلات ==============
     fun markSeries(name: String) {
         if (name.isBlank()) return
         prefs.edit().putBoolean("sr:${normalize(name)}", true).apply()
@@ -64,13 +61,12 @@ class FavoritesSyncManager @Inject constructor(context: Context) {
     fun getAllMarkedSeriesNames(): Set<String> =
         prefs.all.filter { it.key.startsWith("sr:") && it.value == true }
             .keys.map { it.removePrefix("sr:") }.toSet()
-
-    // ============== المزامنة التلقائية ==============
+            
     fun syncChannels(channels: List<Channel>, favorites: FavoritesManager): Int {
         var count = 0
         channels.forEach { ch ->
             if (isChannelMarked(ch.name) && !favorites.isChannelFavorite(ch.id)) {
-                favorites.toggleChannel(ch.id)
+                favorites.toggleChannel(ch.id, ch.name)
                 count++
             }
         }
@@ -81,7 +77,7 @@ class FavoritesSyncManager @Inject constructor(context: Context) {
         var count = 0
         movies.forEach { mv ->
             if (isMovieMarked(mv.name) && !favorites.isMovieFavorite(mv.id)) {
-                favorites.toggleMovie(mv.id)
+                favorites.toggleMovie(mv.id, mv.name)
                 count++
             }
         }
@@ -92,7 +88,7 @@ class FavoritesSyncManager @Inject constructor(context: Context) {
         var count = 0
         series.forEach { sr ->
             if (isSeriesMarked(sr.name) && !favorites.isSeriesFavorite(sr.id)) {
-                favorites.toggleSeries(sr.id)
+                favorites.toggleSeries(sr.id, sr.name)
                 count++
             }
         }
@@ -110,7 +106,6 @@ class FavoritesSyncManager @Inject constructor(context: Context) {
             syncSeries(series, favorites)
     }
 
-    // ============== تصدير / استيراد ==============
     fun exportAsText(): String {
         val sb = StringBuilder()
         sb.appendLine("# STTITEN FAVORITES EXPORT")
@@ -147,3 +142,4 @@ class FavoritesSyncManager @Inject constructor(context: Context) {
     private fun normalize(name: String): String =
         name.trim().lowercase().replace("\\s+".toRegex(), " ")
 }
+            
