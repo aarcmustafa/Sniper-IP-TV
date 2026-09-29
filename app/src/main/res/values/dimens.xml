@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="tv_padding">32dp</dimen>
+    <dimen name="tv_card_corner">12dp</dimen>
+    <dimen name="tv_sidebar_width">280dp</dimen>
+    <dimen name="tv_card_scale_focused">1.08</dimen>
+</resources>
