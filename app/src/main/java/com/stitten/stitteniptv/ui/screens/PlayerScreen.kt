@@ -37,6 +37,8 @@ import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.ui.PlayerView
 import androidx.navigation.NavHostController
 import com.stitten.stitteniptv.data.ErrorLogger
+import com.stitten.stitteniptv.data.ExternalPlayerManager
+import com.stitten.stitteniptv.data.HttpClientProvider
 import com.stitten.stitteniptv.data.PlayerSettingsManager
 import com.stitten.stitteniptv.data.PrefsManager
 import com.stitten.stitteniptv.data.WatchHistoryManager
@@ -58,6 +60,7 @@ fun PlayerScreen(
     var retryCount by remember { mutableStateOf(0) }
     var tracks by remember { mutableStateOf<Tracks?>(null) }
     var showTrackMenu by remember { mutableStateOf(false) }
+    var showExternalMenu by remember { mutableStateOf(false) }
 
     val entryPoint = remember {
         EntryPointAccessors.fromApplication(
@@ -69,68 +72,91 @@ fun PlayerScreen(
     val errorLogger: ErrorLogger = entryPoint.errorLogger()
     val settingsMgr: PlayerSettingsManager = entryPoint.playerSettingsManager()
     val scope = rememberCoroutineScope()
+    
+val exoPlayer = remember {
+    val cache = CacheManager.get(ctx)
+    val httpFactory = DefaultHttpDataSource.Factory()
+        .setUserAgent(HttpClientProvider.getUserAgent())
+        .setAllowCrossProtocolRedirects(true)
+        .setConnectTimeoutMs(30_000)
+        .setReadTimeoutMs(60_000)
 
-    val exoPlayer = remember {
-        val cache = CacheManager.get(ctx)
-        val cacheFactory = CacheDataSource.Factory()
-            .setCache(cache)
-            .setUpstreamDataSourceFactory(DefaultHttpDataSource.Factory())
-            .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+    val cacheFactory = CacheDataSource.Factory()
+        .setCache(cache)
+        .setUpstreamDataSourceFactory(httpFactory)
+        .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
 
-        val loadControl = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(
-                settingsMgr.bufferMs,
-                settingsMgr.bufferMs * 3,
-                2500,
-                5000
-            ).build()
+    // ============ إعدادات LoadControl المُحسّنة لمنع التقطعات ============
+    val userBufferMs = settingsMgr.bufferMs.coerceAtLeast(30_000)
+    val minBuffer = userBufferMs              // الحد الأدنى للبيانات (30 ثانية+)
+    val maxBuffer = userBufferMs * 3          // الحد الأقصى (90 ثانية+)
+    val playbackBuffer = 1500                 // يُشغّل بعد تحميل 1.5 ثانية
+    val rebufferBuffer = 3000                 // يستأنف بعد تحميل 3 ثوانٍ بعد تقطع
 
-        val mediaSource = ProgressiveMediaSource.Factory(cacheFactory)
-            .createMediaSource(MediaItem.fromUri(url))
+    val loadControl = DefaultLoadControl.Builder()
+        .setBufferDurationsMs(
+            minBuffer,
+            maxBuffer,
+            playbackBuffer,
+            rebufferBuffer
+        )
+        .setPrioritizeTimeOverSizeThresholds(true)
+        .setBackBuffer(30_000, true)
+        .build()
+    // ====================================================================
 
-        val player = ExoPlayer.Builder(ctx)
-            .setLoadControl(loadControl)
-            .setSeekBackIncrementMs(10_000)
-            .setSeekForwardIncrementMs(10_000)
-            .build()
+    val mediaSource = ProgressiveMediaSource.Factory(cacheFactory)
+        .createMediaSource(MediaItem.fromUri(url))
 
-        player.setMediaSource(mediaSource)
-        player.playWhenReady = true
+    val player = ExoPlayer.Builder(ctx)
+        .setLoadControl(loadControl)
+        .setSeekBackIncrementMs(10_000)
+        .setSeekForwardIncrementMs(10_000)
+        .setHandleAudioBecomingNoisy(true)
+        .setWakeMode(C.WAKE_MODE_NETWORK)
+        .build()
 
-        player.addListener(object : Player.Listener {
-            override fun onPlayerError(error: PlaybackException) {
-                if (retryCount < 3) {
-                    retryCount++
+    player.setMediaSource(mediaSource)
+    player.playWhenReady = true
+
+    player.addListener(object : Player.Listener {
+        override fun onPlayerError(error: PlaybackException) {
+            if (retryCount < 3) {
+                retryCount++
+                scope.launch {
+                    delay(1000L * retryCount)
                     player.prepare()
                     player.play()
-                } else {
-                    errorMsg = "فشل التشغيل بعد 3 محاولات: ${error.message}"
-                    scope.launch {
-                        errorLogger.log(url, error.message ?: "unknown", error.errorCode)
-                    }
+                }
+            } else {
+                errorMsg = "فشل التشغيل بعد 3 محاولات: ${error.message}"
+                scope.launch {
+                    errorLogger.log(url, error.message ?: "unknown", error.errorCode)
                 }
             }
-
-            override fun onTracksChanged(tracks1: Tracks) {
-                tracks = tracks1
-            }
-
-            override fun onPlaybackStateChanged(state: Int) {
-                if (state == Player.STATE_ENDED) {
-                    scope.launch { historyMgr.delete(url) }
-                }
-            }
-        })
-        player
-    }
-        LaunchedEffect(Unit) {
-        if (!prefs.useInternalPlayer) {
-            openExternal(ctx, url)
-            navController.popBackStack()
-        } else {
-            exoPlayer.prepare()
         }
+
+        override fun onTracksChanged(tracks1: Tracks) {
+            tracks = tracks1
+        }
+
+        override fun onPlaybackStateChanged(state: Int) {
+            if (state == Player.STATE_ENDED) {
+                scope.launch { historyMgr.delete(url) }
+            }
+        }
+    })
+    player
+}
+
+LaunchedEffect(Unit) {
+    if (!prefs.useInternalPlayer) {
+        launchExternal(ctx, url, settingsMgr)
+        navController.popBackStack()
+    } else {
+        exoPlayer.prepare()
     }
+}
 
     LaunchedEffect(Unit) {
         while (true) {
@@ -172,6 +198,9 @@ fun PlayerScreen(
                     player = exoPlayer
                     useController = true
                     setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
+                    setShowNextButton(false)
+                    setShowPreviousButton(false)
+                    setControllerShowTimeoutMs(4000)
                 }
             },
             modifier = Modifier.fillMaxSize()
@@ -206,7 +235,13 @@ fun PlayerScreen(
                 Icon(Icons.Default.Subtitles, contentDescription = "ترجمات", tint = Color.White)
             }
 
-            TextButton(onClick = { openExternal(ctx, url) }) {
+            TextButton(onClick = {
+                if (settingsMgr.alwaysAskExternalPlayer) {
+                    showExternalMenu = !showExternalMenu
+                } else {
+                    launchExternal(ctx, url, settingsMgr)
+                }
+            }) {
                 Text("مشغل خارجي", color = Color.White, fontSize = 16.sp)
             }
         }
@@ -216,6 +251,15 @@ fun PlayerScreen(
                 tracks = tracks!!,
                 exoPlayer = exoPlayer,
                 onDismiss = { showTrackMenu = false }
+            )
+        }
+
+        if (showExternalMenu) {
+            ExternalMenu(
+                ctx = ctx,
+                url = url,
+                settingsMgr = settingsMgr,
+                onDismiss = { showExternalMenu = false }
             )
         }
 
@@ -238,7 +282,7 @@ fun PlayerScreen(
                             exoPlayer.play()
                         }) { Text("إعادة المحاولة") }
                         Spacer(Modifier.width(8.dp))
-                        Button(onClick = { openExternal(ctx, url) }) {
+                        Button(onClick = { showExternalMenu = true }) {
                             Text("مشغل خارجي")
                         }
                     }
@@ -298,13 +342,73 @@ private fun TrackMenu(tracks: Tracks, exoPlayer: ExoPlayer, onDismiss: () -> Uni
     }
 }
 
-private fun openExternal(ctx: Context, url: String) {
-    val intent = Intent(Intent.ACTION_VIEW).apply {
-        setDataAndType(Uri.parse(url), "video/*")
-        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+@Composable
+private fun ExternalMenu(
+    ctx: Context,
+    url: String,
+    settingsMgr: PlayerSettingsManager,
+    onDismiss: () -> Unit
+) {
+    val installed = remember { ExternalPlayerManager.getInstalledPlayers(ctx) }
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth(0.4f)
+            .padding(top = 80.dp)
+            .align(Alignment.TopEnd),
+        color = Color(0xEE161B22)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                "اختر مشغلاً خارجياً",
+                color = Color.White,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(Modifier.height(8.dp))
+
+            Text(
+                "🌐 النظام (اختيار تلقائي)",
+                color = Color.White,
+                fontSize = 16.sp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp)
+                    .clickable {
+                        ExternalPlayerManager.launchWithChooser(ctx, url)
+                        onDismiss()
+                    }
+            )
+
+            installed.forEach { p ->
+                Text(
+                    "${p.icon} ${p.name}",
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp)
+                        .clickable {
+                            ExternalPlayerManager.launchInPackage(ctx, url, p.packageName)
+                            onDismiss()
+                        }
+                )
+            }
+        }
     }
-    try {
-        ctx.startActivity(Intent.createChooser(intent, "فتح بواسطة"))
-    } catch (_: Exception) { }
+}
+
+private fun launchExternal(
+    ctx: Context,
+    url: String,
+    settingsMgr: PlayerSettingsManager
+) {
+    val preferred = settingsMgr.externalPlayerPackage
+    if (preferred.isBlank()) {
+        ExternalPlayerManager.launchWithChooser(ctx, url)
+    } else {
+        val success = ExternalPlayerManager.launchInPackage(ctx, url, preferred)
+        if (!success) {
+            ExternalPlayerManager.launchWithChooser(ctx, url)
+        }
+    }
 }
