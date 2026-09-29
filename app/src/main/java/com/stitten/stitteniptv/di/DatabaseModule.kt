@@ -2,9 +2,11 @@ package com.stitten.stitteniptv.di
 
 import android.content.Context
 import androidx.room.Room
+import com.stitten.stitteniptv.data.ExternalPlayerManager
 import com.stitten.stitteniptv.database.AppDatabase
 import com.stitten.stitteniptv.database.dao.ErrorLogDao
 import com.stitten.stitteniptv.database.dao.ParentalBlockDao
+import com.stitten.stitteniptv.database.dao.SourceDao
 import com.stitten.stitteniptv.database.dao.WatchHistoryDao
 import dagger.Module
 import dagger.Provides
@@ -32,4 +34,7 @@ object DatabaseModule {
 
     @Provides
     fun provideParentalBlockDao(db: AppDatabase): ParentalBlockDao = db.parentalBlockDao()
+
+    @Provides
+    fun provideSourceDao(db: AppDatabase): SourceDao = db.sourceDao()
 }
