@@ -38,4 +38,17 @@ class PlayerSettingsManager @Inject constructor(context: Context) {
     var engine: String
         get() = prefs.getString("engine", "exo") ?: "exo"
         set(v) = prefs.edit().putString("engine", v).apply()
+
+    // ============== المشغل الخارجي ==============
+    var externalPlayerPackage: String
+        get() = prefs.getString("ext_pkg", "") ?: ""
+        set(v) = prefs.edit().putString("ext_pkg", v).apply()
+
+    var alwaysAskExternalPlayer: Boolean
+        get() = prefs.getBoolean("ext_ask", true)
+        set(v) = prefs.edit().putBoolean("ext_ask", v).apply()
+
+    var favoritesSyncEnabled: Boolean
+        get() = prefs.getBoolean("fav_sync", true)
+        set(v) = prefs.edit().putBoolean("fav_sync", v).apply()
 }
