@@ -4,16 +4,19 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
-import java.net.URL
 
 object XtreamApi {
 
     suspend fun validate(server: String, user: String, pass: String): Boolean =
         withContext(Dispatchers.IO) {
             try {
-                val url = "${server.trimEnd('/')}/player_api.php?username=$user&password=$pass"
-                val response = URL(url).readText()
-                val json = JSONObject(response)
+                val cleanServer = normalizeServer(server)
+                val url = "$cleanServer/player_api.php?username=$user&password=$pass"
+                val result = HttpClientProvider.fetchText(url)
+                if (result.isFailure) return@withContext false
+                val body = result.getOrNull() ?: return@withContext false
+                if (body.isBlank() || body.trimStart().startsWith("<")) return@withContext false
+                val json = JSONObject(body)
                 json.optJSONObject("user_info")?.optString("auth") == "1"
             } catch (e: Exception) {
                 false
@@ -24,15 +27,18 @@ object XtreamApi {
         withContext(Dispatchers.IO) {
             val channels = mutableListOf<Channel>()
             try {
-                val url = "${server.trimEnd('/')}/player_api.php?username=$user&password=$pass&action=get_live_streams"
-                val arr = JSONArray(URL(url).readText())
+                val s = normalizeServer(server)
+                val url = "$s/player_api.php?username=$user&password=$pass&action=get_live_streams"
+                val body = HttpClientProvider.fetchText(url).getOrNull() ?: return@withContext emptyList()
+                if (body.isBlank() || body.trimStart().startsWith("<")) return@withContext emptyList()
+                val arr = JSONArray(body)
                 for (i in 0 until arr.length()) {
                     val obj = arr.getJSONObject(i)
                     val streamId = obj.optString("stream_id")
                     val name = obj.optString("name")
                     val icon = obj.optString("stream_icon")
                     val categoryId = obj.optString("category_id")
-                    val streamUrl = "${server.trimEnd('/')}/live/$user/$pass/$streamId.ts"
+                    val streamUrl = "$s/live/$user/$pass/$streamId.ts"
                     channels.add(
                         Channel(
                             id = streamId,
@@ -43,7 +49,7 @@ object XtreamApi {
                         )
                     )
                 }
-            } catch (e: Exception) { /* ignore */ }
+            } catch (e: Exception) { }
             channels
         }
 
@@ -51,15 +57,18 @@ object XtreamApi {
         withContext(Dispatchers.IO) {
             val movies = mutableListOf<Movie>()
             try {
-                val url = "${server.trimEnd('/')}/player_api.php?username=$user&password=$pass&action=get_vod_streams"
-                val arr = JSONArray(URL(url).readText())
+                val s = normalizeServer(server)
+                val url = "$s/player_api.php?username=$user&password=$pass&action=get_vod_streams"
+                val body = HttpClientProvider.fetchText(url).getOrNull() ?: return@withContext emptyList()
+                if (body.isBlank() || body.trimStart().startsWith("<")) return@withContext emptyList()
+                val arr = JSONArray(body)
                 for (i in 0 until arr.length()) {
                     val obj = arr.getJSONObject(i)
                     val streamId = obj.optString("stream_id")
                     val name = obj.optString("name")
                     val poster = obj.optString("stream_icon")
                     val ext = obj.optString("container_extension", "mp4")
-                    val url2 = "${server.trimEnd('/')}/movie/$user/$pass/$streamId.$ext"
+                    val url2 = "$s/movie/$user/$pass/$streamId.$ext"
                     movies.add(
                         Movie(
                             id = streamId,
@@ -70,16 +79,19 @@ object XtreamApi {
                         )
                     )
                 }
-            } catch (e: Exception) { /* ignore */ }
+            } catch (e: Exception) { }
             movies
         }
-
+        
     suspend fun loadSeries(server: String, user: String, pass: String): List<Series> =
         withContext(Dispatchers.IO) {
             val series = mutableListOf<Series>()
             try {
-                val url = "${server.trimEnd('/')}/player_api.php?username=$user&password=$pass&action=get_series"
-                val arr = JSONArray(URL(url).readText())
+                val s = normalizeServer(server)
+                val url = "$s/player_api.php?username=$user&password=$pass&action=get_series"
+                val body = HttpClientProvider.fetchText(url).getOrNull() ?: return@withContext emptyList()
+                if (body.isBlank() || body.trimStart().startsWith("<")) return@withContext emptyList()
+                val arr = JSONArray(body)
                 for (i in 0 until arr.length()) {
                     val obj = arr.getJSONObject(i)
                     series.add(
@@ -91,7 +103,7 @@ object XtreamApi {
                         )
                     )
                 }
-            } catch (e: Exception) { /* ignore */ }
+            } catch (e: Exception) { }
             series
         }
 
@@ -100,8 +112,11 @@ object XtreamApi {
     ): List<Episode> = withContext(Dispatchers.IO) {
         val episodes = mutableListOf<Episode>()
         try {
-            val url = "${server.trimEnd('/')}/player_api.php?username=$user&password=$pass&action=get_series_info&series_id=$seriesId"
-            val json = JSONObject(URL(url).readText())
+            val s = normalizeServer(server)
+            val url = "$s/player_api.php?username=$user&password=$pass&action=get_series_info&series_id=$seriesId"
+            val body = HttpClientProvider.fetchText(url).getOrNull() ?: return@withContext emptyList()
+            if (body.isBlank() || body.trimStart().startsWith("<")) return@withContext emptyList()
+            val json = JSONObject(body)
             val epsObj = json.optJSONObject("episodes") ?: return@withContext episodes
             val seasonKeys = epsObj.keys()
             while (seasonKeys.hasNext()) {
@@ -113,7 +128,7 @@ object XtreamApi {
                     val epNum = ep.optInt("episode_num", i + 1)
                     val title = ep.optString("title", "الحلقة $epNum")
                     val ext = ep.optString("container_extension", "mp4")
-                    val epUrl = "${server.trimEnd('/')}/series/$user/$pass/$epId.$ext"
+                    val epUrl = "$s/series/$user/$pass/$epId.$ext"
                     episodes.add(
                         Episode(
                             id = epId,
@@ -126,7 +141,15 @@ object XtreamApi {
                     )
                 }
             }
-        } catch (e: Exception) { /* ignore */ }
+        } catch (e: Exception) { }
         episodes
+    }
+
+    private fun normalizeServer(server: String): String {
+        var s = server.trim().trimEnd('/')
+        if (!s.startsWith("http://") && !s.startsWith("https://")) {
+            s = "http://$s"
+        }
+        return s
     }
 }
