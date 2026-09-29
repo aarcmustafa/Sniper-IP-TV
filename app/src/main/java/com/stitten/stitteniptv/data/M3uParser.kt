@@ -2,14 +2,14 @@ package com.stitten.stitteniptv.data
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.net.URL
 
 object M3uParser {
 
     suspend fun loadFromUrl(url: String): List<Channel> = withContext(Dispatchers.IO) {
         try {
-            val content = URL(url).readText()
-            parse(content)
+            val result = HttpClientProvider.fetchText(url)
+            if (result.isFailure) return@withContext emptyList()
+            parse(result.getOrNull() ?: "")
         } catch (e: Exception) {
             emptyList()
         }
@@ -19,6 +19,7 @@ object M3uParser {
         withContext(Dispatchers.IO) { parse(content) }
 
     private fun parse(content: String): List<Channel> {
+        if (content.isBlank()) return emptyList()
         val channels = mutableListOf<Channel>()
         val lines = content.lines()
         var pendingName = ""
