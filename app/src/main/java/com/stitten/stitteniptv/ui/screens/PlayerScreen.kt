@@ -123,8 +123,7 @@ fun PlayerScreen(
         })
         player
     }
-
-    LaunchedEffect(Unit) {
+        LaunchedEffect(Unit) {
         if (!prefs.useInternalPlayer) {
             openExternal(ctx, url)
             navController.popBackStack()
