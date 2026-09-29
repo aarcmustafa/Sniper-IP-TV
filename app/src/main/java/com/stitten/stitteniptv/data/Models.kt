@@ -1,6 +1,6 @@
 package com.stitten.stitteniptv.data
 
-enum class ContentType { LIVE, VOD, SERIES }
+enum class ContentType { LIVE, VOD, SERIES, FAVORITES }
 
 data class Channel(
     val id: String,
