@@ -15,15 +15,29 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.stitten.stitteniptv.data.PrefsManager
 import com.stitten.stitteniptv.ui.navigation.Routes
+import dagger.hilt.android.EntryPointAccessors
+import kotlinx.coroutines.launch
 
 @Composable
 fun SettingsScreen(navController: NavHostController) {
     val ctx = LocalContext.current
     val prefs = remember { PrefsManager(ctx) }
+    val scope = rememberCoroutineScope()
+
+    val entryPoint = remember {
+        EntryPointAccessors.fromApplication(
+            ctx.applicationContext,
+            PlayerEntryPoint::class.java
+        )
+    }
+    val playerSettings = entryPoint.playerSettingsManager()
+    val favoritesSync = entryPoint.favoritesSyncManager()
 
     var is24h by remember { mutableStateOf(prefs.is24Hour) }
     var useInternal by remember { mutableStateOf(prefs.useInternalPlayer) }
     var useHw by remember { mutableStateOf(prefs.useHardwareDecoder) }
+    var favSyncEnabled by remember { mutableStateOf(playerSettings.favoritesSyncEnabled) }
+    var syncMessage by remember { mutableStateOf("") }
 
     Column(
         modifier = Modifier
@@ -57,16 +71,52 @@ fun SettingsScreen(navController: NavHostController) {
                 prefs.useHardwareDecoder = it
             })
         }
+        SettingRow("مزامنة المفضلة بين المصادر") {
+            Switch(checked = favSyncEnabled, onCheckedChange = {
+                favSyncEnabled = it
+                playerSettings.favoritesSyncEnabled = it
+            })
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        Button(
+            onClick = {
+                val count = favoritesSync.syncChannels(
+                    com.stitten.stitteniptv.data.ContentRepository.channels,
+                    com.stitten.stitteniptv.data.FavoritesManager(ctx)
+                )
+                syncMessage = "تمت مزامنة $count قناة"
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) { Text("🔄 مزامنة المفضلة الآن", fontSize = 18.sp) }
+
+        if (syncMessage.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            Text(syncMessage, color = MaterialTheme.colorScheme.primary, fontSize = 14.sp)
+        }
 
         Spacer(Modifier.height(24.dp))
         HorizontalDivider()
         Spacer(Modifier.height(16.dp))
 
         Button(
+            onClick = { navController.navigate(Routes.EXTERNAL_PLAYERS) },
+            modifier = Modifier.fillMaxWidth()
+        ) { Text("🎬 إعدادات المشغل الخارجي", fontSize = 18.sp) }
+
+        Spacer(Modifier.height(12.dp))
+        Button(
+            onClick = { navController.navigate(Routes.SOURCES) },
+            modifier = Modifier.fillMaxWidth()
+        ) { Text("📡 إدارة المصادر", fontSize = 18.sp) }
+
+        Spacer(Modifier.height(12.dp))
+        Button(
             onClick = { navController.navigate(Routes.PARENTAL) },
             modifier = Modifier.fillMaxWidth()
         ) { Text("🔒 الرقابة الأبوية", fontSize = 18.sp) }
-
+        
         Spacer(Modifier.height(12.dp))
         Button(
             onClick = { navController.navigate(Routes.ERRORS) },
