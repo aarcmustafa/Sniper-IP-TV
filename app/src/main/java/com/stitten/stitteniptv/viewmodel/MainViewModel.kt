@@ -20,9 +20,13 @@ data class DashboardUiState(
 class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     val prefs = PrefsManager(app)
+    val favorites = FavoritesManager(app)
 
     private val _uiState = MutableStateFlow(DashboardUiState())
     val uiState: StateFlow<DashboardUiState> = _uiState.asStateFlow()
+
+    private val _favoritesVersion = MutableStateFlow(0)
+    val favoritesVersion: StateFlow<Int> = _favoritesVersion.asStateFlow()
 
     fun loginM3u(url: String, content: String? = null, onDone: (Boolean) -> Unit) {
         viewModelScope.launch {
@@ -102,6 +106,36 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             ContentRepository.episodes = ContentRepository.episodes + (seriesId to eps)
             onDone(eps)
         }
+    }
+
+    fun toggleChannelFavorite(id: String) {
+        favorites.toggleChannel(id)
+        _favoritesVersion.value++
+    }
+
+    fun toggleMovieFavorite(id: String) {
+        favorites.toggleMovie(id)
+        _favoritesVersion.value++
+    }
+
+    fun toggleSeriesFavorite(id: String) {
+        favorites.toggleSeries(id)
+        _favoritesVersion.value++
+    }
+
+    fun getFavoriteChannels(): List<Channel> {
+        val ids = favorites.getFavoriteChannelIds()
+        return ContentRepository.channels.filter { it.id in ids }
+    }
+
+    fun getFavoriteMovies(): List<Movie> {
+        val ids = favorites.getFavoriteMovieIds()
+        return ContentRepository.movies.filter { it.id in ids }
+    }
+
+    fun getFavoriteSeries(): List<Series> {
+        val ids = favorites.getFavoriteSeriesIds()
+        return ContentRepository.series.filter { it.id in ids }
     }
 
     fun logout() {
