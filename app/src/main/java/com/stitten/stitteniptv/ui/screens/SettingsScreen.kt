@@ -14,6 +14,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.stitten.stitteniptv.data.PrefsManager
+import com.stitten.stitteniptv.ui.navigation.Routes
 
 @Composable
 fun SettingsScreen(navController: NavHostController) {
@@ -23,7 +24,6 @@ fun SettingsScreen(navController: NavHostController) {
     var is24h by remember { mutableStateOf(prefs.is24Hour) }
     var useInternal by remember { mutableStateOf(prefs.useInternalPlayer) }
     var useHw by remember { mutableStateOf(prefs.useHardwareDecoder) }
-    var pin by remember { mutableStateOf(prefs.parentalPin) }
 
     Column(
         modifier = Modifier
@@ -37,41 +37,52 @@ fun SettingsScreen(navController: NavHostController) {
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary
         )
-        Spacer(Modifier.height(32.dp))
+        Spacer(Modifier.height(24.dp))
 
         SettingRow("صيغة 24 ساعة") {
             Switch(checked = is24h, onCheckedChange = {
-                is24h = it; prefs.is24Hour = it
+                is24h = it
+                prefs.is24Hour = it
             })
         }
         SettingRow("استخدام المشغل الداخلي") {
             Switch(checked = useInternal, onCheckedChange = {
-                useInternal = it; prefs.useInternalPlayer = it
+                useInternal = it
+                prefs.useInternalPlayer = it
             })
         }
         SettingRow("فك التشفير العتادي") {
             Switch(checked = useHw, onCheckedChange = {
-                useHw = it; prefs.useHardwareDecoder = it
+                useHw = it
+                prefs.useHardwareDecoder = it
             })
         }
 
         Spacer(Modifier.height(24.dp))
-        OutlinedTextField(
-            value = pin,
-            onValueChange = {
-                pin = it.filter { c -> c.isDigit() }.take(6)
-                prefs.parentalPin = pin
-            },
-            label = { Text("رمز الرقابة الأبوية (PIN)", fontSize = 16.sp) },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true
-        )
-
-        Spacer(Modifier.height(32.dp))
         HorizontalDivider()
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(16.dp))
 
-        Text("حول التطبيق", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        Button(
+            onClick = { navController.navigate(Routes.PARENTAL) },
+            modifier = Modifier.fillMaxWidth()
+        ) { Text("🔒 الرقابة الأبوية", fontSize = 18.sp) }
+
+        Spacer(Modifier.height(12.dp))
+        Button(
+            onClick = { navController.navigate(Routes.ERRORS) },
+            modifier = Modifier.fillMaxWidth()
+        ) { Text("📋 سجل الأخطاء", fontSize = 18.sp) }
+
+        Spacer(Modifier.height(24.dp))
+        HorizontalDivider()
+        Spacer(Modifier.height(16.dp))
+
+        Text(
+            "حول التطبيق",
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.White
+        )
         Spacer(Modifier.height(12.dp))
         Text("اسم التطبيق: STTITEN IP TV", color = Color.White, fontSize = 18.sp)
         Text("المطور: جلولي مصطفى", color = Color.White, fontSize = 18.sp)
@@ -81,7 +92,7 @@ fun SettingsScreen(navController: NavHostController) {
         Button(
             onClick = {
                 prefs.clear()
-                navController.navigate("login") {
+                navController.navigate(Routes.LOGIN) {
                     popUpTo(0) { inclusive = true }
                 }
             },
@@ -95,7 +106,9 @@ fun SettingsScreen(navController: NavHostController) {
 @Composable
 private fun SettingRow(label: String, content: @Composable () -> Unit) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
