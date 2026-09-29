@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.stitten.stitteniptv.data.*
+import com.stitten.stitteniptv.database.entity.SourceEntity
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -21,6 +22,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     val prefs = PrefsManager(app)
     val favorites = FavoritesManager(app)
+    val favoritesSync = FavoritesSyncManager(app)
 
     private val _uiState = MutableStateFlow(DashboardUiState())
     val uiState: StateFlow<DashboardUiState> = _uiState.asStateFlow()
@@ -28,6 +30,56 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _favoritesVersion = MutableStateFlow(0)
     val favoritesVersion: StateFlow<Int> = _favoritesVersion.asStateFlow()
 
+    fun loadFromSource(source: SourceEntity) {
+        viewModelScope.launch {
+            _uiState.value = DashboardUiState(isLoading = true)
+            prefs.isLoggedIn = true
+            prefs.loginType = source.type
+            prefs.m3uUrl = source.url
+            prefs.serverUrl = source.url
+            prefs.username = source.username
+            prefs.password = source.password
+
+            when (source.type) {
+                "M3U" -> {
+                    val list = if (source.url.startsWith("content://")) {
+                        emptyList()
+                    } else {
+                        M3uParser.loadFromUrl(source.url)
+                    }
+                    ContentRepository.channels = list
+                    if (prefs.favoritesSyncEnabled) {
+                        favoritesSync.syncChannels(list, favorites)
+                        _favoritesVersion.value++
+                    }
+                    _uiState.value = DashboardUiState(channels = list)
+                }
+                "XTREAM" -> {
+                    val live = XtreamApi.loadLiveStreams(source.url, source.username, source.password)
+                    val vod = XtreamApi.loadVodStreams(source.url, source.username, source.password)
+                    val srs = XtreamApi.loadSeries(source.url, source.username, source.password)
+                    ContentRepository.channels = live
+                    ContentRepository.movies = vod
+                    ContentRepository.series = srs
+                    if (prefs.favoritesSyncEnabled) {
+                        favoritesSync.syncAll(live, vod, srs, favorites)
+                        _favoritesVersion.value++
+                    }
+                    _uiState.value = DashboardUiState(channels = live, movies = vod, series = srs)
+                }
+            }
+        }
+    }
+
+    fun setLocalContent(channels: List<Channel>) {
+        ContentRepository.channels = channels
+        if (prefs.favoritesSyncEnabled) {
+            favoritesSync.syncChannels(channels, favorites)
+            _favoritesVersion.value++
+        }
+        _uiState.value = DashboardUiState(channels = channels)
+    }
+    
     fun loginM3u(url: String, content: String? = null, onDone: (Boolean) -> Unit) {
         viewModelScope.launch {
             _uiState.value = DashboardUiState(isLoading = true)
@@ -44,6 +96,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 prefs.loginType = "M3U"
                 prefs.m3uUrl = url
                 ContentRepository.channels = list
+                if (prefs.favoritesSyncEnabled) {
+                    favoritesSync.syncChannels(list, favorites)
+                    _favoritesVersion.value++
+                }
                 _uiState.value = DashboardUiState(channels = list)
                 onDone(true)
             }
@@ -71,6 +127,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             ContentRepository.channels = live
             ContentRepository.movies = vod
             ContentRepository.series = srs
+            if (prefs.favoritesSyncEnabled) {
+                favoritesSync.syncAll(live, vod, srs, favorites)
+                _favoritesVersion.value++
+            }
             _uiState.value = DashboardUiState(channels = live, movies = vod, series = srs)
             onDone(true)
         }
@@ -83,6 +143,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 "M3U" -> {
                     val list = M3uParser.loadFromUrl(prefs.m3uUrl)
                     ContentRepository.channels = list
+                    if (prefs.favoritesSyncEnabled) {
+                        favoritesSync.syncChannels(list, favorites)
+                        _favoritesVersion.value++
+                    }
                     _uiState.value = DashboardUiState(channels = list)
                 }
                 "XTREAM" -> {
@@ -92,6 +156,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     ContentRepository.channels = live
                     ContentRepository.movies = vod
                     ContentRepository.series = srs
+                    if (prefs.favoritesSyncEnabled) {
+                        favoritesSync.syncAll(live, vod, srs, favorites)
+                        _favoritesVersion.value++
+                    }
                     _uiState.value = DashboardUiState(channels = live, movies = vod, series = srs)
                 }
             }
@@ -108,18 +176,30 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun toggleChannelFavorite(id: String) {
-        favorites.toggleChannel(id)
+    fun toggleChannelFavorite(id: String, name: String = "") {
+        val nowFav = favorites.toggleChannel(id, name)
+        if (name.isNotBlank()) {
+            if (nowFav) favoritesSync.markChannel(name)
+            else favoritesSync.unmarkChannel(name)
+        }
         _favoritesVersion.value++
     }
 
-    fun toggleMovieFavorite(id: String) {
-        favorites.toggleMovie(id)
+    fun toggleMovieFavorite(id: String, name: String = "") {
+        val nowFav = favorites.toggleMovie(id, name)
+        if (name.isNotBlank()) {
+            if (nowFav) favoritesSync.markMovie(name)
+            else favoritesSync.unmarkMovie(name)
+        }
         _favoritesVersion.value++
     }
 
-    fun toggleSeriesFavorite(id: String) {
-        favorites.toggleSeries(id)
+    fun toggleSeriesFavorite(id: String, name: String = "") {
+        val nowFav = favorites.toggleSeries(id, name)
+        if (name.isNotBlank()) {
+            if (nowFav) favoritesSync.markSeries(name)
+            else favoritesSync.unmarkSeries(name)
+        }
         _favoritesVersion.value++
     }
 
@@ -136,6 +216,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun getFavoriteSeries(): List<Series> {
         val ids = favorites.getFavoriteSeriesIds()
         return ContentRepository.series.filter { it.id in ids }
+    }
+
+    fun syncNow(): Int {
+        val count = favoritesSync.syncAll(
+            ContentRepository.channels,
+            ContentRepository.movies,
+            ContentRepository.series,
+            favorites
+        )
+        _favoritesVersion.value++
+        return count
     }
 
     fun logout() {
