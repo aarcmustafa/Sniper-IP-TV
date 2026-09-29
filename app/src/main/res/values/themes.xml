@@ -1,0 +1,10 @@
+<resources>
+    <style name="Theme.STTITENIPTV" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/tv_background</item>
+        <item name="android:colorBackground">@color/tv_background</item>
+        <item name="android:statusBarColor">@color/tv_background</item>
+        <item name="android:navigationBarColor">@color/tv_background</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowActionBar">false</item>
+    </style>
+</resources>
