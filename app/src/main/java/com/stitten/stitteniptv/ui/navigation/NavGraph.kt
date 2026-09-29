@@ -21,12 +21,17 @@ object Routes {
     const val EPG = "epg/{channelId}/{channelName}/{epgUrl}"
     const val PARENTAL = "parental"
     const val ERRORS = "errors"
+    const val SOURCES = "sources"
+    const val ADD_SOURCE = "add_source"
+    const val ADD_SOURCE_EDIT = "add_source/edit/{sourceId}"
+    const val EXTERNAL_PLAYERS = "external_players"
 
     fun seriesDetails(id: String) = "series/$id"
     fun player(url: String, title: String) =
         "player/${URLEncoder.encode(url, "UTF-8")}/${URLEncoder.encode(title, "UTF-8")}"
     fun epg(channelId: String, channelName: String, epgUrl: String) =
         "epg/$channelId/${URLEncoder.encode(channelName, "UTF-8")}/${URLEncoder.encode(epgUrl, "UTF-8")}"
+    fun addSourceEdit(id: Long) = "add_source/edit/$id"
 }
 
 @Composable
@@ -38,7 +43,18 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
         composable(Routes.SETTINGS) { SettingsScreen(navController) }
         composable(Routes.PARENTAL) { ParentalControlScreen(navController) }
         composable(Routes.ERRORS) { ErrorLogScreen() }
-
+        composable(Routes.SOURCES) { SourcesManagerScreen(navController) }
+        composable(Routes.EXTERNAL_PLAYERS) { ExternalPlayersScreen(navController) }
+        composable(Routes.ADD_SOURCE) {
+            AddSourceScreen(navController, editSourceId = -1L)
+        }
+        composable(
+            Routes.ADD_SOURCE_EDIT,
+            arguments = listOf(navArgument("sourceId") { type = NavType.LongType })
+        ) { entry ->
+            val id = entry.arguments?.getLong("sourceId") ?: -1L
+            AddSourceScreen(navController, editSourceId = id)
+        }
         composable(
             Routes.SERIES_DETAILS,
             arguments = listOf(navArgument("seriesId") { type = NavType.StringType })
