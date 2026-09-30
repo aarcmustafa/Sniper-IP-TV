@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <external-files-path
+        name="logs"
+        path="STTITEN IP TV/" />
+    <files-path
+        name="internal_logs"
+        path="STTITEN IP TV/" />
+</paths>
