@@ -11,15 +11,17 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import dagger.hilt.android.EntryPointAccessors
 
 data class DashboardUiState(
     val isLoading: Boolean = false,
     val loadingMessage: String = "",
     val loadingProgress: Int = 0,
-    val channels: List<Channel> = emptyList(),
-    val movies: List<Movie> = emptyList(),
-    val series: List<Series> = emptyList(),
-    val error: String? = null
+    val channelsCount: Int = 0,
+    val moviesCount: Int = 0,
+    val seriesCount: Int = 0,
+    val error: String? = null,
+    val dataVersion: Int = 0
 )
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
@@ -27,6 +29,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val prefs = PrefsManager(app)
     val favorites = FavoritesManager(app)
     val favoritesSync = FavoritesSyncManager(app)
+
+    // الوصول إلى ChannelRepository عبر Hilt EntryPoint
+    private val entryPoint = EntryPointAccessors.fromApplication(
+        app.applicationContext,
+        com.stitten.stitteniptv.ui.screens.PlayerEntryPoint::class.java
+    )
+    val channelRepo = entryPoint.channelRepository()
 
     private val _uiState = MutableStateFlow(DashboardUiState())
     val uiState: StateFlow<DashboardUiState> = _uiState.asStateFlow()
@@ -40,17 +49,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * الحل الجذري: تحميل تدريجي بنسبة واضحة
+     * الحل الجذري: تسجيل دخول + حفظ في Room
      */
     fun loginXtream(server: String, user: String, pass: String, onDone: (Boolean) -> Unit) {
         viewModelScope.launch {
             XtreamApi.setPreferredProtocol(prefs.useHttps)
             XtreamApi.setPreferredFormat(prefs.streamFormat)
 
-            // ========== المرحلة 1: التحقق (5%) ==========
+            // ========== التحقق ==========
             _uiState.value = DashboardUiState(
                 isLoading = true,
-                loadingMessage = "🔐 جاري التحقق من البيانات...",
+                loadingMessage = "🔐 جاري التحقق...",
                 loadingProgress = 5
             )
 
@@ -72,25 +81,36 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
             onDone(true)
 
-            // ========== المرحلة 2: القنوات (10% → 45%) ==========
+            // ========== القنوات (10% → 45%) ==========
             _uiState.value = _uiState.value.copy(
-                loadingMessage = "📺 جاري تحميل القنوات المباشرة...",
-                loadingProgress = 10
+                loadingMessage = "📺 جاري تحميل القنوات...",
+                loadingProgress = 15
             )
+
+            // حذف القنوات القديمة
+            withContext(Dispatchers.IO) {
+                channelRepo.clearAll()
+            }
 
             val live = withContext(Dispatchers.IO) {
                 XtreamApi.loadLiveStreams(server, user, pass)
             }
-            ContentRepository.channels = live
+
+            // حفظ في Room
+            withContext(Dispatchers.IO) {
+                channelRepo.saveChannels(live)
+            }
+
             _uiState.value = _uiState.value.copy(
-                channels = live,
+                channelsCount = live.size,
                 loadingProgress = 45,
-                loadingMessage = "✅ تم تحميل ${live.size} قناة"
+                loadingMessage = "✅ ${live.size} قناة",
+                dataVersion = _uiState.value.dataVersion + 1
             )
 
             delay(300)
 
-            // ========== المرحلة 3: الأفلام (45% → 75%) ==========
+            // ========== الأفلام (50% → 75%) ==========
             _uiState.value = _uiState.value.copy(
                 loadingMessage = "🎬 جاري تحميل الأفلام...",
                 loadingProgress = 50
@@ -99,16 +119,21 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val vod = withContext(Dispatchers.IO) {
                 XtreamApi.loadVodStreams(server, user, pass)
             }
-            ContentRepository.movies = vod
+
+            withContext(Dispatchers.IO) {
+                channelRepo.saveMovies(vod)
+            }
+
             _uiState.value = _uiState.value.copy(
-                movies = vod,
+                moviesCount = vod.size,
                 loadingProgress = 75,
-                loadingMessage = "✅ تم تحميل ${vod.size} فيلم"
+                loadingMessage = "✅ ${vod.size} فيلم",
+                dataVersion = _uiState.value.dataVersion + 1
             )
 
             delay(300)
 
-            // ========== المرحلة 4: المسلسلات (75% → 100%) ==========
+            // ========== المسلسلات (80% → 100%) ==========
             _uiState.value = _uiState.value.copy(
                 loadingMessage = "📼 جاري تحميل المسلسلات...",
                 loadingProgress = 80
@@ -117,177 +142,148 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val srs = withContext(Dispatchers.IO) {
                 XtreamApi.loadSeries(server, user, pass)
             }
-            ContentRepository.series = srs
 
-            if (prefs.favoritesSyncEnabled) {
-                favoritesSync.syncAll(live, vod, srs, favorites)
-                _favoritesVersion.value++
+            withContext(Dispatchers.IO) {
+                channelRepo.saveSeries(srs)
             }
 
-            _uiState.value = DashboardUiState(
-                isLoading = false,
-                channels = live,
-                movies = vod,
-                series = srs,
-                loadingProgress = 100
-            )
-        }
-    }
-
-    /**
-     * تحميل قنوات تصنيف معين (للتحميل التدريجي)
-     */
-    fun loadCategoryContent(
-        categoryId: String,
-        contentType: String,
-        onDone: (List<Channel>) -> Unit
-    ) {
-        viewModelScope.launch {
-            val channels = withContext(Dispatchers.IO) {
-                XtreamApi.loadLiveStreamsByCategory(
-                    prefs.serverUrl, prefs.username, prefs.password, categoryId
-                )
-            }
-            ContentRepository.channels = ContentRepository.channels + channels
             _uiState.value = _uiState.value.copy(
-                channels = ContentRepository.channels
+                seriesCount = srs.size,
+                isLoading = false,
+                loadingProgress = 100,
+                dataVersion = _uiState.value.dataVersion + 1
             )
-            onDone(channels)
-        }
-    }
-
-    fun loginM3u(url: String, content: String? = null, onDone: (Boolean) -> Unit) {
-        viewModelScope.launch {
-            _uiState.value = DashboardUiState(
-                isLoading = true,
-                loadingMessage = "📥 جاري تحميل القائمة...",
-                loadingProgress = 20
-            )
-            val list = if (content != null) {
-                M3uParser.loadFromContent(content)
-            } else {
-                M3uParser.loadFromUrl(url)
-            }
-            if (list.isEmpty()) {
-                _uiState.value = DashboardUiState(error = "❌ لا توجد قنوات")
-                onDone(false)
-            } else {
-                prefs.isLoggedIn = true
-                prefs.loginType = "M3U"
-                prefs.m3uUrl = url
-                ContentRepository.channels = list
-                if (prefs.favoritesSyncEnabled) {
-                    favoritesSync.syncChannels(list, favorites)
-                    _favoritesVersion.value++
-                }
-                _uiState.value = DashboardUiState(
-                    channels = list,
-                    loadingProgress = 100
-                )
-                onDone(true)
-            }
         }
     }
     
-    fun loadCachedContent() {
-        viewModelScope.launch {
-            XtreamApi.setPreferredProtocol(prefs.useHttps)
-            XtreamApi.setPreferredFormat(prefs.streamFormat)
+fun loginM3u(url: String, content: String? = null, onDone: (Boolean) -> Unit) {
+    viewModelScope.launch {
+        _uiState.value = DashboardUiState(
+            isLoading = true,
+            loadingMessage = "📥 جاري تحميل القائمة...",
+            loadingProgress = 20
+        )
+
+        val list = if (content != null) {
+            M3uParser.loadFromContent(content)
+        } else {
+            M3uParser.loadFromUrl(url)
+        }
+
+        if (list.isEmpty()) {
+            _uiState.value = DashboardUiState(error = "❌ لا توجد قنوات")
+            onDone(false)
+        } else {
+            prefs.isLoggedIn = true
+            prefs.loginType = "M3U"
+            prefs.m3uUrl = url
+
+            // حذف القديم + الحفظ في Room
+            withContext(Dispatchers.IO) {
+                channelRepo.clearAll()
+                channelRepo.saveChannels(list)
+            }
 
             _uiState.value = DashboardUiState(
-                isLoading = true,
-                loadingMessage = "🔄 جاري التحميل...",
-                loadingProgress = 10
+                channelsCount = list.size,
+                loadingProgress = 100,
+                dataVersion = 1
             )
+            onDone(true)
+        }
+    }
+}
 
-            when (prefs.loginType) {
-                "M3U" -> {
-                    val list = M3uParser.loadFromUrl(prefs.m3uUrl)
-                    ContentRepository.channels = list
-                    if (prefs.favoritesSyncEnabled) {
-                        favoritesSync.syncChannels(list, favorites)
-                        _favoritesVersion.value++
-                    }
-                    _uiState.value = DashboardUiState(
-                        channels = list,
-                        loadingProgress = 100
+fun loadCachedContent() {
+    viewModelScope.launch {
+        XtreamApi.setPreferredProtocol(prefs.useHttps)
+        XtreamApi.setPreferredFormat(prefs.streamFormat)
+
+        when (prefs.loginType) {
+            "M3U" -> {
+                _uiState.value = _uiState.value.copy(
+                    loadingMessage = "📥 جاري التحميل...",
+                    loadingProgress = 50
+                )
+                val list = M3uParser.loadFromUrl(prefs.m3uUrl)
+                withContext(Dispatchers.IO) {
+                    channelRepo.clearAll()
+                    channelRepo.saveChannels(list)
+                }
+                _uiState.value = DashboardUiState(
+                    channelsCount = list.size,
+                    loadingProgress = 100,
+                    dataVersion = 1
+                )
+            }
+            "XTREAM" -> {
+                _uiState.value = _uiState.value.copy(
+                    loadingMessage = "📺 جاري التحميل...",
+                    loadingProgress = 15
+                )
+                val live = withContext(Dispatchers.IO) {
+                    XtreamApi.loadLiveStreams(
+                        prefs.serverUrl, prefs.username, prefs.password
                     )
                 }
-                "XTREAM" -> {
-                    _uiState.value = _uiState.value.copy(
-                        loadingMessage = "📺 جاري تحميل القنوات...",
-                        loadingProgress = 15
-                    )
-                    val live = withContext(Dispatchers.IO) {
-                        XtreamApi.loadLiveStreams(
-                            prefs.serverUrl, prefs.username, prefs.password
-                        )
-                    }
-                    ContentRepository.channels = live
-                    _uiState.value = _uiState.value.copy(
-                        channels = live,
-                        loadingProgress = 45,
-                        loadingMessage = "✅ ${live.size} قناة"
-                    )
+                withContext(Dispatchers.IO) {
+                    channelRepo.clearAll()
+                    channelRepo.saveChannels(live)
+                }
+                _uiState.value = _uiState.value.copy(
+                    channelsCount = live.size,
+                    loadingProgress = 45,
+                    loadingMessage = "✅ ${live.size} قناة",
+                    dataVersion = _uiState.value.dataVersion + 1
+                )
 
-                    delay(300)
-
-                    _uiState.value = _uiState.value.copy(
-                        loadingMessage = "🎬 جاري تحميل الأفلام...",
-                        loadingProgress = 50
-                    )
-                    val vod = withContext(Dispatchers.IO) {
-                        XtreamApi.loadVodStreams(
-                            prefs.serverUrl, prefs.username, prefs.password
-                        )
-                    }
-                    ContentRepository.movies = vod
-                    _uiState.value = _uiState.value.copy(
-                        movies = vod,
-                        loadingProgress = 75,
-                        loadingMessage = "✅ ${vod.size} فيلم"
-                    )
-
-                    delay(300)
-
-                    _uiState.value = _uiState.value.copy(
-                        loadingMessage = "📼 جاري تحميل المسلسلات...",
-                        loadingProgress = 80
-                    )
-                    val srs = withContext(Dispatchers.IO) {
-                        XtreamApi.loadSeries(
-                            prefs.serverUrl, prefs.username, prefs.password
-                        )
-                    }
-                    ContentRepository.series = srs
-
-                    if (prefs.favoritesSyncEnabled) {
-                        favoritesSync.syncAll(live, vod, srs, favorites)
-                        _favoritesVersion.value++
-                    }
-
-                    _uiState.value = DashboardUiState(
-                        isLoading = false,
-                        channels = live,
-                        movies = vod,
-                        series = srs,
-                        loadingProgress = 100
+                delay(300)
+                val vod = withContext(Dispatchers.IO) {
+                    XtreamApi.loadVodStreams(
+                        prefs.serverUrl, prefs.username, prefs.password
                     )
                 }
+                withContext(Dispatchers.IO) {
+                    channelRepo.saveMovies(vod)
+                }
+                _uiState.value = _uiState.value.copy(
+                    moviesCount = vod.size,
+                    loadingProgress = 75,
+                    loadingMessage = "✅ ${vod.size} فيلم",
+                    dataVersion = _uiState.value.dataVersion + 1
+                )
+
+                delay(300)
+                val srs = withContext(Dispatchers.IO) {
+                    XtreamApi.loadSeries(
+                        prefs.serverUrl, prefs.username, prefs.password
+                    )
+                }
+                withContext(Dispatchers.IO) {
+                    channelRepo.saveSeries(srs)
+                }
+                _uiState.value = _uiState.value.copy(
+                    seriesCount = srs.size,
+                    isLoading = false,
+                    loadingProgress = 100,
+                    dataVersion = _uiState.value.dataVersion + 1
+                )
             }
         }
     }
+}
 
-    fun loadEpisodes(seriesId: String, onDone: (List<Episode>) -> Unit) {
-        viewModelScope.launch {
-            val eps = XtreamApi.loadEpisodes(
-                prefs.serverUrl, prefs.username, prefs.password, seriesId
-            )
-            ContentRepository.episodes = ContentRepository.episodes + (seriesId to eps)
-            onDone(eps)
-        }
+fun loadEpisodes(seriesId: String, onDone: (List<Episode>) -> Unit) {
+    viewModelScope.launch {
+        val eps = XtreamApi.loadEpisodes(
+            prefs.serverUrl, prefs.username, prefs.password, seriesId
+        )
+        ContentRepository.episodes = ContentRepository.episodes + (seriesId to eps)
+        onDone(eps)
     }
+}
 
+    // ============== المفضلة ==============
     fun toggleChannelFavorite(id: String, name: String = "") {
         val nowFav = favorites.toggleChannel(id, name)
         if (name.isNotBlank()) {
@@ -331,8 +327,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun logout() {
-        prefs.clear()
-        ContentRepository.clear()
-        _uiState.value = DashboardUiState()
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                channelRepo.clearAll()
+            }
+            prefs.clear()
+            ContentRepository.clear()
+            _uiState.value = DashboardUiState()
+        }
     }
 }
