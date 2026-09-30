@@ -5,7 +5,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -195,7 +194,6 @@ fun LoginScreen(
 
                     Spacer(Modifier.height(16.dp))
 
-                    // ✅ Switch تسجيل تفاصيل الاتصال
                     Card(
                         colors = CardDefaults.cardColors(
                             containerColor = Color(0xFF161B22).copy(alpha = 0.9f)
@@ -239,9 +237,15 @@ fun LoginScreen(
                             if (logEnabled) {
                                 Spacer(Modifier.height(8.dp))
                                 Text(
-                                    "📁 يُحفظ في: STTITEN IP TV/connection_log.txt",
+                                    "📁 يُحفظ في: Android/data/${ctx.packageName}/files/STTITEN IP TV/",
                                     color = Color(0xFF58A6FF),
-                                    fontSize = 11.sp
+                                    fontSize = 10.sp
+                                )
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    "✅ لا يحتاج أي إذن",
+                                    color = Color(0xFF66BB6A),
+                                    fontSize = 10.sp
                                 )
                             }
                         }
