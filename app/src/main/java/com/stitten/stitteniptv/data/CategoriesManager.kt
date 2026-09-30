@@ -88,13 +88,24 @@ object CategoriesManager {
         return containsAny(category, ARABIC_GENERAL_KEYWORDS)
     }
 
-    // ============== الأولوية (1-4) ==============
+    // ============== كشف قنوات AR الرياضية ==============
     /**
-     * 1 = رياضية عربية
-     * 2 = دول عربية
-     * 3 = رياضية عالمية
-     * 4 = باقي القنوات
+     * القنوات التي يبدأ اسمها بـ "AR" أو "ar" وتحتوي على محتوى رياضي
      */
+    fun isArSportsChannel(channelName: String): Boolean {
+        val trimmed = channelName.trim()
+        if (trimmed.length < 2) return false
+
+        val prefix = trimmed.substring(0, 2)
+        if (!prefix.equals("ar", ignoreCase = true)) return false
+
+        // الحرف الثالث يجب أن يكون غير حرف (مسافة، رقم، :، -، _، إلخ)
+        if (trimmed.length > 2 && trimmed[2].isLetter()) return false
+
+        return isArabSports(trimmed) || isWorldSports(trimmed)
+    }
+
+    // ============== الأولوية للتصنيفات المُسمّاة ==============
     fun getPriorityOrder(category: String): Int {
         return when {
             isArabSports(category) -> 1
@@ -102,6 +113,19 @@ object CategoriesManager {
             isWorldSports(category) -> 3
             else -> 4
         }
+    }
+
+    // ============== الأولوية للباقة (فحص القنوات داخلها) ==============
+    /**
+     * 0 = باقة تحتوي على قنوات AR رياضية (الأولوية القصوى)
+     * 1 = رياضية عربية
+     * 2 = دول عربية
+     * 3 = رياضية عالمية
+     * 4 = الباقي
+     */
+    fun getPriorityForPackage(packageName: String, channelNames: List<String>): Int {
+        if (channelNames.any { isArSportsChannel(it) }) return 0
+        return getPriorityOrder(packageName)
     }
 
     fun detectTypeFromChannelNames(channelNames: List<String>): String {
@@ -134,6 +158,7 @@ object CategoriesManager {
     }
 
     fun sortCategories(categories: List<String>): List<String> {
+        val arSports = mutableListOf<String>()
         val arabSports = mutableListOf<String>()
         val arabCountries = mutableListOf<String>()
         val worldSports = mutableListOf<String>()
@@ -150,7 +175,7 @@ object CategoriesManager {
             }
         }
 
-        return arabSports.sorted() + arabCountries.sorted() +
+        return arSports.sorted() + arabSports.sorted() + arabCountries.sorted() +
                 worldSports.sorted() + arabicGeneral.sorted() + others.sorted()
     }
 }
