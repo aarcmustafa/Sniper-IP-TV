@@ -23,7 +23,10 @@ interface ChannelDao {
     @Query("SELECT * FROM channels WHERE name LIKE '%' || :query || '%' ORDER BY name ASC")
     fun searchChannels(query: String): PagingSource<Int, ChannelEntity>
 
-    @Query("SELECT DISTINCT groupName FROM channels WHERE groupName != '' ORDER BY groupName ASC")
+    @Query("SELECT * FROM channels WHERE groupName = :group AND name LIKE '%' || :query || '%' ORDER BY name ASC")
+    fun searchChannelsInGroup(group: String, query: String): PagingSource<Int, ChannelEntity>
+
+    @Query("SELECT DISTINCT groupName FROM channels WHERE groupName != ''")
     fun getAllChannelGroups(): Flow<List<String>>
 
     @Query("SELECT COUNT(*) FROM channels")
@@ -45,8 +48,14 @@ interface ChannelDao {
     @Query("SELECT * FROM movies WHERE name LIKE '%' || :query || '%' ORDER BY name ASC")
     fun searchMovies(query: String): PagingSource<Int, MovieEntity>
 
-    @Query("SELECT DISTINCT category FROM movies WHERE category != '' ORDER BY category ASC")
+    @Query("SELECT * FROM movies WHERE category = :cat AND name LIKE '%' || :query || '%' ORDER BY name ASC")
+    fun searchMoviesInCategory(cat: String, query: String): PagingSource<Int, MovieEntity>
+
+    @Query("SELECT DISTINCT category FROM movies WHERE category != ''")
     fun getAllMovieCategories(): Flow<List<String>>
+
+    @Query("SELECT COUNT(*) FROM movies")
+    suspend fun getMovieCount(): Int
 
     @Query("DELETE FROM movies")
     suspend fun clearMovies()
@@ -64,29 +73,15 @@ interface ChannelDao {
     @Query("SELECT * FROM series WHERE name LIKE '%' || :query || '%' ORDER BY name ASC")
     fun searchSeries(query: String): PagingSource<Int, SeriesEntity>
 
-    @Query("SELECT DISTINCT category FROM series WHERE category != '' ORDER BY category ASC")
+    @Query("SELECT * FROM series WHERE category = :cat AND name LIKE '%' || :query || '%' ORDER BY name ASC")
+    fun searchSeriesInCategory(cat: String, query: String): PagingSource<Int, SeriesEntity>
+
+    @Query("SELECT DISTINCT category FROM series WHERE category != ''")
     fun getAllSeriesCategories(): Flow<List<String>>
+
+    @Query("SELECT COUNT(*) FROM series")
+    suspend fun getSeriesCount(): Int
 
     @Query("DELETE FROM series")
     suspend fun clearSeries()
-
-    // ============== التنظيف حسب المصدر ==============
-    @Query("DELETE FROM channels WHERE sourceId = :sourceId")
-    suspend fun clearChannelsBySource(sourceId: Long)
-
-    @Query("DELETE FROM movies WHERE sourceId = :sourceId")
-    suspend fun clearMoviesBySource(sourceId: Long)
-
-    @Query("DELETE FROM series WHERE sourceId = :sourceId")
-    suspend fun clearSeriesBySource(sourceId: Long)
-
-    // ============== مسح كل شيء ==============
-    @Query("DELETE FROM channels")
-    suspend fun clearAllChannels()
-
-    @Query("DELETE FROM movies")
-    suspend fun clearAllMovies()
-
-    @Query("DELETE FROM series")
-    suspend fun clearAllSeries()
 }
