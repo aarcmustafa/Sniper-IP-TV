@@ -2,24 +2,19 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- أذونات الشبكة -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
-
-    <!-- أذونات التشغيل في الخلفية -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
 
-    <!-- أذونات قراءة الملفات -->
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
 
-    <!-- ميزات Android TV -->
     <uses-feature
         android:name="android.software.leanback"
         android:required="true" />
@@ -36,7 +31,6 @@
         android:name="android.hardware.gamepad"
         android:required="false" />
 
-    <!-- استعلامات لفتح المشغل الخارجي -->
     <queries>
         <intent>
             <action android:name="android.intent.action.VIEW" />
@@ -77,7 +71,6 @@
         tools:targetApi="34"
         android:theme="@style/Theme.STTITENIPTV">
 
-        <!-- النشاط الرئيسي -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -88,20 +81,17 @@
             android:resizeableActivity="true"
             android:theme="@style/Theme.STTITENIPTV">
 
-            <!-- مشغل الهاتف -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- مشغل Android TV -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
 
-        <!-- خدمة تشغيل الوسائط في الخلفية -->
         <service
             android:name=".player.PlaybackService"
             android:enabled="true"
@@ -112,6 +102,16 @@
                 <action android:name="android.media.browse.MediaBrowserService" />
             </intent-filter>
         </service>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
 
     </application>
 
