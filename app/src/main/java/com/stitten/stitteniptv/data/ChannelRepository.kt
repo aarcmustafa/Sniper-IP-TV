@@ -37,7 +37,6 @@ class ChannelRepository @Inject constructor(
         }
     }
 
-    // ============== الحفظ ==============
     suspend fun saveChannels(channels: List<Channel>, sourceId: Long = 0) {
         val entities = channels.map {
             ChannelEntity(
@@ -85,7 +84,7 @@ class ChannelRepository @Inject constructor(
         }
     }
 
-    // ============== القنوات - Flow<PagingData> ==============
+    // ============== القنوات ==============
     fun getAllChannelsPaged(): Flow<PagingData<ChannelEntity>> =
         Pager(config = pagingConfig()) { dao.getAllChannels() }.flow
 
@@ -98,7 +97,7 @@ class ChannelRepository @Inject constructor(
     fun searchChannelsInGroupPaged(group: String, query: String): Flow<PagingData<ChannelEntity>> =
         Pager(config = pagingConfig()) { dao.searchChannelsInGroup(group, query) }.flow
 
-    // ============== الأفلام - Flow<PagingData> ==============
+    // ============== الأفلام ==============
     fun getAllMoviesPaged(): Flow<PagingData<MovieEntity>> =
         Pager(config = pagingConfig()) { dao.getAllMovies() }.flow
 
@@ -111,7 +110,7 @@ class ChannelRepository @Inject constructor(
     fun searchMoviesInCategoryPaged(cat: String, query: String): Flow<PagingData<MovieEntity>> =
         Pager(config = pagingConfig()) { dao.searchMoviesInCategory(cat, query) }.flow
 
-    // ============== المسلسلات - Flow<PagingData> ==============
+    // ============== المسلسلات ==============
     fun getAllSeriesPaged(): Flow<PagingData<SeriesEntity>> =
         Pager(config = pagingConfig()) { dao.getAllSeries() }.flow
 
@@ -124,7 +123,7 @@ class ChannelRepository @Inject constructor(
     fun searchSeriesInCategoryPaged(cat: String, query: String): Flow<PagingData<SeriesEntity>> =
         Pager(config = pagingConfig()) { dao.searchSeriesInCategory(cat, query) }.flow
 
-    // ============== التصنيفات (مرتبة حسب الأولوية) ==============
+    // ============== التصنيفات (مرتبة) ==============
     fun getChannelGroups(): Flow<List<String>> =
         dao.getAllChannelGroups().map { CategoriesManager.sortCategories(it) }
 
