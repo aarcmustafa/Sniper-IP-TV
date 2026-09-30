@@ -299,3 +299,102 @@ fun SettingsScreen(
         }
     }
 }
+
+@Composable
+private fun FocusableSettingRow(
+    label: String,
+    content: @Composable () -> Unit
+) {
+    var isFocused by remember { mutableStateOf(false) }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp)
+            .border(
+                width = if (isFocused) 3.dp else 1.dp,
+                color = if (isFocused) Color(0xFF58A6FF) else Color.Transparent,
+                shape = RoundedCornerShape(8.dp)
+            )
+            .background(
+                color = if (isFocused) Color(0xFF21262D).copy(alpha = 0.8f)
+                else Color.Transparent,
+                shape = RoundedCornerShape(8.dp)
+            )
+            .padding(12.dp)
+            .onFocusChanged { isFocused = it.isFocused },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            label,
+            color = if (isFocused) Color(0xFF58A6FF) else Color.White,
+            fontSize = 18.sp,
+            fontWeight = if (isFocused) FontWeight.Bold else FontWeight.Normal
+        )
+        content()
+    }
+}
+
+@Composable
+private fun FocusableNavigationRow(
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit
+) {
+    var isFocused by remember { mutableStateOf(false) }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                width = if (isFocused) 3.dp else 0.dp,
+                color = if (isFocused) Color(0xFF58A6FF) else Color.Transparent,
+                shape = RoundedCornerShape(12.dp)
+            )
+            .clickable(onClick = onClick)
+            .onFocusChanged { isFocused = it.isFocused },
+        colors = CardDefaults.cardColors(
+            containerColor = if (isFocused) Color(0xFF1F6FEB)
+            else Color(0xFF161B22).copy(alpha = 0.9f)
+        ),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp).fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    title,
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    subtitle,
+                    color = Color.White.copy(alpha = 0.8f),
+                    fontSize = 13.sp
+                )
+            }
+            Icon(
+                Icons.Default.ArrowForward,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun InfoRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(label, color = Color.LightGray, fontSize = 13.sp)
+        Text(value, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+    }
+}
