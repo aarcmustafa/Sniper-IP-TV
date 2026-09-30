@@ -12,15 +12,12 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
 
-    <!-- أذونات قراءة الملفات (USB / ذاكرة التلفاز) -->
+    <!-- أذونات قراءة الملفات -->
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
-    <uses-permission
-        android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
-        tools:ignore="ScopedStorage" />
 
     <!-- ميزات Android TV -->
     <uses-feature
@@ -86,25 +83,25 @@
             android:exported="true"
             android:screenOrientation="landscape"
             android:supportsPictureInPicture="true"
-            android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout|uiMode|pictureInPicture"
+            android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout|uiMode"
             android:launchMode="singleTask"
             android:resizeableActivity="true"
             android:theme="@style/Theme.STTITENIPTV">
 
-            <!-- مشغل الهاتف العادي -->
+            <!-- مشغل الهاتف -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- مشغل Android TV الرئيسي -->
+            <!-- مشغل Android TV -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
 
-        <!-- خدمة تشغيل الوسائط في الخلفية (MediaSession) -->
+        <!-- خدمة تشغيل الوسائط في الخلفية -->
         <service
             android:name=".player.PlaybackService"
             android:enabled="true"
