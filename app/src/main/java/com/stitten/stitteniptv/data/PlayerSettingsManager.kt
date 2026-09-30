@@ -2,11 +2,14 @@ package com.stitten.stitteniptv.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class PlayerSettingsManager @Inject constructor(context: Context) {
+class PlayerSettingsManager @Inject constructor(
+    @ApplicationContext context: Context
+) {
 
     private val prefs: SharedPreferences =
         context.getSharedPreferences("stitten_player", Context.MODE_PRIVATE)
@@ -39,7 +42,6 @@ class PlayerSettingsManager @Inject constructor(context: Context) {
         get() = prefs.getString("engine", "exo") ?: "exo"
         set(v) = prefs.edit().putString("engine", v).apply()
 
-    // ============== المشغل الخارجي ==============
     var externalPlayerPackage: String
         get() = prefs.getString("ext_pkg", "") ?: ""
         set(v) = prefs.edit().putString("ext_pkg", v).apply()
