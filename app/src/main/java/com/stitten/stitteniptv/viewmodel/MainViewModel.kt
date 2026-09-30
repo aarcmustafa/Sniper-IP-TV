@@ -25,7 +25,12 @@ data class DashboardUiState(
     val currentSourceType: String = "",
     val error: String? = null,
     val dataVersion: Int = 0,
-    val backgroundLoading: Boolean = false
+    // حالات التحميل عند الطلب
+    val channelsLoaded: Boolean = false,
+    val moviesLoaded: Boolean = false,
+    val seriesLoaded: Boolean = false,
+    val loadingMovies: Boolean = false,
+    val loadingSeries: Boolean = false
 )
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
@@ -57,7 +62,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private fun getMovieLimit(): Int = if (prefs.liteModeEnabled) 10000 else Int.MAX_VALUE
     private fun getSeriesLimit(): Int = if (prefs.liteModeEnabled) 5000 else Int.MAX_VALUE
 
-    // ============== تسجيل الدخول بـ Xtream ==============
+    // ============== تسجيل الدخول ==============
     fun loginXtream(server: String, user: String, pass: String, onDone: (Boolean) -> Unit) {
         viewModelScope.launch {
             XtreamApi.setPreferredProtocol(prefs.useHttps)
@@ -66,8 +71,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
             _uiState.value = DashboardUiState(
                 isLoading = true,
-                loadingMessage = "🔐 جاري التحقق من البيانات...",
-                loadingProgress = 2
+                loadingMessage = "🔐 جاري التحقق...",
+                loadingProgress = 5
             )
 
             val valid = withContext(Dispatchers.IO) {
@@ -90,316 +95,152 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
             withContext(Dispatchers.IO) { channelRepo.clearAll() }
 
-            loadXtreamInBackground(server, user, pass)
+            // ✅ تحميل القنوات فقط — الأفلام والمسلسلات عند الطلب
+            loadChannelsOnly(server, user, pass)
         }
     }
 
-    private suspend fun loadXtreamInBackground(server: String, user: String, pass: String) {
-        // ========== القنوات ==========
+    // ============== تحميل القنوات فقط (سريع) ==============
+    private suspend fun loadChannelsOnly(server: String, user: String, pass: String) {
         _uiState.value = _uiState.value.copy(
             loadingMessage = "📺 جاري تحميل القنوات...",
-            loadingProgress = 5
+            loadingProgress = 10
         )
 
         val live = withContext(Dispatchers.IO) {
             XtreamApi.loadLiveStreams(server, user, pass) { loaded ->
-                val progress = (loaded / 500).coerceAtMost(25)
+                val progress = (loaded / 500).coerceAtMost(80)
                 _uiState.value = _uiState.value.copy(
                     loadingMessage = "📺 تحميل القنوات... ($loaded)",
-                    loadingProgress = 5 + progress
+                    loadingProgress = 10 + progress
                 )
             }
         }
-        val limitedLive = live.take(getChannelLimit())
-        withContext(Dispatchers.IO) { channelRepo.saveChannels(limitedLive) }
+
+        val limited = live.take(getChannelLimit())
+        withContext(Dispatchers.IO) { channelRepo.saveChannels(limited) }
 
         _uiState.value = _uiState.value.copy(
-            channelsCount = limitedLive.size,
-            loadingProgress = 35,
-            loadingMessage = "✅ ${limitedLive.size} قناة محمّلة",
-            dataVersion = _uiState.value.dataVersion + 1
-        )
-
-        delay(300)
-
-        // ========== الأفلام ==========
-        _uiState.value = _uiState.value.copy(
-            loadingMessage = "🎬 جاري تحميل الأفلام...",
-            loadingProgress = 38,
-            backgroundLoading = true
-        )
-
-        val vod = withContext(Dispatchers.IO) {
-            XtreamApi.loadVodStreams(server, user, pass) { loaded ->
-                val progress = (loaded / 2000).coerceAtMost(30)
-                _uiState.value = _uiState.value.copy(
-                    loadingMessage = "🎬 تحميل الأفلام... ($loaded)",
-                    loadingProgress = 38 + progress
-                )
-            }
-        }
-        val limitedVod = vod.take(getMovieLimit())
-        withContext(Dispatchers.IO) { channelRepo.saveMovies(limitedVod) }
-
-        _uiState.value = _uiState.value.copy(
-            moviesCount = limitedVod.size,
-            loadingProgress = 70,
-            loadingMessage = "✅ ${limitedVod.size} فيلم محمّل",
-            dataVersion = _uiState.value.dataVersion + 1
-        )
-
-        delay(300)
-
-        // ========== المسلسلات ==========
-        _uiState.value = _uiState.value.copy(
-            loadingMessage = "📼 جاري تحميل المسلسلات...",
-            loadingProgress = 72
-        )
-
-        val srs = withContext(Dispatchers.IO) {
-            XtreamApi.loadSeries(server, user, pass) { loaded ->
-                val progress = (loaded / 1000).coerceAtMost(25)
-                _uiState.value = _uiState.value.copy(
-                    loadingMessage = "📼 تحميل المسلسلات... ($loaded)",
-                    loadingProgress = 72 + progress
-                )
-            }
-        }
-        val limitedSrs = srs.take(getSeriesLimit())
-        withContext(Dispatchers.IO) { channelRepo.saveSeries(limitedSrs) }
-
-        _uiState.value = _uiState.value.copy(
-            seriesCount = limitedSrs.size,
+            channelsCount = limited.size,
+            channelsLoaded = true,
             isLoading = false,
-            backgroundLoading = false,
             loadingProgress = 100,
-            loadingMessage = "✅ اكتمل التحميل",
+            loadingMessage = "✅ ${limited.size} قناة",
             dataVersion = _uiState.value.dataVersion + 1
         )
     }
     
-// ============== تبديل المصادر ==============
-fun switchSource(source: SourceEntity) {
+// ============== تحميل الأفلام عند الطلب ==============
+fun loadMoviesOnDemand() {
+    // لا تُعد التحميل إذا كانت محمّلة
+    if (_uiState.value.moviesLoaded || _uiState.value.loadingMovies) return
+
     viewModelScope.launch {
-        XtreamApi.setPreferredProtocol(prefs.useHttps)
-        XtreamApi.setPreferredFormat(prefs.streamFormat)
-        channelRepo.liteMode = prefs.liteModeEnabled
+        _uiState.value = _uiState.value.copy(loadingMovies = true)
 
-        withContext(Dispatchers.IO) { channelRepo.clearAll() }
-        sourceMgr.setActive(source.id)
-
-        _uiState.value = DashboardUiState(
-            isLoading = true,
-            loadingMessage = "🔐 جاري الاتصال بـ ${source.name}...",
-            loadingProgress = 2,
-            currentSourceName = source.name,
-            currentSourceType = source.type
+        _uiState.value = _uiState.value.copy(
+            loadingMessage = "🎬 جاري تحميل الأفلام...",
+            loadingProgress = 5,
+            isLoading = true
         )
 
-        prefs.isLoggedIn = true
-        prefs.loginType = source.type
-        prefs.serverUrl = source.url
-        prefs.username = source.username
-        prefs.password = source.password
-        prefs.m3uUrl = source.url
-
-        when (source.type) {
-            "XTREAM" -> {
-                val valid = withContext(Dispatchers.IO) {
-                    XtreamApi.validate(source.url, source.username, source.password)
-                }
-                if (!valid) {
-                    _uiState.value = DashboardUiState(
-                        error = "❌ فشل الاتصال بـ ${source.name}",
-                        currentSourceName = source.name,
-                        currentSourceType = source.type
+        try {
+            val vod = withContext(Dispatchers.IO) {
+                XtreamApi.loadVodStreams(
+                    prefs.serverUrl, prefs.username, prefs.password
+                ) { loaded ->
+                    val progress = (loaded / 2000).coerceAtMost(90)
+                    _uiState.value = _uiState.value.copy(
+                        loadingMessage = "🎬 تحميل الأفلام... ($loaded)",
+                        loadingProgress = 5 + progress
                     )
-                    return@launch
                 }
-                loadXtreamInBackground(source.url, source.username, source.password)
-            }
-            "M3U" -> loadM3uSource(source)
-        }
-    }
-}
-
-private suspend fun loadM3uSource(source: SourceEntity) {
-    _uiState.value = _uiState.value.copy(
-        loadingMessage = "📥 جاري تحميل M3U...",
-        loadingProgress = 20
-    )
-
-    val channels = if (source.url.startsWith("content://")) {
-        emptyList()
-    } else {
-        withContext(Dispatchers.IO) { M3uParser.loadFromUrl(source.url) }
-    }
-
-    if (channels.isEmpty()) {
-        _uiState.value = DashboardUiState(
-            error = "❌ فشل تحميل M3U: ${source.name}",
-            currentSourceName = source.name,
-            currentSourceType = source.type
-        )
-        return
-    }
-
-    val limited = channels.take(getChannelLimit())
-    withContext(Dispatchers.IO) { channelRepo.saveChannels(limited) }
-
-    _uiState.value = _uiState.value.copy(
-        channelsCount = limited.size,
-        isLoading = false,
-        loadingProgress = 100,
-        loadingMessage = "✅ ${limited.size} قناة",
-        dataVersion = _uiState.value.dataVersion + 1
-    )
-}
-
-fun loginM3u(url: String, content: String? = null, onDone: (Boolean) -> Unit) {
-    viewModelScope.launch {
-        _uiState.value = DashboardUiState(
-            isLoading = true,
-            loadingMessage = "📥 جاري تحميل القائمة...",
-            loadingProgress = 20
-        )
-
-        val list = if (content != null) {
-            M3uParser.loadFromContent(content)
-        } else {
-            M3uParser.loadFromUrl(url)
-        }
-
-        if (list.isEmpty()) {
-            _uiState.value = DashboardUiState(error = "❌ لا توجد قنوات")
-            onDone(false)
-        } else {
-            prefs.isLoggedIn = true
-            prefs.loginType = "M3U"
-            prefs.m3uUrl = url
-
-            val limited = list.take(getChannelLimit())
-            withContext(Dispatchers.IO) {
-                channelRepo.clearAll()
-                channelRepo.saveChannels(limited)
             }
 
-            _uiState.value = DashboardUiState(
-                channelsCount = limited.size,
+            if (vod.isEmpty()) {
+                _uiState.value = _uiState.value.copy(
+                    loadingMovies = false,
+                    isLoading = false,
+                    error = "لا توجد أفلام في هذا المصدر"
+                )
+                return@launch
+            }
+
+            val limited = vod.take(getMovieLimit())
+            withContext(Dispatchers.IO) { channelRepo.saveMovies(limited) }
+
+            _uiState.value = _uiState.value.copy(
+                moviesCount = limited.size,
+                moviesLoaded = true,
+                loadingMovies = false,
+                isLoading = false,
                 loadingProgress = 100,
-                dataVersion = 1
+                loadingMessage = "✅ ${limited.size} فيلم",
+                dataVersion = _uiState.value.dataVersion + 1
             )
-            onDone(true)
+        } catch (e: Exception) {
+            _uiState.value = _uiState.value.copy(
+                loadingMovies = false,
+                isLoading = false,
+                error = "فشل تحميل الأفلام: ${e.message}"
+            )
         }
     }
 }
 
-fun loadCachedContent() {
+// ============== تحميل المسلسلات عند الطلب ==============
+fun loadSeriesOnDemand() {
+    if (_uiState.value.seriesLoaded || _uiState.value.loadingSeries) return
+
     viewModelScope.launch {
-        XtreamApi.setPreferredProtocol(prefs.useHttps)
-        XtreamApi.setPreferredFormat(prefs.streamFormat)
-        channelRepo.liteMode = prefs.liteModeEnabled
+        _uiState.value = _uiState.value.copy(loadingSeries = true)
 
-        val active = withContext(Dispatchers.IO) { sourceMgr.getActive() }
-        if (active != null) {
-            switchSource(active)
-            return@launch
-        }
+        _uiState.value = _uiState.value.copy(
+            loadingMessage = "📼 جاري تحميل المسلسلات...",
+            loadingProgress = 5,
+            isLoading = true
+        )
 
-        when (prefs.loginType) {
-            "M3U" -> {
-                val list = M3uParser.loadFromUrl(prefs.m3uUrl)
-                val limited = list.take(getChannelLimit())
-                withContext(Dispatchers.IO) {
-                    channelRepo.clearAll()
-                    channelRepo.saveChannels(limited)
+        try {
+            val srs = withContext(Dispatchers.IO) {
+                XtreamApi.loadSeries(
+                    prefs.serverUrl, prefs.username, prefs.password
+                ) { loaded ->
+                    val progress = (loaded / 1000).coerceAtMost(90)
+                    _uiState.value = _uiState.value.copy(
+                        loadingMessage = "📼 تحميل المسلسلات... ($loaded)",
+                        loadingProgress = 5 + progress
+                    )
                 }
-                _uiState.value = DashboardUiState(
-                    channelsCount = limited.size,
-                    loadingProgress = 100,
-                    dataVersion = 1
-                )
             }
-            "XTREAM" -> {
-                val fake = SourceEntity(
-                    name = "الحساب الحالي",
-                    type = "XTREAM",
-                    url = prefs.serverUrl,
-                    username = prefs.username,
-                    password = prefs.password,
-                    isActive = true
+
+            if (srs.isEmpty()) {
+                _uiState.value = _uiState.value.copy(
+                    loadingSeries = false,
+                    isLoading = false,
+                    error = "لا توجد مسلسلات في هذا المصدر"
                 )
-                loadXtreamInBackground(fake.url, fake.username, fake.password)
+                return@launch
             }
-        }
-    }
-}
 
-    fun deleteSource(source: SourceEntity, onDone: () -> Unit) {
-        viewModelScope.launch {
-            withContext(Dispatchers.IO) { sourceMgr.delete(source) }
-            onDone()
-        }
-    }
+            val limited = srs.take(getSeriesLimit())
+            withContext(Dispatchers.IO) { channelRepo.saveSeries(limited) }
 
-    fun loadEpisodes(seriesId: String, onDone: (List<Episode>) -> Unit) {
-        viewModelScope.launch {
-            val eps = XtreamApi.loadEpisodes(
-                prefs.serverUrl, prefs.username, prefs.password, seriesId
+            _uiState.value = _uiState.value.copy(
+                seriesCount = limited.size,
+                seriesLoaded = true,
+                loadingSeries = false,
+                isLoading = false,
+                loadingProgress = 100,
+                loadingMessage = "✅ ${limited.size} مسلسل",
+                dataVersion = _uiState.value.dataVersion + 1
             )
-            ContentRepository.episodes = ContentRepository.episodes + (seriesId to eps)
-            onDone(eps)
-        }
-    }
-
-    fun toggleChannelFavorite(id: String, name: String = "") {
-        val nowFav = favorites.toggleChannel(id, name)
-        if (name.isNotBlank()) {
-            if (nowFav) favoritesSync.markChannel(name)
-            else favoritesSync.unmarkChannel(name)
-        }
-        _favoritesVersion.value++
-    }
-
-    fun toggleMovieFavorite(id: String, name: String = "") {
-        val nowFav = favorites.toggleMovie(id, name)
-        if (name.isNotBlank()) {
-            if (nowFav) favoritesSync.markMovie(name)
-            else favoritesSync.unmarkMovie(name)
-        }
-        _favoritesVersion.value++
-    }
-
-    fun toggleSeriesFavorite(id: String, name: String = "") {
-        val nowFav = favorites.toggleSeries(id, name)
-        if (name.isNotBlank()) {
-            if (nowFav) favoritesSync.markSeries(name)
-            else favoritesSync.unmarkSeries(name)
-        }
-        _favoritesVersion.value++
-    }
-
-    fun getFavoriteChannels(): List<Channel> {
-        val ids = favorites.getFavoriteChannelIds()
-        return ContentRepository.channels.filter { it.id in ids }
-    }
-
-    fun getFavoriteMovies(): List<Movie> {
-        val ids = favorites.getFavoriteMovieIds()
-        return ContentRepository.movies.filter { it.id in ids }
-    }
-
-    fun getFavoriteSeries(): List<Series> {
-        val ids = favorites.getFavoriteSeriesIds()
-        return ContentRepository.series.filter { it.id in ids }
-    }
-
-    fun logout() {
-        viewModelScope.launch {
-            withContext(Dispatchers.IO) { channelRepo.clearAll() }
-            prefs.clear()
-            ContentRepository.clear()
-            _uiState.value = DashboardUiState()
+        } catch (e: Exception) {
+            _uiState.value = _uiState.value.copy(
+                loadingSeries = false,
+                isLoading = false,
+                error = "فشل تحميل المسلسلات: ${e.message}"
+            )
         }
     }
 }
