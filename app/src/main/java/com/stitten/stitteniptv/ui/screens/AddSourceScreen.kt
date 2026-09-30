@@ -3,6 +3,8 @@ package com.stitten.stitteniptv.ui.screens
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -10,12 +12,16 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
+import com.stitten.stitteniptv.R
 import com.stitten.stitteniptv.data.ContentRepository
 import com.stitten.stitteniptv.data.M3uParser
 import com.stitten.stitteniptv.data.XtreamApi
@@ -64,50 +70,65 @@ fun AddSourceScreen(
             }
         }
     }
-    
-val filePicker = rememberLauncherForActivityResult(
-    ActivityResultContracts.OpenDocument()
-) { uri: Uri? ->
-    uri ?: return@rememberLauncherForActivityResult
-    scope.launch {
-        loading = true
-        try {
-            val content = ctx.contentResolver.openInputStream(uri)
-                ?.bufferedReader()?.use { it.readText() } ?: ""
-            if (content.isBlank()) {
-                message = "الملف فارغ أو غير قابل للقراءة"
-                loading = false
-                return@launch
-            }
-            val channels = M3uParser.loadFromContent(content)
-            if (channels.isEmpty()) {
-                message = "لا توجد قنوات في هذا الملف"
-                loading = false
-                return@launch
-            }
-            ContentRepository.channels = channels
-            val finalName = name.ifBlank {
-                "M3U محلي: ${uri.lastPathSegment?.takeLast(20) ?: "مصدر"}"
-            }
-            val newId = sourceMgr.add(
-                SourceEntity(
-                    name = finalName,
-                    type = "M3U",
-                    url = uri.toString(),
-                    isActive = false
+
+    val filePicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        uri ?: return@rememberLauncherForActivityResult
+        scope.launch {
+            loading = true
+            try {
+                val content = ctx.contentResolver.openInputStream(uri)
+                    ?.bufferedReader()?.use { it.readText() } ?: ""
+                if (content.isBlank()) {
+                    message = "الملف فارغ أو غير قابل للقراءة"
+                    loading = false
+                    return@launch
+                }
+                val channels = M3uParser.loadFromContent(content)
+                if (channels.isEmpty()) {
+                    message = "لا توجد قنوات في هذا الملف"
+                    loading = false
+                    return@launch
+                }
+                ContentRepository.channels = channels
+                val finalName = name.ifBlank {
+                    "M3U محلي: ${uri.lastPathSegment?.takeLast(20) ?: "مصدر"}"
+                }
+                val newId = sourceMgr.add(
+                    SourceEntity(
+                        name = finalName,
+                        type = "M3U",
+                        url = uri.toString(),
+                        isActive = false
+                    )
                 )
-            )
-            sourceMgr.setActive(newId)
-            loading = false
-            navController.navigate(Routes.DASHBOARD) {
-                popUpTo(Routes.ADD_SOURCE) { inclusive = true }
+                sourceMgr.setActive(newId)
+                loading = false
+                navController.navigate(Routes.DASHBOARD) {
+                    popUpTo(Routes.ADD_SOURCE) { inclusive = true }
+                }
+            } catch (e: Exception) {
+                message = "خطأ: ${e.message}"
+                loading = false
             }
-        } catch (e: Exception) {
-            message = "خطأ: ${e.message}"
-            loading = false
         }
     }
-}
+    
+Box(modifier = Modifier.fillMaxSize()) {
+
+    Image(
+        painter = painterResource(id = R.drawable.bg_main),
+        contentDescription = null,
+        modifier = Modifier.fillMaxSize(),
+        contentScale = ContentScale.Crop
+    )
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.75f))
+    )
 
     Column(
         modifier = Modifier
@@ -201,7 +222,7 @@ val filePicker = rememberLauncherForActivityResult(
             1 -> {
                 Text(
                     "اختر ملف M3U من ذاكرة التلفاز الداخلية أو USB",
-                    color = MaterialTheme.colorScheme.onBackground,
+                    color = Color.White,
                     fontSize = 18.sp
                 )
                 Spacer(Modifier.height(20.dp))
@@ -210,74 +231,76 @@ val filePicker = rememberLauncherForActivityResult(
                     modifier = Modifier.width(400.dp)
                 ) { Text("📂 فتح منتقي الملفات", fontSize = 18.sp) }
             }
-            2 -> {
-                OutlinedTextField(
-                    value = server,
-                    onValueChange = { server = it },
-                    label = { Text("Server URL") },
-                    modifier = Modifier.width(600.dp),
-                    singleLine = true
-                )
-                Spacer(Modifier.height(12.dp))
-                OutlinedTextField(
-                    value = user,
-                    onValueChange = { user = it },
-                    label = { Text("Username") },
-                    modifier = Modifier.width(600.dp),
-                    singleLine = true
-                )
-                Spacer(Modifier.height(12.dp))
-                OutlinedTextField(
-                    value = pass,
-                    onValueChange = { pass = it },
-                    label = { Text("Password") },
-                    visualTransformation = PasswordVisualTransformation(),
-                    modifier = Modifier.width(600.dp),
-                    singleLine = true
-                )
-                Spacer(Modifier.height(20.dp))
-                Button(
-                    onClick = {
-                        if (server.isBlank() || user.isBlank() || pass.isBlank()) {
-                            message = "املأ كل الحقول"; return@Button
-                        }
-                        scope.launch {
-                            loading = true
-                            val valid = XtreamApi.validate(server, user, pass)
-                            if (!valid) {
-                                message = "بيانات Xtream غير صحيحة أو السيرفر غير متاح"
-                                loading = false
-                                return@launch
+            
+                2 -> {
+                    OutlinedTextField(
+                        value = server,
+                        onValueChange = { server = it },
+                        label = { Text("Server URL") },
+                        modifier = Modifier.width(600.dp),
+                        singleLine = true
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = user,
+                        onValueChange = { user = it },
+                        label = { Text("Username") },
+                        modifier = Modifier.width(600.dp),
+                        singleLine = true
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = pass,
+                        onValueChange = { pass = it },
+                        label = { Text("Password") },
+                        visualTransformation = PasswordVisualTransformation(),
+                        modifier = Modifier.width(600.dp),
+                        singleLine = true
+                    )
+                    Spacer(Modifier.height(20.dp))
+                    Button(
+                        onClick = {
+                            if (server.isBlank() || user.isBlank() || pass.isBlank()) {
+                                message = "املأ كل الحقول"; return@Button
                             }
-                            val newId = sourceMgr.add(
-                                SourceEntity(
-                                    name = name.ifBlank { "Xtream: $user" },
-                                    type = "XTREAM",
-                                    url = server,
-                                    username = user,
-                                    password = pass,
-                                    isActive = false
+                            scope.launch {
+                                loading = true
+                                val valid = XtreamApi.validate(server, user, pass)
+                                if (!valid) {
+                                    message = "بيانات Xtream غير صحيحة أو السيرفر غير متاح"
+                                    loading = false
+                                    return@launch
+                                }
+                                val newId = sourceMgr.add(
+                                    SourceEntity(
+                                        name = name.ifBlank { "Xtream: $user" },
+                                        type = "XTREAM",
+                                        url = server,
+                                        username = user,
+                                        password = pass,
+                                        isActive = false
+                                    )
                                 )
-                            )
-                            sourceMgr.setActive(newId)
-                            loading = false
-                            navController.navigate(Routes.DASHBOARD) {
-                                popUpTo(Routes.ADD_SOURCE) { inclusive = true }
+                                sourceMgr.setActive(newId)
+                                loading = false
+                                navController.navigate(Routes.DASHBOARD) {
+                                    popUpTo(Routes.ADD_SOURCE) { inclusive = true }
+                                }
                             }
-                        }
-                    },
-                    modifier = Modifier.width(300.dp)
-                ) { Text("اختبار وحفظ", fontSize = 18.sp) }
+                        },
+                        modifier = Modifier.width(300.dp)
+                    ) { Text("اختبار وحفظ", fontSize = 18.sp) }
+                }
             }
-        }
 
-        if (message.isNotEmpty()) {
-            Spacer(Modifier.height(16.dp))
-            Text(message, color = MaterialTheme.colorScheme.error, fontSize = 16.sp)
-        }
-        if (loading) {
-            Spacer(Modifier.height(20.dp))
-            CircularProgressIndicator()
+            if (message.isNotEmpty()) {
+                Spacer(Modifier.height(16.dp))
+                Text(message, color = MaterialTheme.colorScheme.error, fontSize = 16.sp)
+            }
+            if (loading) {
+                Spacer(Modifier.height(20.dp))
+                CircularProgressIndicator()
+            }
         }
     }
 }
@@ -288,7 +311,7 @@ private fun TabButton(text: String, selected: Boolean, onClick: () -> Unit) {
         onClick = onClick,
         colors = ButtonDefaults.buttonColors(
             containerColor = if (selected) MaterialTheme.colorScheme.primary
-            else MaterialTheme.colorScheme.surface,
+            else MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
             contentColor = if (selected) MaterialTheme.colorScheme.onPrimary
             else MaterialTheme.colorScheme.onSurface
         )
