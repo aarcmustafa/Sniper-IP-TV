@@ -251,8 +251,9 @@ private fun PackageHeader(name: String) {
     }
 }
 
+// ✅ الحل: RowScope.CustomIconButton لتفعيل weight
 @Composable
-private fun CustomIconButton(
+private fun RowScope.CustomIconButton(
     iconRes: Int,
     label: String,
     onClick: () -> Unit
