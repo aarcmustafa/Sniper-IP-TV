@@ -2,8 +2,8 @@ package com.stitten.stitteniptv.di
 
 import android.content.Context
 import androidx.room.Room
-import com.stitten.stitteniptv.data.ExternalPlayerManager
 import com.stitten.stitteniptv.database.AppDatabase
+import com.stitten.stitteniptv.database.dao.ChannelDao
 import com.stitten.stitteniptv.database.dao.ErrorLogDao
 import com.stitten.stitteniptv.database.dao.ParentalBlockDao
 import com.stitten.stitteniptv.database.dao.SourceDao
@@ -37,4 +37,7 @@ object DatabaseModule {
 
     @Provides
     fun provideSourceDao(db: AppDatabase): SourceDao = db.sourceDao()
+
+    @Provides
+    fun provideChannelDao(db: AppDatabase): ChannelDao = db.channelDao()
 }
