@@ -296,9 +296,8 @@ LaunchedEffect(Unit) {
 private fun TrackMenu(tracks: Tracks, exoPlayer: ExoPlayer, onDismiss: () -> Unit) {
     Surface(
         modifier = Modifier
-            .fillMaxWidth(0.5f)
-            .padding(top = 80.dp)
-            .align(Alignment.TopEnd),
+    .fillMaxWidth(0.5f)
+    .padding(top = 80.dp),
         color = Color(0xEE161B22)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -352,9 +351,9 @@ private fun ExternalMenu(
     val installed = remember { ExternalPlayerManager.getInstalledPlayers(ctx) }
     Surface(
         modifier = Modifier
-            .fillMaxWidth(0.4f)
-            .padding(top = 80.dp)
-            .align(Alignment.TopEnd),
+    .fillMaxWidth(0.5f)
+    .padding(top = 80.dp)
+    .align(Alignment.TopEnd),   ← احذف هذا السطر
         color = Color(0xEE161B22)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
