@@ -19,6 +19,9 @@ interface SourceDao {
     @Query("SELECT * FROM sources ORDER BY createdAt DESC")
     fun getAll(): Flow<List<SourceEntity>>
 
+    @Query("SELECT * FROM sources WHERE type = :type ORDER BY createdAt DESC")
+    fun getByType(type: String): Flow<List<SourceEntity>>
+
     @Query("SELECT * FROM sources WHERE isActive = 1 LIMIT 1")
     suspend fun getActive(): SourceEntity?
 
@@ -30,6 +33,9 @@ interface SourceDao {
 
     @Query("SELECT * FROM sources WHERE id = :id LIMIT 1")
     suspend fun getById(id: Long): SourceEntity?
+
+    @Query("SELECT COUNT(*) FROM sources WHERE type = :type")
+    suspend fun countByType(type: String): Int
 
     @Query("DELETE FROM sources")
     suspend fun clearAll()
