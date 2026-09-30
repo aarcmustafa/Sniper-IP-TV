@@ -101,6 +101,43 @@ object CategoriesManager {
         return containsAny(category, ARABIC_GENERAL_KEYWORDS)
     }
 
+    // ============== كشف نوع المحتوى من أسماء القنوات ==============
+    /**
+     * يحلل قائمة أسماء القنوات ويعيد نوع التصنيف الغالب
+     * يُستخدم لإعادة تسمية الباقات المرقمة
+     */
+    fun detectTypeFromChannelNames(channelNames: List<String>): String {
+        if (channelNames.isEmpty()) return ""
+
+        var arabSports = 0
+        var worldSports = 0
+        var arabCountry = 0
+        var arabicGeneral = 0
+
+        channelNames.forEach { name ->
+            when {
+                isArabSports(name) -> arabSports++
+                isArabCountry(name) -> arabCountry++
+                isWorldSports(name) -> worldSports++
+                isArabicGeneral(name) -> arabicGeneral++
+            }
+        }
+
+        val max = maxOf(arabSports, worldSports, arabCountry, arabicGeneral)
+
+        // الحد الأدنى: 30% من القنوات يجب أن تكون من نوع معين
+        val threshold = (channelNames.size * 30) / 100
+        if (max < threshold || max == 0) return ""
+
+        return when (max) {
+            arabSports -> "رياضية عربية"
+            arabCountry -> "قنوات عربية"
+            worldSports -> "رياضية عالمية"
+            arabicGeneral -> "عربية"
+            else -> ""
+        }
+    }
+
     // ============== الترتيب بالأولوية ==============
     /**
      * ترتيب التصنيفات حسب الأولوية:
