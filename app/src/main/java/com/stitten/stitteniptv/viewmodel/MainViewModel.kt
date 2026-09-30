@@ -166,3 +166,119 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         )
     }
     
+private suspend fun loadM3uSource(source: SourceEntity) {
+    _uiState.value = _uiState.value.copy(
+        loadingMessage = "📥 جاري تحميل M3U...",
+        loadingProgress = 30
+    )
+
+    val channels = if (source.url.startsWith("content://")) {
+        emptyList()
+    } else {
+        withContext(Dispatchers.IO) {
+            M3uParser.loadFromUrl(source.url)
+        }
+    }
+
+    if (channels.isEmpty()) {
+        _uiState.value = DashboardUiState(
+            error = "❌ فشل تحميل M3U: ${source.name}",
+            currentSourceName = source.name,
+            currentSourceType = source.type
+        )
+        return
+    }
+
+    val limited = channels.take(getChannelLimit())
+    withContext(Dispatchers.IO) { channelRepo.saveChannels(limited) }
+
+    _uiState.value = _uiState.value.copy(
+        channelsCount = limited.size,
+        isLoading = false,
+        loadingProgress = 100,
+        loadingMessage = "✅ ${limited.size} قناة",
+        dataVersion = _uiState.value.dataVersion + 1
+    )
+}
+
+fun loginXtream(server: String, user: String, pass: String, onDone: (Boolean) -> Unit) {
+    viewModelScope.launch {
+        XtreamApi.setPreferredProtocol(prefs.useHttps)
+        XtreamApi.setPreferredFormat(prefs.streamFormat)
+        channelRepo.liteMode = prefs.liteModeEnabled
+
+        _uiState.value = DashboardUiState(
+            isLoading = true,
+            loadingMessage = "🔐 جاري التحقق...",
+            loadingProgress = 5
+        )
+
+        val valid = withContext(Dispatchers.IO) {
+            XtreamApi.validate(server, user, pass)
+        }
+
+        if (!valid) {
+            _uiState.value = DashboardUiState(error = "❌ بيانات غير صحيحة")
+            onDone(false)
+            return@launch
+        }
+
+        prefs.isLoggedIn = true
+        prefs.loginType = "XTREAM"
+        prefs.serverUrl = server
+        prefs.username = user
+        prefs.password = pass
+
+        onDone(true)
+
+        withContext(Dispatchers.IO) { channelRepo.clearAll() }
+
+        val source = SourceEntity(
+            name = "الحساب الحالي",
+            type = "XTREAM",
+            url = server,
+            username = user,
+            password = pass,
+            isActive = true
+        )
+        loadXtreamSource(source)
+    }
+}
+
+fun loginM3u(url: String, content: String? = null, onDone: (Boolean) -> Unit) {
+    viewModelScope.launch {
+        _uiState.value = DashboardUiState(
+            isLoading = true,
+            loadingMessage = "📥 جاري تحميل القائمة...",
+            loadingProgress = 20
+        )
+
+        val list = if (content != null) {
+            M3uParser.loadFromContent(content)
+        } else {
+            M3uParser.loadFromUrl(url)
+        }
+
+        if (list.isEmpty()) {
+            _uiState.value = DashboardUiState(error = "❌ لا توجد قنوات")
+            onDone(false)
+        } else {
+            prefs.isLoggedIn = true
+            prefs.loginType = "M3U"
+            prefs.m3uUrl = url
+
+            val limited = list.take(getChannelLimit())
+            withContext(Dispatchers.IO) {
+                channelRepo.clearAll()
+                channelRepo.saveChannels(limited)
+            }
+
+            _uiState.value = DashboardUiState(
+                channelsCount = limited.size,
+                loadingProgress = 100,
+                dataVersion = 1
+            )
+            onDone(true)
+        }
+    }
+}
