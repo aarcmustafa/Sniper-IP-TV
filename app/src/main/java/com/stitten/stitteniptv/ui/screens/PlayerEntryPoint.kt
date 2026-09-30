@@ -1,5 +1,6 @@
 package com.stitten.stitteniptv.ui.screens
 
+import com.stitten.stitteniptv.data.ChannelRepository
 import com.stitten.stitteniptv.data.ErrorLogger
 import com.stitten.stitteniptv.data.FavoritesSyncManager
 import com.stitten.stitteniptv.data.ParentalControlManager
@@ -19,4 +20,5 @@ interface PlayerEntryPoint {
     fun parentalControlManager(): ParentalControlManager
     fun sourceManager(): SourceManager
     fun favoritesSyncManager(): FavoritesSyncManager
+    fun channelRepository(): ChannelRepository
 }
