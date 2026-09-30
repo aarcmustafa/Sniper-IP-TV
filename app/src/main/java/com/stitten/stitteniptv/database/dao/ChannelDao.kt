@@ -14,19 +14,19 @@ interface ChannelDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertChannels(channels: List<ChannelEntity>)
 
-    @Query("SELECT * FROM channels ORDER BY name ASC")
+    @Query("SELECT * FROM channels ORDER BY groupPriority ASC, groupName ASC, name ASC")
     fun getAllChannels(): PagingSource<Int, ChannelEntity>
 
-    @Query("SELECT * FROM channels WHERE groupName = :group ORDER BY name ASC")
+    @Query("SELECT * FROM channels WHERE groupName = :group ORDER BY groupPriority ASC, name ASC")
     fun getChannelsByGroup(group: String): PagingSource<Int, ChannelEntity>
 
-    @Query("SELECT * FROM channels WHERE name LIKE '%' || :query || '%' ORDER BY name ASC")
+    @Query("SELECT * FROM channels WHERE name LIKE '%' || :query || '%' ORDER BY groupPriority ASC, groupName ASC, name ASC")
     fun searchChannels(query: String): PagingSource<Int, ChannelEntity>
 
     @Query("SELECT * FROM channels WHERE groupName = :group AND name LIKE '%' || :query || '%' ORDER BY name ASC")
     fun searchChannelsInGroup(group: String, query: String): PagingSource<Int, ChannelEntity>
 
-    @Query("SELECT DISTINCT groupName FROM channels WHERE groupName != ''")
+    @Query("SELECT DISTINCT groupName FROM channels WHERE groupName != '' ORDER BY groupPriority ASC, groupName ASC")
     fun getAllChannelGroups(): Flow<List<String>>
 
     @Query("SELECT COUNT(*) FROM channels")
@@ -42,46 +42,11 @@ interface ChannelDao {
     @Query("SELECT * FROM movies ORDER BY name ASC")
     fun getAllMovies(): PagingSource<Int, MovieEntity>
 
-    @Query("SELECT * FROM movies WHERE category = :cat ORDER BY name ASC")
-    fun getMoviesByCategory(cat: String): PagingSource<Int, MovieEntity>
-
     @Query("SELECT * FROM movies WHERE name LIKE '%' || :query || '%' ORDER BY name ASC")
     fun searchMovies(query: String): PagingSource<Int, MovieEntity>
-
-    @Query("SELECT * FROM movies WHERE category = :cat AND name LIKE '%' || :query || '%' ORDER BY name ASC")
-    fun searchMoviesInCategory(cat: String, query: String): PagingSource<Int, MovieEntity>
-
-    @Query("SELECT DISTINCT category FROM movies WHERE category != ''")
-    fun getAllMovieCategories(): Flow<List<String>>
 
     @Query("SELECT COUNT(*) FROM movies")
     suspend fun getMovieCount(): Int
 
     @Query("DELETE FROM movies")
     suspend fun clearMovies()
-    
-    // ============== المسلسلات ==============
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertSeries(series: List<SeriesEntity>)
-
-    @Query("SELECT * FROM series ORDER BY name ASC")
-    fun getAllSeries(): PagingSource<Int, SeriesEntity>
-
-    @Query("SELECT * FROM series WHERE category = :cat ORDER BY name ASC")
-    fun getSeriesByCategory(cat: String): PagingSource<Int, SeriesEntity>
-
-    @Query("SELECT * FROM series WHERE name LIKE '%' || :query || '%' ORDER BY name ASC")
-    fun searchSeries(query: String): PagingSource<Int, SeriesEntity>
-
-    @Query("SELECT * FROM series WHERE category = :cat AND name LIKE '%' || :query || '%' ORDER BY name ASC")
-    fun searchSeriesInCategory(cat: String, query: String): PagingSource<Int, SeriesEntity>
-
-    @Query("SELECT DISTINCT category FROM series WHERE category != ''")
-    fun getAllSeriesCategories(): Flow<List<String>>
-
-    @Query("SELECT COUNT(*) FROM series")
-    suspend fun getSeriesCount(): Int
-
-    @Query("DELETE FROM series")
-    suspend fun clearSeries()
-}
