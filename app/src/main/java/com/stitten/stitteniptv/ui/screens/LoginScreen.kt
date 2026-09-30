@@ -7,7 +7,11 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -17,7 +21,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -38,6 +44,7 @@ fun LoginScreen(
     var user by remember { mutableStateOf("") }
     var pass by remember { mutableStateOf("") }
     var message by remember { mutableStateOf("") }
+    var showPassword by remember { mutableStateOf(false) }
 
     val uiState by viewModel.uiState.collectAsState()
 
@@ -100,6 +107,7 @@ fun LoginScreen(
                         value = m3uUrl,
                         onValueChange = { m3uUrl = it },
                         label = { Text("رابط M3U / M3U8") },
+                        placeholder = { Text("http://example.com/list.m3u") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
@@ -132,8 +140,15 @@ fun LoginScreen(
                         value = server,
                         onValueChange = { server = it },
                         label = { Text("Server URL") },
+                        placeholder = { Text("http://example.com:8080") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "أدخل اسم السيرفر كاملاً: http://اسم-السيرفر:المنفذ",
+                        color = Color.LightGray,
+                        fontSize = 12.sp
                     )
                     Spacer(Modifier.height(12.dp))
                     OutlinedTextField(
@@ -148,7 +163,28 @@ fun LoginScreen(
                         value = pass,
                         onValueChange = { pass = it },
                         label = { Text("Password") },
-                        visualTransformation = PasswordVisualTransformation(),
+                        visualTransformation = if (showPassword)
+                            VisualTransformation.None
+                        else
+                            PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Password
+                        ),
+                        trailingIcon = {
+                            IconButton(onClick = { showPassword = !showPassword }) {
+                                Icon(
+                                    imageVector = if (showPassword)
+                                        Icons.Default.VisibilityOff
+                                    else
+                                        Icons.Default.Visibility,
+                                    contentDescription = if (showPassword)
+                                        "إخفاء كلمة المرور"
+                                    else
+                                        "إظهار كلمة المرور",
+                                    tint = Color.White
+                                )
+                            }
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
@@ -158,9 +194,13 @@ fun LoginScreen(
                             if (server.isBlank() || user.isBlank() || pass.isBlank()) {
                                 message = "املأ كل الحقول"; return@Button
                             }
+                            if (!server.contains(".")) {
+                                message = "أدخل اسم سيرفر صحيح"
+                                return@Button
+                            }
                             viewModel.loginXtream(server, user, pass) { ok ->
                                 if (ok) navController.navigate(Routes.DASHBOARD)
-                                else message = "فشل الاتصال بالخادم"
+                                else message = "فشل الاتصال بالخادم — تحقق من البيانات"
                             }
                         },
                         modifier = Modifier.fillMaxWidth()
@@ -170,7 +210,11 @@ fun LoginScreen(
 
             if (message.isNotEmpty()) {
                 Spacer(Modifier.height(16.dp))
-                Text(message, color = MaterialTheme.colorScheme.error, fontSize = 16.sp)
+                Text(
+                    message,
+                    color = MaterialTheme.colorScheme.error,
+                    fontSize = 16.sp
+                )
             }
             if (uiState.isLoading) {
                 Spacer(Modifier.height(20.dp))
