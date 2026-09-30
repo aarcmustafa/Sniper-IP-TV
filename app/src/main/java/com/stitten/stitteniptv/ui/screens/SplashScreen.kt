@@ -1,5 +1,6 @@
 package com.stitten.stitteniptv.ui.screens
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.CircularProgressIndicator
@@ -9,11 +10,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
+import com.stitten.stitteniptv.R
 import com.stitten.stitteniptv.data.PrefsManager
 import com.stitten.stitteniptv.ui.navigation.Routes
 import kotlinx.coroutines.delay
@@ -21,6 +25,7 @@ import kotlinx.coroutines.delay
 @Composable
 fun SplashScreen(navController: NavHostController) {
     val ctx = LocalContext.current
+
     LaunchedEffect(Unit) {
         delay(2000)
         val prefs = PrefsManager(ctx)
@@ -36,21 +41,41 @@ fun SplashScreen(navController: NavHostController) {
             .background(Color(0xFF0D1117)),
         contentAlignment = Alignment.Center
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        // 1. الخلفية
+        Image(
+            painter = painterResource(id = R.drawable.bg_splash),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop
+        )
+
+        // 2. النص الرئيسي
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.align(Alignment.Center)
+        ) {
             Text(
                 "STTITEN IP TV",
                 color = Color(0xFF1F6FEB),
-                fontSize = 42.sp,
+                fontSize = 48.sp,
                 fontWeight = FontWeight.Bold
             )
             Spacer(Modifier.height(12.dp))
             Text(
-                "تطبيق بث القنوات والأفلام للأندرويد تي في",
+                "تطبيق بث القنوات والأفلام",
                 color = Color.White,
                 fontSize = 18.sp
             )
-            Spacer(Modifier.height(40.dp))
-            CircularProgressIndicator(color = Color(0xFF1F6FEB))
         }
+
+        // 3. مؤشر التحميل
+        CircularProgressIndicator(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 80.dp)
+                .size(56.dp),
+            color = Color(0xFF1F6FEB),
+            strokeWidth = 4.dp
+        )
     }
 }
