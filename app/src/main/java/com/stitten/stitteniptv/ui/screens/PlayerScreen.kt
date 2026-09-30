@@ -33,7 +33,7 @@ import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.source.ProgressiveMediaSource
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
 import androidx.navigation.NavHostController
 import com.stitten.stitteniptv.data.ErrorLogger
@@ -56,6 +56,8 @@ fun PlayerScreen(
 ) {
     val ctx = LocalContext.current
     val prefs = remember { PrefsManager(ctx) }
+    val liteMode = prefs.liteModeEnabled
+
     var errorMsg by remember { mutableStateOf<String?>(null) }
     var retryCount by remember { mutableStateOf(0) }
     var tracks by remember { mutableStateOf<Tracks?>(null) }
@@ -74,23 +76,30 @@ fun PlayerScreen(
     val scope = rememberCoroutineScope()
 
     val exoPlayer = remember {
-        val cache = CacheManager.get(ctx)
+        // Cache ديناميكي: 30 MB في Lite / 200 MB عادي
+        val cache = CacheManager.get(ctx, liteMode)
+
         val httpFactory = DefaultHttpDataSource.Factory()
             .setUserAgent(HttpClientProvider.getUserAgent())
             .setAllowCrossProtocolRedirects(true)
-            .setConnectTimeoutMs(30_000)
-            .setReadTimeoutMs(60_000)
+            .setConnectTimeoutMs(if (liteMode) 60_000 else 30_000)
+            .setReadTimeoutMs(if (liteMode) 120_000 else 60_000)
 
         val cacheFactory = CacheDataSource.Factory()
             .setCache(cache)
             .setUpstreamDataSourceFactory(httpFactory)
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
 
-        val userBufferMs = settingsMgr.bufferMs.coerceAtLeast(30_000)
+        // Buffer ديناميكي
+        val userBufferMs = if (liteMode) {
+            settingsMgr.bufferMs.coerceAtLeast(15_000)
+        } else {
+            settingsMgr.bufferMs.coerceAtLeast(30_000)
+        }
         val minBuffer = userBufferMs
-        val maxBuffer = userBufferMs * 3
-        val playbackBuffer = 1500
-        val rebufferBuffer = 3000
+        val maxBuffer = if (liteMode) userBufferMs * 2 else userBufferMs * 3
+        val playbackBuffer = if (liteMode) 2000 else 1500
+        val rebufferBuffer = if (liteMode) 4000 else 3000
 
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
@@ -100,10 +109,12 @@ fun PlayerScreen(
                 rebufferBuffer
             )
             .setPrioritizeTimeOverSizeThresholds(true)
-            .setBackBuffer(30_000, true)
+            .setBackBuffer(if (liteMode) 10_000 else 30_000, true)
             .build()
 
-        val mediaSource = ProgressiveMediaSource.Factory(cacheFactory)
+        // DefaultMediaSourceFactory يدعم: MP4, TS, HLS, DASH, MKV تلقائياً
+        val mediaSourceFactory = DefaultMediaSourceFactory(cacheFactory)
+        val mediaSource = mediaSourceFactory
             .createMediaSource(MediaItem.fromUri(url))
 
         val player = ExoPlayer.Builder(ctx)
@@ -146,7 +157,7 @@ fun PlayerScreen(
         })
         player
     }
-
+    
     LaunchedEffect(Unit) {
         if (!prefs.useInternalPlayer) {
             launchExternal(ctx, url, settingsMgr)
@@ -156,6 +167,7 @@ fun PlayerScreen(
         }
     }
 
+    // حفظ موضع التوقف كل 5 ثوانٍ
     LaunchedEffect(Unit) {
         while (true) {
             delay(5000)
@@ -177,6 +189,7 @@ fun PlayerScreen(
         }
     }
 
+    // استئناف الموضع المحفوظ
     LaunchedEffect(Unit) {
         delay(1500)
         val saved = historyMgr.getById(url)
@@ -188,7 +201,7 @@ fun PlayerScreen(
     DisposableEffect(Unit) {
         onDispose { exoPlayer.release() }
     }
-    
+
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
         AndroidView(
             factory = { c ->
@@ -217,7 +230,8 @@ fun PlayerScreen(
             Text(title, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.weight(1f))
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            // PiP: معطّل في Lite Mode لتوفير الموارد
+            if (!liteMode && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 IconButton(onClick = {
                     val activity = ctx as? android.app.Activity
                     activity?.enterPictureInPictureMode(
@@ -234,45 +248,18 @@ fun PlayerScreen(
             }
 
             TextButton(onClick = {
-                if (settingsMgr.alwaysAskExternalPlayer) {
-                    showExternalMenu = !showExternalMenu
-                } else {
-                    launchExternal(ctx, url, settingsMgr)
-                }
+                launchExternal(ctx, url, settingsMgr)
             }) {
                 Text("مشغل خارجي", color = Color.White, fontSize = 16.sp)
             }
         }
 
         if (showTrackMenu && tracks != null) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(top = 80.dp, end = 16.dp),
-                contentAlignment = Alignment.TopEnd
-            ) {
-                TrackMenu(
-                    tracks = tracks!!,
-                    exoPlayer = exoPlayer,
-                    onDismiss = { showTrackMenu = false }
-                )
-            }
-        }
-
-        if (showExternalMenu) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(top = 80.dp, end = 16.dp),
-                contentAlignment = Alignment.TopEnd
-            ) {
-                ExternalMenu(
-                    ctx = ctx,
-                    url = url,
-                    settingsMgr = settingsMgr,
-                    onDismiss = { showExternalMenu = false }
-                )
-            }
+            TrackMenuOverlay(
+                tracks = tracks!!,
+                exoPlayer = exoPlayer,
+                onDismiss = { showTrackMenu = false }
+            )
         }
 
         errorMsg?.let { msg ->
@@ -294,7 +281,7 @@ fun PlayerScreen(
                             exoPlayer.play()
                         }) { Text("إعادة المحاولة") }
                         Spacer(Modifier.width(8.dp))
-                        Button(onClick = { showExternalMenu = true }) {
+                        Button(onClick = { launchExternal(ctx, url, settingsMgr) }) {
                             Text("مشغل خارجي")
                         }
                     }
@@ -305,103 +292,72 @@ fun PlayerScreen(
 }
 
 @Composable
-private fun TrackMenu(tracks: Tracks, exoPlayer: ExoPlayer, onDismiss: () -> Unit) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth(0.5f)
-            .padding(8.dp),
-        color = Color(0xEE161B22)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                "المسارات",
-                color = Color.White,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(Modifier.height(8.dp))
-
-            tracks.groups.forEach { group ->
-                if (group.type == C.TRACK_TYPE_AUDIO || group.type == C.TRACK_TYPE_TEXT) {
-                    val type = if (group.type == C.TRACK_TYPE_AUDIO) "🎵 صوت" else "💬 ترجمة"
-                    Text(type, color = Color.Gray, fontSize = 14.sp)
-                    for (i in 0 until group.length) {
-                        val format = group.getTrackFormat(i)
-                        val label = format.label ?: format.language ?: "مسار $i"
-                        val selected = group.isTrackSelected(i)
-                        Text(
-                            "${if (selected) "✓" else "○"} $label",
-                            color = Color.White,
-                            fontSize = 14.sp,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp)
-                                .clickable {
-                                    exoPlayer.trackSelectionParameters =
-                                        exoPlayer.trackSelectionParameters
-                                            .buildUpon()
-                                            .setOverrideForType(
-                                                TrackSelectionOverride(group.mediaTrackGroup, i)
-                                            ).build()
-                                    onDismiss()
-                                }
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ExternalMenu(
-    ctx: Context,
-    url: String,
-    settingsMgr: PlayerSettingsManager,
+private fun TrackMenuOverlay(
+    tracks: Tracks,
+    exoPlayer: ExoPlayer,
     onDismiss: () -> Unit
 ) {
-    val installed = remember { ExternalPlayerManager.getInstalledPlayers(ctx) }
-    Surface(
+    Box(
         modifier = Modifier
-            .fillMaxWidth(0.4f)
-            .padding(8.dp),
-        color = Color(0xEE161B22)
+            .fillMaxSize()
+            .padding(top = 80.dp, end = 16.dp),
+        contentAlignment = Alignment.TopEnd
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                "اختر مشغلاً خارجياً",
-                color = Color.White,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(Modifier.height(8.dp))
-
-            Text(
-                "🌐 النظام (اختيار تلقائي)",
-                color = Color.White,
-                fontSize = 16.sp,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp)
-                    .clickable {
-                        ExternalPlayerManager.launchWithChooser(ctx, url)
-                        onDismiss()
-                    }
-            )
-
-            installed.forEach { p ->
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth(0.5f)
+                .padding(8.dp),
+            color = Color(0xEE161B22)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
                 Text(
-                    "${p.icon} ${p.name}",
+                    "المسارات",
                     color = Color.White,
-                    fontSize = 16.sp,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp)
-                        .clickable {
-                            ExternalPlayerManager.launchInPackage(ctx, url, p.packageName)
-                            onDismiss()
-                        }
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
                 )
+                Spacer(Modifier.height(8.dp))
+
+                tracks.groups.forEach { group ->
+                    if (group.type == C.TRACK_TYPE_AUDIO ||
+                        group.type == C.TRACK_TYPE_TEXT
+                    ) {
+                        val type = if (group.type == C.TRACK_TYPE_AUDIO)
+                            "🎵 صوت"
+                        else
+                            "💬 ترجمة"
+
+                        Text(type, color = Color.Gray, fontSize = 14.sp)
+
+                        for (i in 0 until group.length) {
+                            val format = group.getTrackFormat(i)
+                            val label = format.label
+                                ?: format.language
+                                ?: "مسار $i"
+                            val selected = group.isTrackSelected(i)
+
+                            Text(
+                                "${if (selected) "✓" else "○"} $label",
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp)
+                                    .clickable {
+                                        exoPlayer.trackSelectionParameters =
+                                            exoPlayer.trackSelectionParameters
+                                                .buildUpon()
+                                                .setOverrideForType(
+                                                    TrackSelectionOverride(
+                                                        group.mediaTrackGroup, i
+                                                    )
+                                                ).build()
+                                        onDismiss()
+                                    }
+                            )
+                        }
+                    }
+                }
             }
         }
     }
