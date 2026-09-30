@@ -22,15 +22,21 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.stitten.stitteniptv.R
+import com.stitten.stitteniptv.database.entity.SourceEntity
 import com.stitten.stitteniptv.ui.components.tvFocusable
 import com.stitten.stitteniptv.ui.navigation.Routes
+import com.stitten.stitteniptv.viewmodel.MainViewModel
 import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.launch
 
 @Composable
-fun SourcesManagerScreen(navController: NavHostController) {
+fun SourcesManagerScreen(
+    navController: NavHostController,
+    viewModel: MainViewModel = viewModel()
+) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -41,9 +47,12 @@ fun SourcesManagerScreen(navController: NavHostController) {
         )
     }
     val sourceMgr = entryPoint.sourceManager()
-    val sources by sourceMgr.getAll().collectAsState(initial = emptyList())
 
-    var confirmDeleteId by remember { mutableStateOf<Long?>(null) }
+    val allSources by sourceMgr.getAll().collectAsState(initial = emptyList())
+    val xtreamSources = allSources.filter { it.type == "XTREAM" }
+    val m3uSources = allSources.filter { it.type == "M3U" }
+
+    var confirmDelete by remember { mutableStateOf<SourceEntity?>(null) }
 
     Box(modifier = Modifier.fillMaxSize()) {
 
@@ -65,6 +74,7 @@ fun SourcesManagerScreen(navController: NavHostController) {
                 .fillMaxSize()
                 .padding(24.dp)
         ) {
+            // العنوان
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -76,141 +86,18 @@ fun SourcesManagerScreen(navController: NavHostController) {
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(Modifier.weight(1f))
-                Button(onClick = { navController.navigate(Routes.ADD_SOURCE) }) {
-                    Icon(Icons.Default.Add, contentDescription = null)
-                    Spacer(Modifier.width(6.dp))
-                    Text("إضافة مصدر", fontSize = 16.sp)
-                }
+                Text(
+                    "Xtream: ${xtreamSources.size}/10",
+                    color = if (xtreamSources.size >= 10) Color(0xFFDA3633) else Color.White,
+                    fontSize = 14.sp
+                )
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    "M3U: ${m3uSources.size}",
+                    color = Color.White,
+                    fontSize = 14.sp
+                )
             }
+
             Spacer(Modifier.height(20.dp))
-
-            if (sources.isEmpty()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("📡", fontSize = 64.sp, color = Color.Gray)
-                        Spacer(Modifier.height(16.dp))
-                        Text(
-                            "لا توجد مصادر بعد",
-                            color = Color.White,
-                            fontSize = 22.sp
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            "اضغط 'إضافة مصدر' لإضافة أول قائمة",
-                            color = Color.Gray,
-                            fontSize = 16.sp
-                        )
-                    }
-                }
-            } else {
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    
-                    items(sources, key = { it.id }) { src ->
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 6.dp)
-                                .tvFocusable {
-                                    scope.launch {
-                                        sourceMgr.setActive(src.id)
-                                        navController.navigate(Routes.DASHBOARD) {
-                                            popUpTo(Routes.SOURCES) { inclusive = true }
-                                        }
-                                    }
-                                },
-                            colors = CardDefaults.cardColors(
-                                containerColor = if (src.isActive) Color(0xFF1F6FEB)
-                                else Color(0xFF161B22).copy(alpha = 0.9f)
-                            ),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(16.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(
-                                            src.name,
-                                            color = Color.White,
-                                            fontSize = 20.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                        if (src.isActive) {
-                                            Spacer(Modifier.width(8.dp))
-                                            Icon(
-                                                Icons.Default.Check,
-                                                contentDescription = null,
-                                                tint = Color.White,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                            Spacer(Modifier.width(4.dp))
-                                            Text(
-                                                "نشط",
-                                                color = Color.White,
-                                                fontSize = 14.sp
-                                            )
-                                        }
-                                    }
-                                    Spacer(Modifier.height(4.dp))
-                                    Text(
-                                        "النوع: ${src.type}",
-                                        color = Color.LightGray,
-                                        fontSize = 14.sp
-                                    )
-                                    if (src.url.isNotBlank()) {
-                                        Text(
-                                            src.url.take(60),
-                                            color = Color.Gray,
-                                            fontSize = 12.sp,
-                                            maxLines = 1
-                                        )
-                                    }
-                                }
-
-                                IconButton(onClick = {
-                                    navController.navigate(Routes.addSourceEdit(src.id))
-                                }) {
-                                    Icon(
-                                        Icons.Default.Edit,
-                                        contentDescription = "تعديل",
-                                        tint = Color.White
-                                    )
-                                }
-
-                                IconButton(onClick = { confirmDeleteId = src.id }) {
-                                    Icon(
-                                        Icons.Default.Delete,
-                                        contentDescription = "حذف",
-                                        tint = Color(0xFFDA3633)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    confirmDeleteId?.let { id ->
-        AlertDialog(
-            onDismissRequest = { confirmDeleteId = null },
-            title = { Text("تأكيد الحذف") },
-            text = { Text("هل تريد حذف هذا المصدر نهائياً؟") },
-            confirmButton = {
-                TextButton(onClick = {
-                    scope.launch {
-                        val src = sources.firstOrNull { it.id == id }
-                        if (src != null) sourceMgr.delete(src)
-                        confirmDeleteId = null
-                    }
-                }) { Text("حذف", color = Color(0xFFDA3633)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmDeleteId = null }) { Text("إلغاء") }
-            }
-        )
-    }
-}
-                    
+            
