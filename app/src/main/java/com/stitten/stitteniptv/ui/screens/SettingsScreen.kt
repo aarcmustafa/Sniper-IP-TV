@@ -26,7 +26,6 @@ import dagger.hilt.android.EntryPointAccessors
 fun SettingsScreen(navController: NavHostController) {
     val ctx = LocalContext.current
     val prefs = remember { PrefsManager(ctx) }
-    val scope = rememberCoroutineScope()
 
     val entryPoint = remember {
         EntryPointAccessors.fromApplication(
@@ -45,22 +44,19 @@ fun SettingsScreen(navController: NavHostController) {
 
     Box(modifier = Modifier.fillMaxSize()) {
 
-        // 1. الخلفية
         Image(
-            painter = painterResource(id = R.drawable.bg_settings),
+            painter = painterResource(id = R.drawable.bg_main),
             contentDescription = null,
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Crop
         )
 
-        // 2. تعتيم
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.7f))
+                .background(Color.Black.copy(alpha = 0.75f))
         )
 
-        // 3. المحتوى
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -126,7 +122,7 @@ fun SettingsScreen(navController: NavHostController) {
                 onClick = { navController.navigate(Routes.EXTERNAL_PLAYERS) },
                 modifier = Modifier.fillMaxWidth()
             ) { Text("🎬 إعدادات المشغل الخارجي", fontSize = 18.sp) }
-
+            
             Spacer(Modifier.height(12.dp))
             Button(
                 onClick = { navController.navigate(Routes.SOURCES) },
@@ -138,7 +134,7 @@ fun SettingsScreen(navController: NavHostController) {
                 onClick = { navController.navigate(Routes.PARENTAL) },
                 modifier = Modifier.fillMaxWidth()
             ) { Text("🔒 الرقابة الأبوية", fontSize = 18.sp) }
-            
+
             Spacer(Modifier.height(12.dp))
             Button(
                 onClick = { navController.navigate(Routes.ERRORS) },
