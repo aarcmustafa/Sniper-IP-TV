@@ -2,12 +2,6 @@ package com.stitten.stitteniptv.data
 
 object CategoriesManager {
 
-    // تصنيفات الفئات الرئيسية
-    const val MAIN_ARAB_SPORTS = "⭐ رياضية عربية"
-    const val MAIN_ARAB_COUNTRIES = "🌍 دول عربية"
-    const val MAIN_OTHER = "📺 باقي القنوات"
-
-    // كلمات الرياضة العربية (تشمل باقة ألوان)
     private val ARAB_SPORTS_KEYWORDS = listOf(
         "bein", "be in", "ssc", "alkass", "الكأس", "ad sport",
         "دوري", "الدوري", "كورة", "كرة قدم", "كرة",
@@ -15,7 +9,6 @@ object CategoriesManager {
         "الرياضية", "أبو ظبي الرياضية", "دبي الرياضية",
         "الكويت الرياضية", "السعودية الرياضية",
         "dawri", "dawry",
-        // باقة ألوان
         "alwan", "alwan tv", "قناة ألوان", "ألوان"
     )
 
@@ -95,20 +88,22 @@ object CategoriesManager {
         return containsAny(category, ARABIC_GENERAL_KEYWORDS)
     }
 
+    // ============== الأولوية (1-4) ==============
     /**
-     * الفئة الرئيسية للتصنيف (للعرض في القائمة الرئيسية)
+     * 1 = رياضية عربية
+     * 2 = دول عربية
+     * 3 = رياضية عالمية
+     * 4 = باقي القنوات
      */
-    fun getMainCategory(category: String): String {
+    fun getPriorityOrder(category: String): Int {
         return when {
-            isArabSports(category) -> MAIN_ARAB_SPORTS
-            isArabCountry(category) || isArabicGeneral(category) -> MAIN_ARAB_COUNTRIES
-            else -> MAIN_OTHER
+            isArabSports(category) -> 1
+            isArabCountry(category) || isArabicGeneral(category) -> 2
+            isWorldSports(category) -> 3
+            else -> 4
         }
     }
 
-    /**
-     * كشف النوع من أسماء القنوات (لإعادة تسمية الباقات المرقمة)
-     */
     fun detectTypeFromChannelNames(channelNames: List<String>): String {
         if (channelNames.isEmpty()) return ""
         var arabSports = 0
@@ -138,9 +133,6 @@ object CategoriesManager {
         }
     }
 
-    /**
-     * ترتيب التصنيفات حسب الأولوية
-     */
     fun sortCategories(categories: List<String>): List<String> {
         val arabSports = mutableListOf<String>()
         val arabCountries = mutableListOf<String>()
@@ -161,13 +153,4 @@ object CategoriesManager {
         return arabSports.sorted() + arabCountries.sorted() +
                 worldSports.sorted() + arabicGeneral.sorted() + others.sorted()
     }
-
-    /**
-     * الفئات الرئيسية الثلاث (للعرض في Dashboard)
-     */
-    fun getMainCategories(): List<String> = listOf(
-        MAIN_ARAB_SPORTS,
-        MAIN_ARAB_COUNTRIES,
-        MAIN_OTHER
-    )
 }
