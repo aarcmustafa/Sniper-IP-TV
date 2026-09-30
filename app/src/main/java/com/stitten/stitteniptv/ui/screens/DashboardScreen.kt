@@ -90,127 +90,125 @@ fun DashboardScreen(
         ContentType.SERIES -> seriesCategories
         ContentType.FAVORITES -> emptyList()
     }
+    
+Box(modifier = Modifier.fillMaxSize()) {
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Image(
+        painter = painterResource(id = R.drawable.bg_main),
+        contentDescription = null,
+        modifier = Modifier.fillMaxSize(),
+        contentScale = ContentScale.Crop
+    )
 
-        Image(
-            painter = painterResource(id = R.drawable.bg_main),
-            contentDescription = null,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop
-        )
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.75f))
+    )
 
-        Box(
+    Row(modifier = Modifier.fillMaxSize()) {
+
+        Column(
             modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.75f))
-        )
+                .width(300.dp)
+                .fillMaxHeight()
+                .background(Color(0xFF161B22).copy(alpha = 0.85f))
+                .padding(16.dp)
+        ) {
+            Text(
+                "STTITEN IP TV",
+                color = MaterialTheme.colorScheme.primary,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(currentTime, color = Color.White, fontSize = 16.sp)
+            Spacer(Modifier.height(16.dp))
 
-        Row(modifier = Modifier.fillMaxSize()) {
+            SidebarButton("📺 بث حي", contentType == ContentType.LIVE) {
+                contentType = ContentType.LIVE
+                selectedCategory = null
+            }
+            SidebarButton("🎬 أفلام", contentType == ContentType.VOD) {
+                contentType = ContentType.VOD
+                selectedCategory = null
+            }
+            SidebarButton("📼 مسلسلات", contentType == ContentType.SERIES) {
+                contentType = ContentType.SERIES
+                selectedCategory = null
+            }
+            SidebarButton("❤️ المفضلة", contentType == ContentType.FAVORITES) {
+                contentType = ContentType.FAVORITES
+                selectedCategory = null
+            }
 
-            Column(
-                modifier = Modifier
-                    .width(300.dp)
-                    .fillMaxHeight()
-                    .background(Color(0xFF161B22).copy(alpha = 0.85f))
-                    .padding(16.dp)
-            ) {
+            Spacer(Modifier.height(12.dp))
+
+            OutlinedTextField(
+                value = search,
+                onValueChange = { search = it },
+                label = { Text("بحث", fontSize = 14.sp) },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
+
+            Spacer(Modifier.height(12.dp))
+
+            if (categories.isNotEmpty()) {
                 Text(
-                    "STTITEN IP TV",
-                    color = MaterialTheme.colorScheme.primary,
-                    fontSize = 22.sp,
+                    "التصنيفات",
+                    color = Color.White,
+                    fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
                 )
-                Spacer(Modifier.height(8.dp))
-                Text(currentTime, color = Color.White, fontSize = 16.sp)
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(6.dp))
 
-                SidebarButton("📺 بث حي", contentType == ContentType.LIVE) {
-                    contentType = ContentType.LIVE
-                    selectedCategory = null
-                }
-                SidebarButton("🎬 أفلام", contentType == ContentType.VOD) {
-                    contentType = ContentType.VOD
-                    selectedCategory = null
-                }
-                SidebarButton("📼 مسلسلات", contentType == ContentType.SERIES) {
-                    contentType = ContentType.SERIES
-                    selectedCategory = null
-                }
-                SidebarButton("❤️ المفضلة", contentType == ContentType.FAVORITES) {
-                    contentType = ContentType.FAVORITES
-                    selectedCategory = null
-                }
-
-                Spacer(Modifier.height(12.dp))
-
-                OutlinedTextField(
-                    value = search,
-                    onValueChange = { search = it },
-                    label = { Text("بحث", fontSize = 14.sp) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-
-                Spacer(Modifier.height(12.dp))
-
-                if (categories.isNotEmpty()) {
-                    Text(
-                        "التصنيفات",
-                        color = Color.White,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(Modifier.height(6.dp))
-
-                    LazyColumn(modifier = Modifier.heightIn(max = 240.dp)) {
-                        item {
-                            CategoryChip("الكل", selectedCategory == null) {
-                                selectedCategory = null
-                            }
-                        }
-                        items(categories, key = { it }) { cat ->
-                            CategoryChip(cat, selectedCategory == cat) {
-                                selectedCategory = cat
-                            }
+                LazyColumn(modifier = Modifier.heightIn(max = 240.dp)) {
+                    item {
+                        CategoryChip("الكل", selectedCategory == null) {
+                            selectedCategory = null
                         }
                     }
-                }
-
-                Spacer(Modifier.weight(1f))
-
-                TextButton(
-                    onClick = { navController.navigate(Routes.SOURCES) },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("📡 إدارة المصادر", color = Color.White, fontSize = 16.sp)
-                }
-
-                TextButton(
-                    onClick = { navController.navigate(Routes.SETTINGS) },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(Icons.Default.Settings, contentDescription = null, tint = Color.White)
-                    Spacer(Modifier.width(6.dp))
-                    Text("الإعدادات", color = Color.White, fontSize = 16.sp)
+                    items(categories, key = { it }) { cat ->
+                        CategoryChip(cat, selectedCategory == cat) {
+                            selectedCategory = cat
+                        }
+                    }
                 }
             }
 
+            Spacer(Modifier.weight(1f))
+
+            TextButton(
+                onClick = { navController.navigate(Routes.SOURCES) },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("📡 إدارة المصادر", color = Color.White, fontSize = 16.sp)
+            }
+
+            TextButton(
+                onClick = { navController.navigate(Routes.SETTINGS) },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Default.Settings, contentDescription = null, tint = Color.White)
+                Spacer(Modifier.width(6.dp))
+                Text("الإعدادات", color = Color.White, fontSize = 16.sp)
+            }
+        }
+        
             Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
 
                 when (contentType) {
-                    ContentType.LIVE -> {
-                        LiveContent(channelRepo, viewModel, selectedCategory, search, navController)
-                    }
-                    ContentType.VOD -> {
-                        VodContent(channelRepo, viewModel, selectedCategory, search, navController)
-                    }
-                    ContentType.SERIES -> {
-                        SeriesContent(channelRepo, viewModel, selectedCategory, search, navController)
-                    }
-                    ContentType.FAVORITES -> {
-                        FavoritesPlaceholder()
-                    }
+                    ContentType.LIVE -> LiveContent(
+                        channelRepo, viewModel, selectedCategory, search, navController
+                    )
+                    ContentType.VOD -> VodContent(
+                        channelRepo, viewModel, selectedCategory, search, navController
+                    )
+                    ContentType.SERIES -> SeriesContent(
+                        channelRepo, viewModel, selectedCategory, search, navController
+                    )
+                    ContentType.FAVORITES -> FavoritesPlaceholder()
                 }
 
                 if (uiState.isLoading) {
@@ -231,9 +229,9 @@ private fun LiveContent(
 ) {
     val pagingItems = remember(selectedCategory, search) {
         when {
-            search.isNotBlank() -> repo.searchChannels(search)
-            selectedCategory != null -> repo.getChannelsByGroup(selectedCategory)
-            else -> repo.getAllChannels()
+            search.isNotBlank() -> repo.searchChannelsPaged(search)
+            selectedCategory != null -> repo.getChannelsByGroupPaged(selectedCategory)
+            else -> repo.getAllChannelsPaged()
         }
     }.collectAsLazyPagingItems()
 
@@ -266,9 +264,9 @@ private fun VodContent(
 ) {
     val pagingItems = remember(selectedCategory, search) {
         when {
-            search.isNotBlank() -> repo.searchMovies(search)
-            selectedCategory != null -> repo.getMoviesByCategory(selectedCategory)
-            else -> repo.getAllMovies()
+            search.isNotBlank() -> repo.searchMoviesPaged(search)
+            selectedCategory != null -> repo.getMoviesByCategoryPaged(selectedCategory)
+            else -> repo.getAllMoviesPaged()
         }
     }.collectAsLazyPagingItems()
 
@@ -292,244 +290,6 @@ private fun VodContent(
                     }
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun SeriesContent(
-    repo: ChannelRepository,
-    viewModel: MainViewModel,
-    selectedCategory: String?,
-    search: String,
-    navController: NavHostController
-) {
-    val pagingItems = remember(selectedCategory, search) {
-        when {
-            search.isNotBlank() -> repo.searchSeries(search)
-            selectedCategory != null -> repo.getSeriesByCategory(selectedCategory)
-            else -> repo.getAllSeries()
-        }
-    }.collectAsLazyPagingItems()
-
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(4),
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(8.dp)
-    ) {
-        items(pagingItems.itemCount) { index ->
-            val entity = pagingItems[index]
-            if (entity != null) {
-                MediaCardFromEntity(
-                    name = entity.name,
-                    poster = entity.poster,
-                    isFavorite = viewModel.favorites.isSeriesFavorite(entity.id),
-                    onToggleFavorite = {
-                        viewModel.toggleSeriesFavorite(entity.id, entity.name)
-                    },
-                    onClick = {
-                        navController.navigate(Routes.seriesDetails(entity.id))
-                    }
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun FavoritesPlaceholder() {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("⭐", fontSize = 72.sp, color = Color.Gray)
-            Spacer(Modifier.height(16.dp))
-            Text("لا توجد عناصر في المفضلة", color = Color.White, fontSize = 22.sp)
-        }
-    }
-}
-
-@Composable
-private fun LoadingOverlay(progress: Int, message: String) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.9f)),
-        contentAlignment = Alignment.Center
-    ) {
-        Card(
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF161B22)),
-            modifier = Modifier.width(500.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(32.dp).fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Box(contentAlignment = Alignment.Center, modifier = Modifier.size(160.dp)) {
-                    CircularProgressIndicator(
-                        progress = { progress / 100f },
-                        modifier = Modifier.size(160.dp),
-                        color = MaterialTheme.colorScheme.primary,
-                        strokeWidth = 10.dp,
-                        trackColor = Color(0xFF21262D)
-                    )
-                    Text(
-                        "$progress%",
-                        color = Color.White,
-                        fontSize = 40.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                Spacer(Modifier.height(24.dp))
-                Text(
-                    message.ifBlank { "جاري التحميل..." },
-                    color = Color.White,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Medium,
-                    textAlign = TextAlign.Center
-                )
-                Spacer(Modifier.height(16.dp))
-                LinearProgressIndicator(
-                    progress = { progress / 100f },
-                    modifier = Modifier.fillMaxWidth().height(6.dp),
-                    color = MaterialTheme.colorScheme.primary,
-                    trackColor = Color(0xFF21262D)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun SidebarButton(text: String, selected: Boolean, onClick: () -> Unit) {
-    Button(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = if (selected) MaterialTheme.colorScheme.primary else Color(0xFF21262D),
-            contentColor = Color.White
-        )
-    ) { Text(text, fontSize = 16.sp) }
-}
-
-@Composable
-private fun CategoryChip(name: String, selected: Boolean, onClick: () -> Unit) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 2.dp)
-            .tvFocusable(onClick),
-        shape = RoundedCornerShape(8.dp),
-        color = if (selected) MaterialTheme.colorScheme.primary else Color(0xFF21262D)
-    ) {
-        Text(
-            name,
-            color = Color.White,
-            fontSize = 14.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
-        )
-    }
-}
-
-@Composable
-private fun ChannelRowFromEntity(
-    entity: ChannelEntity,
-    isFavorite: Boolean,
-    onToggleFavorite: () -> Unit,
-    onClick: () -> Unit
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-            .tvFocusable(onClick),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF161B22))
-    ) {
-        Row(
-            modifier = Modifier.padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            AsyncImage(
-                model = entity.logo,
-                contentDescription = null,
-                modifier = Modifier.size(64.dp).clip(RoundedCornerShape(8.dp)),
-                contentScale = ContentScale.Fit
-            )
-            Spacer(Modifier.width(16.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    entity.name,
-                    color = Color.White,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                if (entity.groupName.isNotEmpty()) {
-                    Text(entity.groupName, color = Color.Gray, fontSize = 14.sp)
-                }
-            }
-            IconButton(onClick = onToggleFavorite, modifier = Modifier.size(48.dp)) {
-                Icon(
-                    if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                    contentDescription = "مفضلة",
-                    tint = if (isFavorite) Color(0xFFDA3633) else Color.Gray,
-                    modifier = Modifier.size(28.dp)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun MediaCardFromEntity(
-    name: String,
-    poster: String,
-    isFavorite: Boolean,
-    onToggleFavorite: () -> Unit,
-    onClick: () -> Unit
-) {
-    Card(
-        modifier = Modifier
-            .padding(8.dp)
-            .tvFocusable(onClick),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF161B22))
-    ) {
-        Column {
-            Box {
-                AsyncImage(
-                    model = poster,
-                    contentDescription = name,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(0.7f)
-                        .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp)),
-                    contentScale = ContentScale.Crop
-                )
-                IconButton(
-                    onClick = onToggleFavorite,
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(4.dp)
-                        .size(40.dp)
-                        .background(Color(0x99000000), RoundedCornerShape(50))
-                ) {
-                    Icon(
-                        if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                        contentDescription = "مفضلة",
-                        tint = if (isFavorite) Color(0xFFDA3633) else Color.White,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            }
-            Text(
-                name,
-                color = Color.White,
-                fontSize = 16.sp,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(10.dp)
-            )
         }
     }
 }
