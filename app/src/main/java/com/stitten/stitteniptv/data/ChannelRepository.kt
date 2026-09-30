@@ -1,5 +1,8 @@
 package com.stitten.stitteniptv.data
 
+import androidx.paging.Pager
+import androidx.paging.PagingConfig
+import androidx.paging.PagingData
 import com.stitten.stitteniptv.database.dao.ChannelDao
 import com.stitten.stitteniptv.database.entity.ChannelEntity
 import com.stitten.stitteniptv.database.entity.MovieEntity
@@ -13,7 +16,13 @@ class ChannelRepository @Inject constructor(
     private val dao: ChannelDao
 ) {
 
-    // ============== حفظ البيانات ==============
+    private val pagingConfig = PagingConfig(
+        pageSize = 50,
+        prefetchDistance = 10,
+        enablePlaceholders = false
+    )
+
+    // ============== حفظ القنوات ==============
     suspend fun saveChannels(channels: List<Channel>, sourceId: Long = 0) {
         val entities = channels.map {
             ChannelEntity(
@@ -61,35 +70,75 @@ class ChannelRepository @Inject constructor(
         }
     }
 
-    // ============== قراءة القنوات ==============
-    fun getAllChannels() = dao.getAllChannels()
-    fun getChannelsByGroup(group: String) = dao.getChannelsByGroup(group)
-    fun searchChannels(query: String) = dao.searchChannels(query)
-    fun getChannelGroups(): Flow<List<String>> = dao.getAllChannelGroups()
-    suspend fun getChannelCount() = dao.getChannelCount()
-
-    // ============== قراءة الأفلام ==============
-    fun getAllMovies() = dao.getAllMovies()
-    fun getMoviesByCategory(cat: String) = dao.getMoviesByCategory(cat)
-    fun searchMovies(query: String) = dao.searchMovies(query)
-    fun getMovieCategories(): Flow<List<String>> = dao.getAllMovieCategories()
-
-    // ============== قراءة المسلسلات ==============
-    fun getAllSeries() = dao.getAllSeries()
-    fun getSeriesByCategory(cat: String) = dao.getSeriesByCategory(cat)
-    fun searchSeries(query: String) = dao.searchSeries(query)
-    fun getSeriesCategories(): Flow<List<String>> = dao.getAllSeriesCategories()
-
-    // ============== التنظيف ==============
-    suspend fun clearAll() {
-        dao.clearAllChannels()
-        dao.clearAllMovies()
-        dao.clearAllSeries()
+    // ============== Flow<PagingData> للقنوات ==============
+    fun getAllChannelsPaged(): Flow<PagingData<ChannelEntity>> {
+        return Pager(config = pagingConfig) {
+            dao.getAllChannels()
+        }.flow
     }
 
-    suspend fun clearBySource(sourceId: Long) {
-        dao.clearChannelsBySource(sourceId)
-        dao.clearMoviesBySource(sourceId)
-        dao.clearSeriesBySource(sourceId)
+    fun getChannelsByGroupPaged(group: String): Flow<PagingData<ChannelEntity>> {
+        return Pager(config = pagingConfig) {
+            dao.getChannelsByGroup(group)
+        }.flow
+    }
+
+    fun searchChannelsPaged(query: String): Flow<PagingData<ChannelEntity>> {
+        return Pager(config = pagingConfig) {
+            dao.searchChannels(query)
+        }.flow
+    }
+
+    // ============== Flow<PagingData> للأفلام ==============
+    fun getAllMoviesPaged(): Flow<PagingData<MovieEntity>> {
+        return Pager(config = pagingConfig) {
+            dao.getAllMovies()
+        }.flow
+    }
+
+    fun getMoviesByCategoryPaged(cat: String): Flow<PagingData<MovieEntity>> {
+        return Pager(config = pagingConfig) {
+            dao.getMoviesByCategory(cat)
+        }.flow
+    }
+
+    fun searchMoviesPaged(query: String): Flow<PagingData<MovieEntity>> {
+        return Pager(config = pagingConfig) {
+            dao.searchMovies(query)
+        }.flow
+    }
+
+    // ============== Flow<PagingData> للمسلسلات ==============
+    fun getAllSeriesPaged(): Flow<PagingData<SeriesEntity>> {
+        return Pager(config = pagingConfig) {
+            dao.getAllSeries()
+        }.flow
+    }
+
+    fun getSeriesByCategoryPaged(cat: String): Flow<PagingData<SeriesEntity>> {
+        return Pager(config = pagingConfig) {
+            dao.getSeriesByCategory(cat)
+        }.flow
+    }
+
+    fun searchSeriesPaged(query: String): Flow<PagingData<SeriesEntity>> {
+        return Pager(config = pagingConfig) {
+            dao.searchSeries(query)
+        }.flow
+    }
+
+    // ============== التصنيفات ==============
+    fun getChannelGroups(): Flow<List<String>> = dao.getAllChannelGroups()
+    fun getMovieCategories(): Flow<List<String>> = dao.getAllMovieCategories()
+    fun getSeriesCategories(): Flow<List<String>> = dao.getAllSeriesCategories()
+
+    // ============== Counts ==============
+    suspend fun getChannelCount() = dao.getChannelCount()
+
+    // ============== Clear ==============
+    suspend fun clearAll() {
+        dao.clearChannels()
+        dao.clearMovies()
+        dao.clearSeries()
     }
 }
