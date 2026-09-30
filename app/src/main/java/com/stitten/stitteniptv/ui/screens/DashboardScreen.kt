@@ -78,3 +78,90 @@ fun DashboardScreen(
             delay(1000)
         }
     }
+    
+Box(modifier = Modifier.fillMaxSize()) {
+    if (!liteMode) {
+        Image(
+            painter = painterResource(id = R.drawable.bg_main),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.75f))
+        )
+    } else {
+        Box(modifier = Modifier.fillMaxSize().background(Color(0xFF0D1117)))
+    }
+
+    Row(modifier = Modifier.fillMaxSize()) {
+
+        // ============== الشريط الجانبي ==============
+        Column(
+            modifier = Modifier
+                .width(280.dp)
+                .fillMaxHeight()
+                .background(Color(0xFF161B22).copy(alpha = 0.85f))
+                .padding(16.dp)
+        ) {
+            Text(
+                "STTITEN IP TV",
+                color = MaterialTheme.colorScheme.primary,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(currentTime, color = Color.White, fontSize = 16.sp)
+            if (uiState.currentSourceName.isNotEmpty()) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "📡 ${uiState.currentSourceName}",
+                    color = Color.LightGray,
+                    fontSize = 13.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Spacer(Modifier.height(20.dp))
+
+            SidebarButton("📺 القنوات", !showFavorites) {
+                showFavorites = false
+            }
+            SidebarButton("❤️ المفضلة", showFavorites) {
+                showFavorites = true
+            }
+
+            Spacer(Modifier.height(20.dp))
+
+            OutlinedTextField(
+                value = search,
+                onValueChange = { search = it },
+                label = { Text("بحث", fontSize = 14.sp) },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
+
+            Spacer(Modifier.weight(1f))
+
+            // ============== الأيقونات المخصصة ==============
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                CustomIconButton(
+                    iconRes = R.drawable.ic_sources_custom,
+                    label = "المصادر"
+                ) {
+                    navController.navigate(Routes.SOURCES)
+                }
+
+                CustomIconButton(
+                    iconRes = R.drawable.ic_settings_custom,
+                    label = "الإعدادات"
+                ) {
+                    navController.navigate(Routes.SETTINGS)
+                }
+            }
+        }
