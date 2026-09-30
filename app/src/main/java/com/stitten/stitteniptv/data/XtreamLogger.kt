@@ -1,7 +1,10 @@
 package com.stitten.stitteniptv.data
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.os.Build
+import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -14,7 +17,7 @@ object XtreamLogger {
 
     private const val FOLDER_NAME = "STTITEN IP TV"
     private const val FILE_NAME = "connection_log.txt"
-    private const val MAX_LOG_SIZE = 5 * 1024 * 1024L // 5 MB
+    private const val MAX_LOG_SIZE = 5 * 1024 * 1024L
 
     @Volatile
     private var appContext: Context? = null
@@ -25,8 +28,12 @@ object XtreamLogger {
     @Volatile
     private var logFile: File? = null
 
+    @Volatile
+    private var customUri: Uri? = null
+
     fun init(context: Context) {
         appContext = context.applicationContext
+        initFile(context)
     }
 
     fun setEnabled(context: Context, value: Boolean) {
@@ -36,10 +43,14 @@ object XtreamLogger {
 
     fun isEnabled(): Boolean = enabled
 
+    fun setCustomFolder(uri: Uri?) {
+        customUri = uri
+    }
+
     private fun initFile(context: Context) {
         if (logFile != null && logFile?.exists() == true) return
         try {
-            val dir = getLogDirectory(context)
+            val dir = getDefaultDirectory(context)
             if (!dir.exists()) dir.mkdirs()
             val file = File(dir, FILE_NAME)
             if (file.exists() && file.length() > MAX_LOG_SIZE) {
@@ -51,7 +62,8 @@ object XtreamLogger {
         }
     }
 
-    private fun getLogDirectory(context: Context): File {
+    // ============== المجلد الافتراضي (بدون إذن) ==============
+    private fun getDefaultDirectory(context: Context): File {
         val external = context.getExternalFilesDir(null)
         return if (external != null) {
             File(external, FOLDER_NAME)
@@ -60,12 +72,17 @@ object XtreamLogger {
         }
     }
 
-    fun getLogFilePath(): String {
-        val ctx = appContext ?: return ""
-        val dir = getLogDirectory(ctx)
-        return File(dir, FILE_NAME).absolutePath
+    fun getLogFile(): File? {
+        val ctx = appContext ?: return null
+        initFile(ctx)
+        return logFile
     }
 
+    fun getLogFilePath(): String = getLogFile()?.absolutePath ?: ""
+
+    fun getLogFileSize(): Long = getLogFile()?.length() ?: 0L
+
+    // ============== الكتابة ==============
     suspend fun logHeader(appVersion: String) {
         val ctx = appContext ?: return
         if (!enabled) return
@@ -125,11 +142,68 @@ object XtreamLogger {
         val ctx = appContext ?: return
         withContext(Dispatchers.IO) {
             try {
-                val dir = getLogDirectory(ctx)
+                val dir = getDefaultDirectory(ctx)
                 val file = File(dir, FILE_NAME)
                 if (file.exists()) file.delete()
                 logFile = null
+                initFile(ctx)
             } catch (e: Exception) { }
+        }
+    }
+
+    // ============== مشاركة السجل ==============
+    fun shareLog(context: Context): Boolean {
+        val file = getLogFile() ?: return false
+        if (!file.exists()) return false
+        return try {
+            val uri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                file
+            )
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                putExtra(Intent.EXTRA_SUBJECT, "STTITEN IP TV - Connection Log")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            context.startActivity(
+                Intent.createChooser(intent, "مشاركة السجل").apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+            )
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    // ============== حفظ نسخة إلى URI (USB عبر SAF) ==============
+    suspend fun exportTo(context: Context, targetUri: Uri): Boolean =
+        withContext(Dispatchers.IO) {
+            try {
+                val file = getLogFile() ?: return@withContext false
+                if (!file.exists()) return@withContext false
+
+                context.contentResolver.openOutputStream(targetUri)?.use { output ->
+                    file.inputStream().use { input ->
+                        input.copyTo(output)
+                    }
+                }
+                true
+            } catch (e: Exception) {
+                false
+            }
+        }
+
+    // ============== قراءة محتوى السجل (للعرض) ==============
+    suspend fun readLogContent(): String = withContext(Dispatchers.IO) {
+        try {
+            val file = getLogFile() ?: return@withContext ""
+            if (!file.exists()) return@withContext ""
+            file.readText(Charsets.UTF_8)
+        } catch (e: Exception) {
+            ""
         }
     }
 
@@ -137,7 +211,6 @@ object XtreamLogger {
         SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US).format(Date())
 
     private fun sanitize(url: String): String {
-        // إخفاء كلمة المرور من الرابط
         return url
             .replace(Regex("password=[^&]*"), "password=***")
             .replace(Regex("/live/[^/]+/[^/]+/"), "/live/USER/PASS/")
