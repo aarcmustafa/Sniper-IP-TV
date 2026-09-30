@@ -223,3 +223,139 @@ Box(modifier = Modifier.fillMaxSize()) {
                 Text("الإعدادات", color = Color.White, fontSize = 15.sp)
             }
         }
+        
+            // ============== منطقة العرض ==============
+            Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+
+                when (contentType) {
+                    ContentType.LIVE -> LiveContent(
+                        channelRepo, viewModel, selectedMainCategory, search, navController
+                    )
+                    ContentType.VOD -> VodContent(
+                        channelRepo, viewModel, selectedMainCategory, search, navController
+                    )
+                    ContentType.SERIES -> SeriesContent(
+                        channelRepo, viewModel, selectedMainCategory, search, navController
+                    )
+                    ContentType.FAVORITES -> FavoritesPlaceholder()
+                }
+
+                if (uiState.isLoading) {
+                    LoadingOverlay(uiState.loadingProgress, uiState.loadingMessage)
+                }
+
+                // شريط تحميل في الخلفية
+                if (uiState.backgroundLoading && !uiState.isLoading) {
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFF161B22).copy(alpha = 0.95f)
+                        ),
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(16.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                color = MaterialTheme.colorScheme.primary,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                "جاري تحميل المحتوى الإضافي...",
+                                color = Color.White,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ============== LiveContent مع الفلترة بالتصنيف الرئيسي ==============
+@Composable
+private fun LiveContent(
+    repo: ChannelRepository,
+    viewModel: MainViewModel,
+    mainCategory: String?,
+    search: String,
+    navController: NavHostController
+) {
+    val pagingItems = remember(mainCategory, search) {
+        when {
+            search.isNotBlank() -> repo.searchChannelsPaged(search)
+            else -> repo.getAllChannelsPaged()
+        }
+    }.collectAsLazyPagingItems()
+
+    LazyColumn(modifier = Modifier.fillMaxSize()) {
+        items(pagingItems.itemCount) { index ->
+            val entity = pagingItems[index]
+            if (entity != null) {
+                // فلترة حسب الفئة الرئيسية
+                val entityMainCat = CategoriesManager.getMainCategory(entity.groupName)
+                val matchesFilter = mainCategory == null || mainCategory == entityMainCat
+
+                if (matchesFilter) {
+                    ChannelRowFromEntity(
+                        entity = entity,
+                        isFavorite = viewModel.favorites.isChannelFavorite(entity.id),
+                        onToggleFavorite = {
+                            viewModel.toggleChannelFavorite(entity.id, entity.name)
+                        },
+                        onClick = {
+                            navController.navigate(Routes.player(entity.url, entity.name))
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun VodContent(
+    repo: ChannelRepository,
+    viewModel: MainViewModel,
+    mainCategory: String?,
+    search: String,
+    navController: NavHostController
+) {
+    val pagingItems = remember(search) {
+        if (search.isNotBlank()) repo.searchMoviesPaged(search)
+        else repo.getAllMoviesPaged()
+    }.collectAsLazyPagingItems()
+
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(4),
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(8.dp)
+    ) {
+        items(pagingItems.itemCount) { index ->
+            val entity = pagingItems[index]
+            if (entity != null) {
+                val entityMainCat = CategoriesManager.getMainCategory(entity.category)
+                val matchesFilter = mainCategory == null || mainCategory == entityMainCat
+
+                if (matchesFilter) {
+                    MediaCardFromEntity(
+                        name = entity.name,
+                        poster = entity.poster,
+                        isFavorite = viewModel.favorites.isMovieFavorite(entity.id),
+                        onToggleFavorite = {
+                            viewModel.toggleMovieFavorite(entity.id, entity.name)
+                        },
+                        onClick = {
+                            navController.navigate(Routes.player(entity.url, entity.name))
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
