@@ -26,6 +26,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.stitten.stitteniptv.R
 import com.stitten.stitteniptv.data.PrefsManager
+import com.stitten.stitteniptv.data.XtreamLogger
 import com.stitten.stitteniptv.ui.navigation.Routes
 import com.stitten.stitteniptv.viewmodel.MainViewModel
 import dagger.hilt.android.EntryPointAccessors
@@ -50,6 +51,7 @@ fun SettingsScreen(
     var useInternal by remember { mutableStateOf(prefs.useInternalPlayer) }
     var liteModeState by remember { mutableStateOf(prefs.liteModeEnabled) }
     var favSyncEnabled by remember { mutableStateOf(prefs.favoritesSyncEnabled) }
+    var logEnabled by remember { mutableStateOf(prefs.xtreamLoggingEnabled) }
     var syncMessage by remember { mutableStateOf("") }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -121,8 +123,26 @@ fun SettingsScreen(
                 )
             }
             Text(
-                if (liteModeState) "✅ يقلل استهلاك الذاكرة (للأجهزة الضعيفة)"
+                if (liteModeState) "✅ يقلل استهلاك الذاكرة"
                 else "ℹ️ الوضع العادي (جودة كاملة)",
+                color = Color.LightGray,
+                fontSize = 13.sp,
+                modifier = Modifier.padding(start = 4.dp, bottom = 12.dp)
+            )
+
+            FocusableSettingRow("📝 تسجيل تفاصيل الاتصال") {
+                Switch(
+                    checked = logEnabled,
+                    onCheckedChange = {
+                        logEnabled = it
+                        prefs.xtreamLoggingEnabled = it
+                        XtreamLogger.setEnabled(ctx, it)
+                    }
+                )
+            }
+            Text(
+                if (logEnabled) "✅ يُسجّل كل اتصال مع سيرفر Xtream"
+                else "ℹ️ معطّل",
                 color = Color.LightGray,
                 fontSize = 13.sp,
                 modifier = Modifier.padding(start = 4.dp, bottom = 12.dp)
@@ -156,11 +176,19 @@ fun SettingsScreen(
             Spacer(Modifier.height(20.dp))
             HorizontalDivider(color = Color(0xFF30363D))
             Spacer(Modifier.height(20.dp))
-
+            
             FocusableNavigationRow(
                 title = "⚙️ الإعدادات المتقدمة",
                 subtitle = "فك التشفير، البروتوكول، صيغة البث، تنظيف Cache",
                 onClick = { navController.navigate(Routes.ADVANCED_SETTINGS) }
+            )
+
+            Spacer(Modifier.height(12.dp))
+
+            FocusableNavigationRow(
+                title = "📋 سجل الاتصال",
+                subtitle = "عرض / مشاركة / حفظ على USB",
+                onClick = { navController.navigate(Routes.CONNECTION_LOG) }
             )
 
             Spacer(Modifier.height(12.dp))
@@ -194,7 +222,7 @@ fun SettingsScreen(
                 subtitle = "عرض أخطاء التشغيل",
                 onClick = { navController.navigate(Routes.ERRORS) }
             )
-            
+
             Spacer(Modifier.height(24.dp))
             HorizontalDivider(color = Color(0xFF30363D))
             Spacer(Modifier.height(20.dp))
@@ -269,106 +297,5 @@ fun SettingsScreen(
 
             Spacer(Modifier.height(16.dp))
         }
-    }
-}
-
-// ============== مكونات مع تركيز واضح ==============
-
-@Composable
-private fun FocusableSettingRow(
-    label: String,
-    content: @Composable () -> Unit
-) {
-    var isFocused by remember { mutableStateOf(false) }
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 6.dp)
-            .border(
-                width = if (isFocused) 3.dp else 1.dp,
-                color = if (isFocused) Color(0xFF58A6FF) else Color.Transparent,
-                shape = RoundedCornerShape(8.dp)
-            )
-            .background(
-                color = if (isFocused) Color(0xFF21262D).copy(alpha = 0.8f)
-                else Color.Transparent,
-                shape = RoundedCornerShape(8.dp)
-            )
-            .padding(12.dp)
-            .onFocusChanged { isFocused = it.isFocused },
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(
-            label,
-            color = if (isFocused) Color(0xFF58A6FF) else Color.White,
-            fontSize = 18.sp,
-            fontWeight = if (isFocused) FontWeight.Bold else FontWeight.Normal
-        )
-        content()
-    }
-}
-
-@Composable
-private fun FocusableNavigationRow(
-    title: String,
-    subtitle: String,
-    onClick: () -> Unit
-) {
-    var isFocused by remember { mutableStateOf(false) }
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(
-                width = if (isFocused) 3.dp else 0.dp,
-                color = if (isFocused) Color(0xFF58A6FF) else Color.Transparent,
-                shape = RoundedCornerShape(12.dp)
-            )
-            .clickable(onClick = onClick)
-            .onFocusChanged { isFocused = it.isFocused },
-        colors = CardDefaults.cardColors(
-            containerColor = if (isFocused) Color(0xFF1F6FEB)
-            else Color(0xFF161B22).copy(alpha = 0.9f)
-        ),
-        shape = RoundedCornerShape(12.dp)
-    ) {
-        Row(
-            modifier = Modifier.padding(16.dp).fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    title,
-                    color = Color.White,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    subtitle,
-                    color = Color.White.copy(alpha = 0.8f),
-                    fontSize = 13.sp
-                )
-            }
-            Icon(
-                Icons.Default.ArrowForward,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(24.dp)
-            )
-        }
-    }
-}
-
-@Composable
-private fun InfoRow(label: String, value: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(label, color = Color.LightGray, fontSize = 13.sp)
-        Text(value, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
     }
 }
