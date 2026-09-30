@@ -10,7 +10,10 @@ import javax.inject.Singleton
 class SourceManager @Inject constructor(
     private val dao: SourceDao
 ) {
+
     fun getAll(): Flow<List<SourceEntity>> = dao.getAll()
+
+    fun getByType(type: String): Flow<List<SourceEntity>> = dao.getByType(type)
 
     suspend fun add(source: SourceEntity): Long = dao.insert(source)
 
@@ -26,6 +29,8 @@ class SourceManager @Inject constructor(
     }
 
     suspend fun getById(id: Long): SourceEntity? = dao.getById(id)
+
+    suspend fun countByType(type: String): Int = dao.countByType(type)
 
     suspend fun clearAll() = dao.clearAll()
 }
