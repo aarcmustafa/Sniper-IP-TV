@@ -5,6 +5,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -144,12 +145,6 @@ fun LoginScreen(
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        "أدخل اسم السيرفر كاملاً: http://اسم-السيرفر:المنفذ",
-                        color = Color.LightGray,
-                        fontSize = 12.sp
-                    )
                     Spacer(Modifier.height(12.dp))
                     OutlinedTextField(
                         value = user,
@@ -159,6 +154,8 @@ fun LoginScreen(
                         singleLine = true
                     )
                     Spacer(Modifier.height(12.dp))
+
+                    // ✅ حقل كلمة السر مع زر الإظهار القابل للضغط
                     OutlinedTextField(
                         value = pass,
                         onValueChange = { pass = it },
@@ -171,7 +168,13 @@ fun LoginScreen(
                             keyboardType = KeyboardType.Password
                         ),
                         trailingIcon = {
-                            IconButton(onClick = { showPassword = !showPassword }) {
+                            // ✅ Box.clickable يعمل على Android TV دائماً
+                            Box(
+                                modifier = Modifier
+                                    .size(56.dp)
+                                    .clickable { showPassword = !showPassword },
+                                contentAlignment = Alignment.Center
+                            ) {
                                 Icon(
                                     imageVector = if (showPassword)
                                         Icons.Default.VisibilityOff
@@ -181,13 +184,15 @@ fun LoginScreen(
                                         "إخفاء كلمة المرور"
                                     else
                                         "إظهار كلمة المرور",
-                                    tint = Color.White
+                                    tint = Color.White,
+                                    modifier = Modifier.size(26.dp)
                                 )
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
+
                     Spacer(Modifier.height(20.dp))
                     Button(
                         onClick = {
@@ -200,7 +205,7 @@ fun LoginScreen(
                             }
                             viewModel.loginXtream(server, user, pass) { ok ->
                                 if (ok) navController.navigate(Routes.DASHBOARD)
-                                else message = "فشل الاتصال بالخادم — تحقق من البيانات"
+                                else message = "فشل الاتصال بالخادم"
                             }
                         },
                         modifier = Modifier.fillMaxWidth()
@@ -210,11 +215,7 @@ fun LoginScreen(
 
             if (message.isNotEmpty()) {
                 Spacer(Modifier.height(16.dp))
-                Text(
-                    message,
-                    color = MaterialTheme.colorScheme.error,
-                    fontSize = 16.sp
-                )
+                Text(message, color = MaterialTheme.colorScheme.error, fontSize = 16.sp)
             }
             if (uiState.isLoading) {
                 Spacer(Modifier.height(20.dp))
