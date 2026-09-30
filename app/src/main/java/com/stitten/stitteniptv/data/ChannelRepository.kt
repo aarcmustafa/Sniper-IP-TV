@@ -37,7 +37,15 @@ class ChannelRepository @Inject constructor(
         }
     }
 
+    // ============== حفظ القنوات مع حساب أولوية الباقة ==============
     suspend fun saveChannels(channels: List<Channel>, sourceId: Long = 0) {
+        // حساب أولوية كل باقة بناءً على محتواها
+        val packagePriorities = channels
+            .groupBy { it.group }
+            .mapValues { (pkg, chs) ->
+                CategoriesManager.getPriorityForPackage(pkg, chs.map { it.name })
+            }
+
         val entities = channels.map {
             ChannelEntity(
                 id = "${sourceId}_${it.id}",
@@ -45,7 +53,7 @@ class ChannelRepository @Inject constructor(
                 logo = it.logo,
                 url = it.url,
                 groupName = it.group,
-                groupPriority = CategoriesManager.getPriorityOrder(it.group),
+                groupPriority = packagePriorities[it.group] ?: 4,
                 sourceId = sourceId
             )
         }
@@ -84,7 +92,7 @@ class ChannelRepository @Inject constructor(
             dao.insertSeries(chunk)
         }
     }
-    
+
     // ============== القنوات ==============
     fun getAllChannelsPaged(): Flow<PagingData<ChannelEntity>> =
         Pager(config = pagingConfig()) { dao.getAllChannels() }.flow
@@ -112,7 +120,7 @@ class ChannelRepository @Inject constructor(
     fun searchSeriesPaged(query: String): Flow<PagingData<SeriesEntity>> =
         Pager(config = pagingConfig()) { dao.searchSeries(query) }.flow
 
-    // ============== التصنيفات ==============
+    // ============== التصنيفات (مرتبة حسب الأولوية) ==============
     fun getChannelGroups(): Flow<List<String>> =
         dao.getAllChannelGroups().map { CategoriesManager.sortCategories(it) }
 
