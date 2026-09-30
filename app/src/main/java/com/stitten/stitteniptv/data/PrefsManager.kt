@@ -48,6 +48,18 @@ class PrefsManager(context: Context) {
         get() = prefs.getString("parental_pin", "") ?: ""
         set(value) = prefs.edit().putString("parental_pin", value).apply()
 
+    var favoritesSyncEnabled: Boolean
+        get() = prefs.getBoolean("fav_sync_enabled", true)
+        set(value) = prefs.edit().putBoolean("fav_sync_enabled", value).apply()
+
+    var externalPlayerPackage: String
+        get() = prefs.getString("ext_pkg", "") ?: ""
+        set(value) = prefs.edit().putString("ext_pkg", value).apply()
+
+    var alwaysAskExternalPlayer: Boolean
+        get() = prefs.getBoolean("ext_ask", true)
+        set(value) = prefs.edit().putBoolean("ext_ask", value).apply()
+
     fun clear() {
         prefs.edit().clear().apply()
     }
