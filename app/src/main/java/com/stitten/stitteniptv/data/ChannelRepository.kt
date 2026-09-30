@@ -84,3 +84,47 @@ class ChannelRepository @Inject constructor(
             dao.insertSeries(chunk)
         }
     }
+    
+    // ============== القنوات ==============
+    fun getAllChannelsPaged(): Flow<PagingData<ChannelEntity>> =
+        Pager(config = pagingConfig()) { dao.getAllChannels() }.flow
+
+    fun getChannelsByGroupPaged(group: String): Flow<PagingData<ChannelEntity>> =
+        Pager(config = pagingConfig()) { dao.getChannelsByGroup(group) }.flow
+
+    fun searchChannelsPaged(query: String): Flow<PagingData<ChannelEntity>> =
+        Pager(config = pagingConfig()) { dao.searchChannels(query) }.flow
+
+    fun searchChannelsInGroupPaged(group: String, query: String): Flow<PagingData<ChannelEntity>> =
+        Pager(config = pagingConfig()) { dao.searchChannelsInGroup(group, query) }.flow
+
+    // ============== الأفلام ==============
+    fun getAllMoviesPaged(): Flow<PagingData<MovieEntity>> =
+        Pager(config = pagingConfig()) { dao.getAllMovies() }.flow
+
+    fun searchMoviesPaged(query: String): Flow<PagingData<MovieEntity>> =
+        Pager(config = pagingConfig()) { dao.searchMovies(query) }.flow
+
+    // ============== المسلسلات ==============
+    fun getAllSeriesPaged(): Flow<PagingData<SeriesEntity>> =
+        Pager(config = pagingConfig()) { dao.getAllSeries() }.flow
+
+    fun searchSeriesPaged(query: String): Flow<PagingData<SeriesEntity>> =
+        Pager(config = pagingConfig()) { dao.searchSeries(query) }.flow
+
+    // ============== التصنيفات ==============
+    fun getChannelGroups(): Flow<List<String>> =
+        dao.getAllChannelGroups().map { CategoriesManager.sortCategories(it) }
+
+    // ============== العدّادات ==============
+    suspend fun getChannelCount() = dao.getChannelCount()
+    suspend fun getMovieCount() = dao.getMovieCount()
+    suspend fun getSeriesCount() = dao.getSeriesCount()
+
+    // ============== المسح ==============
+    suspend fun clearAll() {
+        dao.clearChannels()
+        dao.clearMovies()
+        dao.clearSeries()
+    }
+}
