@@ -5,12 +5,6 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
-data class CategoryInfo(
-    val id: String,
-    val name: String,
-    val type: String // "live", "vod", "series"
-)
-
 object XtreamApi {
 
     @Volatile
@@ -24,14 +18,37 @@ object XtreamApi {
     }
 
     fun setPreferredFormat(format: String) {
-        preferredFormat = if (format == "hls" || format == "m3u8") "m3u8" else "ts"
+        preferredFormat = if (format == "m3u8" || format == "hls") "m3u8" else "ts"
     }
+
+    // ============== Data Class للقنوات الخام ==============
+    private data class RawChannel(
+        val id: String,
+        val name: String,
+        val icon: String,
+        val categoryId: String
+    )
+
+    private data class RawMovie(
+        val id: String,
+        val name: String,
+        val poster: String,
+        val categoryId: String,
+        val ext: String
+    )
+
+    private data class RawSeries(
+        val id: String,
+        val name: String,
+        val cover: String,
+        val categoryId: String
+    )
 
     suspend fun validate(server: String, user: String, pass: String): Boolean =
         withContext(Dispatchers.IO) {
             try {
-                val cleanServer = normalizeServer(server)
-                val url = "$cleanServer/player_api.php?username=$user&password=$pass"
+                val s = normalizeServer(server)
+                val url = "$s/player_api.php?username=$user&password=$pass"
                 val result = HttpClientProvider.fetchText(url)
                 if (result.isFailure) return@withContext false
                 val body = result.getOrNull() ?: return@withContext false
@@ -48,243 +65,250 @@ object XtreamApi {
         }
 
     // ============== التصنيفات ==============
-    suspend fun loadLiveCategories(server: String, user: String, pass: String): List<CategoryInfo> =
-        withContext(Dispatchers.IO) {
-            loadCategories(server, user, pass, "get_live_categories", "live")
-        }
+    suspend fun loadLiveCategories(
+        server: String, user: String, pass: String
+    ): Map<String, String> = withContext(Dispatchers.IO) {
+        loadCategories(server, user, pass, "get_live_categories")
+    }
 
-    suspend fun loadVodCategories(server: String, user: String, pass: String): List<CategoryInfo> =
-        withContext(Dispatchers.IO) {
-            loadCategories(server, user, pass, "get_vod_categories", "vod")
-        }
+    suspend fun loadVodCategories(
+        server: String, user: String, pass: String
+    ): Map<String, String> = withContext(Dispatchers.IO) {
+        loadCategories(server, user, pass, "get_vod_categories")
+    }
 
-    suspend fun loadSeriesCategories(server: String, user: String, pass: String): List<CategoryInfo> =
-        withContext(Dispatchers.IO) {
-            loadCategories(server, user, pass, "get_series_categories", "series")
-        }
+    suspend fun loadSeriesCategories(
+        server: String, user: String, pass: String
+    ): Map<String, String> = withContext(Dispatchers.IO) {
+        loadCategories(server, user, pass, "get_series_categories")
+    }
 
-    private suspend fun loadCategories(
-        server: String, user: String, pass: String,
-        action: String, type: String
-    ): List<CategoryInfo> = withContext(Dispatchers.IO) {
-        val categories = mutableListOf<CategoryInfo>()
+    private fun loadCategories(
+        server: String, user: String, pass: String, action: String
+    ): Map<String, String> {
+        val map = mutableMapOf<String, String>()
         try {
             val s = normalizeServer(server)
             val url = "$s/player_api.php?username=$user&password=$pass&action=$action"
-            val body = HttpClientProvider.fetchText(url).getOrNull() ?: return@withContext emptyList()
-            if (body.isBlank() || body.trimStart().startsWith("<")) return@withContext emptyList()
+            val body = HttpClientProvider.fetchText(url).getOrNull() ?: return emptyMap()
+            if (body.isBlank() || body.trimStart().startsWith("<")) return emptyMap()
             val arr = JSONArray(body)
             for (i in 0 until arr.length()) {
                 val obj = arr.getJSONObject(i)
                 val id = obj.optString("category_id")
-                val name = obj.optString("category_name", "تصنيف $id")
+                val rawName = obj.optString("category_name", "").trim()
+                val name = if (rawName.isBlank() || rawName == "null") {
+                    "باقة $id"
+                } else {
+                    rawName
+                }
                 if (id.isNotBlank()) {
-                    categories.add(CategoryInfo(id, name, type))
+                    map[id] = name
                 }
             }
         } catch (e: Exception) { }
-        categories
+        return map
     }
-    
-// ============== قنوات تصنيف معين ==============
-suspend fun loadLiveStreamsByCategory(
-    server: String, user: String, pass: String, categoryId: String
-): List<Channel> = withContext(Dispatchers.IO) {
-    val channels = mutableListOf<Channel>()
-    try {
-        val s = normalizeServer(server)
-        val url = "$s/player_api.php?username=$user&password=$pass&action=get_live_streams&category_id=$categoryId"
-        val body = HttpClientProvider.fetchText(url).getOrNull() ?: return@withContext emptyList()
-        if (body.isBlank() || body.trimStart().startsWith("<")) return@withContext emptyList()
-        val arr = JSONArray(body)
-        val ext = if (preferredFormat == "m3u8") "m3u8" else "ts"
-        for (i in 0 until arr.length()) {
-            val obj = arr.getJSONObject(i)
-            val streamId = obj.optString("stream_id")
-            val name = obj.optString("name")
-            val icon = obj.optString("stream_icon")
-            val categoryIdFromApi = obj.optString("category_id", categoryId)
-            val streamUrl = "$s/live/$user/$pass/$streamId.$ext"
-            channels.add(
-                Channel(
-                    id = streamId,
-                    name = name,
-                    logo = icon,
-                    url = streamUrl,
-                    group = categoryIdFromApi
-                )
-            )
-        }
-    } catch (e: Exception) { }
-    channels
-}
 
-suspend fun loadVodStreamsByCategory(
-    server: String, user: String, pass: String, categoryId: String
-): List<Movie> = withContext(Dispatchers.IO) {
-    val movies = mutableListOf<Movie>()
-    try {
-        val s = normalizeServer(server)
-        val url = "$s/player_api.php?username=$user&password=$pass&action=get_vod_streams&category_id=$categoryId"
-        val body = HttpClientProvider.fetchText(url).getOrNull() ?: return@withContext emptyList()
-        if (body.isBlank() || body.trimStart().startsWith("<")) return@withContext emptyList()
-        val arr = JSONArray(body)
-        for (i in 0 until arr.length()) {
-            val obj = arr.getJSONObject(i)
-            val streamId = obj.optString("stream_id")
-            val name = obj.optString("name")
-            val poster = obj.optString("stream_icon")
-            val ext = obj.optString("container_extension", "mp4")
-            val url2 = "$s/movie/$user/$pass/$streamId.$ext"
-            movies.add(
-                Movie(
-                    id = streamId,
-                    name = name,
-                    poster = poster,
-                    url = url2,
-                    category = obj.optString("category_id", categoryId)
-                )
-            )
-        }
-    } catch (e: Exception) { }
-    movies
-}
+    // ============== كشف التصنيفات الذكي ==============
+    /**
+     * إذا كان التصنيف مرقماً (باقة 1, باقة 2, ...),
+     * نحلل أسماء القنوات ونعيد التسمية:
+     * "باقة 1 - رياضية عربية"
+     * "باقة 2 - قنوات عربية"
+     * "باقة 3 - رياضية عالمية"
+     * "باقة 4 - عربية"
+     */
+    private fun detectSmartCategories(
+        rawChannels: List<RawChannel>,
+        categoriesMap: Map<String, String>
+    ): Map<String, String> {
+        val result = mutableMapOf<String, String>()
 
-suspend fun loadSeriesByCategory(
-    server: String, user: String, pass: String, categoryId: String
-): List<Series> = withContext(Dispatchers.IO) {
-    val series = mutableListOf<Series>()
-    try {
-        val s = normalizeServer(server)
-        val url = "$s/player_api.php?username=$user&password=$pass&action=get_series&category_id=$categoryId"
-        val body = HttpClientProvider.fetchText(url).getOrNull() ?: return@withContext emptyList()
-        if (body.isBlank() || body.trimStart().startsWith("<")) return@withContext emptyList()
-        val arr = JSONArray(body)
-        for (i in 0 until arr.length()) {
-            val obj = arr.getJSONObject(i)
-            series.add(
-                Series(
-                    id = obj.optString("series_id"),
-                    name = obj.optString("name"),
-                    poster = obj.optString("cover"),
-                    category = obj.optString("category_id", categoryId)
-                )
-            )
-        }
-    } catch (e: Exception) { }
-    series
-}
+        // تجميع القنوات حسب التصنيف
+        val groupedByCategory = rawChannels.groupBy { it.categoryId }
 
-    // ============== التحميل الكامل (احتياطي) ==============
-    suspend fun loadLiveStreams(server: String, user: String, pass: String): List<Channel> =
-        withContext(Dispatchers.IO) {
-            val channels = mutableListOf<Channel>()
-            try {
-                val s = normalizeServer(server)
-                val url = "$s/player_api.php?username=$user&password=$pass&action=get_live_streams"
-                val body = HttpClientProvider.fetchText(url).getOrNull() ?: return@withContext emptyList()
-                if (body.isBlank() || body.trimStart().startsWith("<")) return@withContext emptyList()
-                val arr = JSONArray(body)
-                val ext = if (preferredFormat == "m3u8") "m3u8" else "ts"
-                for (i in 0 until arr.length()) {
-                    val obj = arr.getJSONObject(i)
-                    val streamId = obj.optString("stream_id")
-                    val name = obj.optString("name")
-                    val icon = obj.optString("stream_icon")
-                    val categoryId = obj.optString("category_id")
-                    val streamUrl = "$s/live/$user/$pass/$streamId.$ext"
-                    channels.add(
-                        Channel(streamId, name, icon, streamUrl, categoryId)
-                    )
-                }
-            } catch (e: Exception) { }
-            channels
+        groupedByCategory.forEach { (categoryId, channels) ->
+            val originalName = categoriesMap[categoryId] ?: "باقة $categoryId"
+
+            // إذا كان الاسم مُسمّى (ليس "باقة X"), استخدمه كما هو
+            if (!originalName.startsWith("باقة ")) {
+                result[categoryId] = originalName
+                return@forEach
+            }
+
+            // إذا كان مرقماً — حلّل القنوات
+            val channelNames = channels.map { it.name }
+            val detectedType = CategoriesManager.detectTypeFromChannelNames(channelNames)
+
+            val smartName = if (detectedType.isNotEmpty()) {
+                "$originalName - $detectedType"
+            } else {
+                originalName
+            }
+
+            result[categoryId] = smartName
         }
 
-    suspend fun loadVodStreams(server: String, user: String, pass: String): List<Movie> =
-        withContext(Dispatchers.IO) {
-            val movies = mutableListOf<Movie>()
-            try {
-                val s = normalizeServer(server)
-                val url = "$s/player_api.php?username=$user&password=$pass&action=get_vod_streams"
-                val body = HttpClientProvider.fetchText(url).getOrNull() ?: return@withContext emptyList()
-                if (body.isBlank() || body.trimStart().startsWith("<")) return@withContext emptyList()
-                val arr = JSONArray(body)
-                for (i in 0 until arr.length()) {
-                    val obj = arr.getJSONObject(i)
-                    val streamId = obj.optString("stream_id")
-                    val name = obj.optString("name")
-                    val poster = obj.optString("stream_icon")
-                    val ext = obj.optString("container_extension", "mp4")
-                    val url2 = "$s/movie/$user/$pass/$streamId.$ext"
-                    movies.add(Movie(streamId, name, poster, url2, obj.optString("category_id")))
-                }
-            } catch (e: Exception) { }
-            movies
+        return result
+    }
+
+    /**
+     * نفس الفكرة للأفلام والمسلسلات
+     */
+    private fun detectSmartCategoriesForMovies(
+        rawMovies: List<RawMovie>,
+        categoriesMap: Map<String, String>
+    ): Map<String, String> {
+        val result = mutableMapOf<String, String>()
+        val groupedByCategory = rawMovies.groupBy { it.categoryId }
+
+        groupedByCategory.forEach { (categoryId, movies) ->
+            val originalName = categoriesMap[categoryId] ?: "باقة $categoryId"
+
+            if (!originalName.startsWith("باقة ")) {
+                result[categoryId] = originalName
+                return@forEach
+            }
+
+            val movieNames = movies.map { it.name }
+            val detectedType = CategoriesManager.detectTypeFromChannelNames(movieNames)
+
+            val smartName = if (detectedType.isNotEmpty()) {
+                "$originalName - $detectedType"
+            } else {
+                originalName
+            }
+
+            result[categoryId] = smartName
         }
 
-    suspend fun loadSeries(server: String, user: String, pass: String): List<Series> =
-        withContext(Dispatchers.IO) {
-            val series = mutableListOf<Series>()
-            try {
-                val s = normalizeServer(server)
-                val url = "$s/player_api.php?username=$user&password=$pass&action=get_series"
-                val body = HttpClientProvider.fetchText(url).getOrNull() ?: return@withContext emptyList()
-                if (body.isBlank() || body.trimStart().startsWith("<")) return@withContext emptyList()
-                val arr = JSONArray(body)
-                for (i in 0 until arr.length()) {
-                    val obj = arr.getJSONObject(i)
-                    series.add(
-                        Series(
-                            obj.optString("series_id"),
-                            obj.optString("name"),
-                            obj.optString("cover"),
-                            obj.optString("category_id")
-                        )
-                    )
-                }
-            } catch (e: Exception) { }
-            series
+        return result
+    }
+
+    private fun detectSmartCategoriesForSeries(
+        rawSeries: List<RawSeries>,
+        categoriesMap: Map<String, String>
+    ): Map<String, String> {
+        val result = mutableMapOf<String, String>()
+        val groupedByCategory = rawSeries.groupBy { it.categoryId }
+
+        groupedByCategory.forEach { (categoryId, seriesList) ->
+            val originalName = categoriesMap[categoryId] ?: "باقة $categoryId"
+
+            if (!originalName.startsWith("باقة ")) {
+                result[categoryId] = originalName
+                return@forEach
+            }
+
+            val names = seriesList.map { it.name }
+            val detectedType = CategoriesManager.detectTypeFromChannelNames(names)
+
+            val smartName = if (detectedType.isNotEmpty()) {
+                "$originalName - $detectedType"
+            } else {
+                originalName
+            }
+
+            result[categoryId] = smartName
         }
 
-    suspend fun loadEpisodes(
-        server: String, user: String, pass: String, seriesId: String
-    ): List<Episode> = withContext(Dispatchers.IO) {
-        val episodes = mutableListOf<Episode>()
+        return result
+    }
+
+    // ============== القنوات المباشرة ==============
+    suspend fun loadLiveStreams(
+        server: String, user: String, pass: String
+    ): List<Channel> = withContext(Dispatchers.IO) {
+        val channels = mutableListOf<Channel>()
         try {
             val s = normalizeServer(server)
-            val url = "$s/player_api.php?username=$user&password=$pass&action=get_series_info&series_id=$seriesId"
+            val categoriesMap = loadLiveCategories(server, user, pass)
+
+            val url = "$s/player_api.php?username=$user&password=$pass&action=get_live_streams"
             val body = HttpClientProvider.fetchText(url).getOrNull() ?: return@withContext emptyList()
             if (body.isBlank() || body.trimStart().startsWith("<")) return@withContext emptyList()
-            val json = JSONObject(body)
-            val epsObj = json.optJSONObject("episodes") ?: return@withContext episodes
-            val seasonKeys = epsObj.keys()
-            while (seasonKeys.hasNext()) {
-                val season = seasonKeys.next()
-                val arr = epsObj.getJSONArray(season)
-                for (i in 0 until arr.length()) {
-                    val ep = arr.getJSONObject(i)
-                    val epId = ep.optString("id")
-                    val epNum = ep.optInt("episode_num", i + 1)
-                    val title = ep.optString("title", "الحلقة $epNum")
-                    val ext = ep.optString("container_extension", "mp4")
-                    val epUrl = "$s/series/$user/$pass/$epId.$ext"
-                    episodes.add(
-                        Episode(
-                            epId, title, season.toIntOrNull() ?: 1, epNum, epUrl, ""
-                        )
+            val arr = JSONArray(body)
+
+            // جمع القنوات الخام
+            val rawChannels = mutableListOf<RawChannel>()
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                rawChannels.add(
+                    RawChannel(
+                        id = obj.optString("stream_id"),
+                        name = obj.optString("name"),
+                        icon = obj.optString("stream_icon"),
+                        categoryId = obj.optString("category_id")
                     )
-                }
+                )
+            }
+
+            // كشف التصنيفات الذكية
+            val smartCategories = detectSmartCategories(rawChannels, categoriesMap)
+
+            // بناء القنوات النهائية
+            val ext = if (preferredFormat == "m3u8") "m3u8" else "ts"
+            rawChannels.forEach { raw ->
+                val groupName = smartCategories[raw.categoryId] ?: "باقة ${raw.categoryId}"
+                val streamUrl = "$s/live/$user/$pass/${raw.id}.$ext"
+                channels.add(
+                    Channel(
+                        id = raw.id,
+                        name = raw.name,
+                        logo = raw.icon,
+                        url = streamUrl,
+                        group = groupName
+                    )
+                )
             }
         } catch (e: Exception) { }
-        episodes
+        channels
     }
 
-    private fun normalizeServer(server: String): String {
-        var s = server.trim().trimEnd('/')
-        if (!s.startsWith("http://") && !s.startsWith("https://")) {
-            s = "$preferredProtocol://$s"
-        }
-        return s
+    // ============== الأفلام ==============
+    suspend fun loadVodStreams(
+        server: String, user: String, pass: String
+    ): List<Movie> = withContext(Dispatchers.IO) {
+        val movies = mutableListOf<Movie>()
+        try {
+            val s = normalizeServer(server)
+            val categoriesMap = loadVodCategories(server, user, pass)
+
+            val url = "$s/player_api.php?username=$user&password=$pass&action=get_vod_streams"
+            val body = HttpClientProvider.fetchText(url).getOrNull() ?: return@withContext emptyList()
+            if (body.isBlank() || body.trimStart().startsWith("<")) return@withContext emptyList()
+            val arr = JSONArray(body)
+
+            val rawMovies = mutableListOf<RawMovie>()
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                rawMovies.add(
+                    RawMovie(
+                        id = obj.optString("stream_id"),
+                        name = obj.optString("name"),
+                        poster = obj.optString("stream_icon"),
+                        categoryId = obj.optString("category_id"),
+                        ext = obj.optString("container_extension", "mp4")
+                    )
+                )
+            }
+
+            val smartCategories = detectSmartCategoriesForMovies(rawMovies, categoriesMap)
+
+            rawMovies.forEach { raw ->
+                val categoryName = smartCategories[raw.categoryId] ?: "باقة ${raw.categoryId}"
+                val url2 = "$s/movie/$user/$pass/${raw.id}.${raw.ext}"
+                movies.add(
+                    Movie(
+                        id = raw.id,
+                        name = raw.name,
+                        poster = raw.poster,
+                        url = url2,
+                        category = categoryName
+                    )
+                )
+            }
+        } catch (e: Exception) { }
+        movies
     }
-}
