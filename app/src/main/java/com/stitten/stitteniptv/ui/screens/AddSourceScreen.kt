@@ -7,7 +7,11 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -17,7 +21,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
@@ -55,6 +61,7 @@ fun AddSourceScreen(
     var epgUrl by remember { mutableStateOf("") }
     var message by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(false) }
+    var showPassword by remember { mutableStateOf(false) }
 
     LaunchedEffect(editSourceId) {
         if (editSourceId > 0) {
@@ -169,6 +176,7 @@ Box(modifier = Modifier.fillMaxSize()) {
                     value = m3uUrl,
                     onValueChange = { m3uUrl = it },
                     label = { Text("رابط M3U / M3U8") },
+                    placeholder = { Text("http://example.com/list.m3u") },
                     modifier = Modifier.width(600.dp),
                     singleLine = true
                 )
@@ -177,6 +185,7 @@ Box(modifier = Modifier.fillMaxSize()) {
                     value = epgUrl,
                     onValueChange = { epgUrl = it },
                     label = { Text("رابط EPG (اختياري)") },
+                    placeholder = { Text("http://example.com/epg.xml") },
                     modifier = Modifier.width(600.dp),
                     singleLine = true
                 )
@@ -191,7 +200,7 @@ Box(modifier = Modifier.fillMaxSize()) {
                             try {
                                 val channels = M3uParser.loadFromUrl(m3uUrl)
                                 if (channels.isEmpty()) {
-                                    message = "فشل تحميل القنوات"
+                                    message = "فشل تحميل القنوات — تحقق من الرابط"
                                     loading = false
                                     return@launch
                                 }
@@ -237,8 +246,16 @@ Box(modifier = Modifier.fillMaxSize()) {
                         value = server,
                         onValueChange = { server = it },
                         label = { Text("Server URL") },
+                        placeholder = { Text("http://example.com:8080") },
                         modifier = Modifier.width(600.dp),
                         singleLine = true
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "أدخل اسم السيرفر كاملاً: http://اسم-السيرفر:المنفذ",
+                        color = Color.LightGray,
+                        fontSize = 12.sp,
+                        modifier = Modifier.width(600.dp)
                     )
                     Spacer(Modifier.height(12.dp))
                     OutlinedTextField(
@@ -253,7 +270,28 @@ Box(modifier = Modifier.fillMaxSize()) {
                         value = pass,
                         onValueChange = { pass = it },
                         label = { Text("Password") },
-                        visualTransformation = PasswordVisualTransformation(),
+                        visualTransformation = if (showPassword)
+                            VisualTransformation.None
+                        else
+                            PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Password
+                        ),
+                        trailingIcon = {
+                            IconButton(onClick = { showPassword = !showPassword }) {
+                                Icon(
+                                    imageVector = if (showPassword)
+                                        Icons.Default.VisibilityOff
+                                    else
+                                        Icons.Default.Visibility,
+                                    contentDescription = if (showPassword)
+                                        "إخفاء كلمة المرور"
+                                    else
+                                        "إظهار كلمة المرور",
+                                    tint = Color.White
+                                )
+                            }
+                        },
                         modifier = Modifier.width(600.dp),
                         singleLine = true
                     )
@@ -262,6 +300,10 @@ Box(modifier = Modifier.fillMaxSize()) {
                         onClick = {
                             if (server.isBlank() || user.isBlank() || pass.isBlank()) {
                                 message = "املأ كل الحقول"; return@Button
+                            }
+                            if (!server.contains(".")) {
+                                message = "أدخل اسم سيرفر صحيح"
+                                return@Button
                             }
                             scope.launch {
                                 loading = true
