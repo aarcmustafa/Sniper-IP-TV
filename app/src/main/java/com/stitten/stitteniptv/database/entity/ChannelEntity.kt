@@ -6,7 +6,7 @@ import androidx.room.PrimaryKey
 
 @Entity(
     tableName = "channels",
-    indices = [Index("groupName"), Index("name")]
+    indices = [Index("groupName"), Index("name"), Index("groupPriority")]
 )
 data class ChannelEntity(
     @PrimaryKey val id: String,
@@ -14,5 +14,6 @@ data class ChannelEntity(
     val logo: String,
     val url: String,
     val groupName: String,
+    val groupPriority: Int = 4,
     val sourceId: Long = 0
 )
