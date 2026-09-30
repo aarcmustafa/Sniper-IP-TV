@@ -362,3 +362,106 @@ fun loginM3u(url: String, content: String? = null, onDone: (Boolean) -> Unit) {
         }
     }
 }
+
+    fun loadCachedContent() {
+        viewModelScope.launch {
+            XtreamApi.setPreferredProtocol(prefs.useHttps)
+            XtreamApi.setPreferredFormat(prefs.streamFormat)
+            channelRepo.liteMode = prefs.liteModeEnabled
+
+            val active = withContext(Dispatchers.IO) { sourceMgr.getActive() }
+            if (active != null) {
+                switchSource(active)
+                return@launch
+            }
+
+            when (prefs.loginType) {
+                "M3U" -> {
+                    val list = M3uParser.loadFromUrl(prefs.m3uUrl)
+                    val limited = list.take(getChannelLimit())
+                    withContext(Dispatchers.IO) {
+                        channelRepo.clearAll()
+                        channelRepo.saveChannels(limited)
+                    }
+                    _uiState.value = DashboardUiState(
+                        channelsCount = limited.size,
+                        channelsLoaded = true,
+                        loadingProgress = 100,
+                        dataVersion = 1
+                    )
+                }
+                "XTREAM" -> {
+                    loadChannelsOnly(prefs.serverUrl, prefs.username, prefs.password)
+                }
+            }
+        }
+    }
+
+    fun deleteSource(source: SourceEntity, onDone: () -> Unit) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) { sourceMgr.delete(source) }
+            onDone()
+        }
+    }
+
+    fun loadEpisodes(seriesId: String, onDone: (List<Episode>) -> Unit) {
+        viewModelScope.launch {
+            val eps = XtreamApi.loadEpisodes(
+                prefs.serverUrl, prefs.username, prefs.password, seriesId
+            )
+            ContentRepository.episodes = ContentRepository.episodes + (seriesId to eps)
+            onDone(eps)
+        }
+    }
+
+    fun toggleChannelFavorite(id: String, name: String = "") {
+        val nowFav = favorites.toggleChannel(id, name)
+        if (name.isNotBlank()) {
+            if (nowFav) favoritesSync.markChannel(name)
+            else favoritesSync.unmarkChannel(name)
+        }
+        _favoritesVersion.value++
+    }
+
+    fun toggleMovieFavorite(id: String, name: String = "") {
+        val nowFav = favorites.toggleMovie(id, name)
+        if (name.isNotBlank()) {
+            if (nowFav) favoritesSync.markMovie(name)
+            else favoritesSync.unmarkMovie(name)
+        }
+        _favoritesVersion.value++
+    }
+
+    fun toggleSeriesFavorite(id: String, name: String = "") {
+        val nowFav = favorites.toggleSeries(id, name)
+        if (name.isNotBlank()) {
+            if (nowFav) favoritesSync.markSeries(name)
+            else favoritesSync.unmarkSeries(name)
+        }
+        _favoritesVersion.value++
+    }
+
+    fun getFavoriteChannels(): List<Channel> {
+        val ids = favorites.getFavoriteChannelIds()
+        return ContentRepository.channels.filter { it.id in ids }
+    }
+
+    fun getFavoriteMovies(): List<Movie> {
+        val ids = favorites.getFavoriteMovieIds()
+        return ContentRepository.movies.filter { it.id in ids }
+    }
+
+    fun getFavoriteSeries(): List<Series> {
+        val ids = favorites.getFavoriteSeriesIds()
+        return ContentRepository.series.filter { it.id in ids }
+    }
+
+    fun logout() {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) { channelRepo.clearAll() }
+            prefs.clear()
+            ContentRepository.clear()
+            _uiState.value = DashboardUiState()
+        }
+    }
+}
