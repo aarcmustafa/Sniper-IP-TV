@@ -60,6 +60,17 @@ class PrefsManager(context: Context) {
         get() = prefs.getBoolean("ext_ask", true)
         set(value) = prefs.edit().putBoolean("ext_ask", value).apply()
 
+    var useHttps: Boolean
+        get() = prefs.getBoolean("use_https", false)
+        set(value) = prefs.edit().putBoolean("use_https", value).apply()
+
+    // ============== صيغة البث ==============
+    // "ts"  = MPEG-TS (تأخير أقل - الأفضل للبث المباشر)
+    // "hls" = HLS/M3U8 (تكيّفي - الأفضل للشبكات الضعيفة)
+    var streamFormat: String
+        get() = prefs.getString("stream_format", "ts") ?: "ts"
+        set(value) = prefs.edit().putString("stream_format", value).apply()
+
     fun clear() {
         prefs.edit().clear().apply()
     }
