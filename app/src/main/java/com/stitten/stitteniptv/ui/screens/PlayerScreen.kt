@@ -72,91 +72,89 @@ fun PlayerScreen(
     val errorLogger: ErrorLogger = entryPoint.errorLogger()
     val settingsMgr: PlayerSettingsManager = entryPoint.playerSettingsManager()
     val scope = rememberCoroutineScope()
-    
-val exoPlayer = remember {
-    val cache = CacheManager.get(ctx)
-    val httpFactory = DefaultHttpDataSource.Factory()
-        .setUserAgent(HttpClientProvider.getUserAgent())
-        .setAllowCrossProtocolRedirects(true)
-        .setConnectTimeoutMs(30_000)
-        .setReadTimeoutMs(60_000)
 
-    val cacheFactory = CacheDataSource.Factory()
-        .setCache(cache)
-        .setUpstreamDataSourceFactory(httpFactory)
-        .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+    val exoPlayer = remember {
+        val cache = CacheManager.get(ctx)
+        val httpFactory = DefaultHttpDataSource.Factory()
+            .setUserAgent(HttpClientProvider.getUserAgent())
+            .setAllowCrossProtocolRedirects(true)
+            .setConnectTimeoutMs(30_000)
+            .setReadTimeoutMs(60_000)
 
-    // ============ إعدادات LoadControl المُحسّنة لمنع التقطعات ============
-    val userBufferMs = settingsMgr.bufferMs.coerceAtLeast(30_000)
-    val minBuffer = userBufferMs              // الحد الأدنى للبيانات (30 ثانية+)
-    val maxBuffer = userBufferMs * 3          // الحد الأقصى (90 ثانية+)
-    val playbackBuffer = 1500                 // يُشغّل بعد تحميل 1.5 ثانية
-    val rebufferBuffer = 3000                 // يستأنف بعد تحميل 3 ثوانٍ بعد تقطع
+        val cacheFactory = CacheDataSource.Factory()
+            .setCache(cache)
+            .setUpstreamDataSourceFactory(httpFactory)
+            .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
 
-    val loadControl = DefaultLoadControl.Builder()
-        .setBufferDurationsMs(
-            minBuffer,
-            maxBuffer,
-            playbackBuffer,
-            rebufferBuffer
-        )
-        .setPrioritizeTimeOverSizeThresholds(true)
-        .setBackBuffer(30_000, true)
-        .build()
-    // ====================================================================
+        val userBufferMs = settingsMgr.bufferMs.coerceAtLeast(30_000)
+        val minBuffer = userBufferMs
+        val maxBuffer = userBufferMs * 3
+        val playbackBuffer = 1500
+        val rebufferBuffer = 3000
 
-    val mediaSource = ProgressiveMediaSource.Factory(cacheFactory)
-        .createMediaSource(MediaItem.fromUri(url))
+        val loadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(
+                minBuffer,
+                maxBuffer,
+                playbackBuffer,
+                rebufferBuffer
+            )
+            .setPrioritizeTimeOverSizeThresholds(true)
+            .setBackBuffer(30_000, true)
+            .build()
 
-    val player = ExoPlayer.Builder(ctx)
-        .setLoadControl(loadControl)
-        .setSeekBackIncrementMs(10_000)
-        .setSeekForwardIncrementMs(10_000)
-        .setHandleAudioBecomingNoisy(true)
-        .setWakeMode(C.WAKE_MODE_NETWORK)
-        .build()
+        val mediaSource = ProgressiveMediaSource.Factory(cacheFactory)
+            .createMediaSource(MediaItem.fromUri(url))
 
-    player.setMediaSource(mediaSource)
-    player.playWhenReady = true
+        val player = ExoPlayer.Builder(ctx)
+            .setLoadControl(loadControl)
+            .setSeekBackIncrementMs(10_000)
+            .setSeekForwardIncrementMs(10_000)
+            .setHandleAudioBecomingNoisy(true)
+            .setWakeMode(C.WAKE_MODE_NETWORK)
+            .build()
 
-    player.addListener(object : Player.Listener {
-        override fun onPlayerError(error: PlaybackException) {
-            if (retryCount < 3) {
-                retryCount++
-                scope.launch {
-                    delay(1000L * retryCount)
-                    player.prepare()
-                    player.play()
-                }
-            } else {
-                errorMsg = "فشل التشغيل بعد 3 محاولات: ${error.message}"
-                scope.launch {
-                    errorLogger.log(url, error.message ?: "unknown", error.errorCode)
+        player.setMediaSource(mediaSource)
+        player.playWhenReady = true
+
+        player.addListener(object : Player.Listener {
+            override fun onPlayerError(error: PlaybackException) {
+                if (retryCount < 3) {
+                    retryCount++
+                    scope.launch {
+                        delay(1000L * retryCount)
+                        player.prepare()
+                        player.play()
+                    }
+                } else {
+                    errorMsg = "فشل التشغيل بعد 3 محاولات: ${error.message}"
+                    scope.launch {
+                        errorLogger.log(url, error.message ?: "unknown", error.errorCode)
+                    }
                 }
             }
-        }
 
-        override fun onTracksChanged(tracks1: Tracks) {
-            tracks = tracks1
-        }
-
-        override fun onPlaybackStateChanged(state: Int) {
-            if (state == Player.STATE_ENDED) {
-                scope.launch { historyMgr.delete(url) }
+            override fun onTracksChanged(tracks1: Tracks) {
+                tracks = tracks1
             }
-        }
-    })
-    player
-}
 
-LaunchedEffect(Unit) {
-    if (!prefs.useInternalPlayer) {
-        launchExternal(ctx, url, settingsMgr)
-        navController.popBackStack()
-    } else {
-        exoPlayer.prepare()
+            override fun onPlaybackStateChanged(state: Int) {
+                if (state == Player.STATE_ENDED) {
+                    scope.launch { historyMgr.delete(url) }
+                }
+            }
+        })
+        player
     }
-}
+
+    LaunchedEffect(Unit) {
+        if (!prefs.useInternalPlayer) {
+            launchExternal(ctx, url, settingsMgr)
+            navController.popBackStack()
+        } else {
+            exoPlayer.prepare()
+        }
+    }
 
     LaunchedEffect(Unit) {
         while (true) {
@@ -190,7 +188,7 @@ LaunchedEffect(Unit) {
     DisposableEffect(Unit) {
         onDispose { exoPlayer.release() }
     }
-
+    
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
         AndroidView(
             factory = { c ->
@@ -247,20 +245,34 @@ LaunchedEffect(Unit) {
         }
 
         if (showTrackMenu && tracks != null) {
-            TrackMenu(
-                tracks = tracks!!,
-                exoPlayer = exoPlayer,
-                onDismiss = { showTrackMenu = false }
-            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = 80.dp, end = 16.dp),
+                contentAlignment = Alignment.TopEnd
+            ) {
+                TrackMenu(
+                    tracks = tracks!!,
+                    exoPlayer = exoPlayer,
+                    onDismiss = { showTrackMenu = false }
+                )
+            }
         }
 
         if (showExternalMenu) {
-            ExternalMenu(
-                ctx = ctx,
-                url = url,
-                settingsMgr = settingsMgr,
-                onDismiss = { showExternalMenu = false }
-            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = 80.dp, end = 16.dp),
+                contentAlignment = Alignment.TopEnd
+            ) {
+                ExternalMenu(
+                    ctx = ctx,
+                    url = url,
+                    settingsMgr = settingsMgr,
+                    onDismiss = { showExternalMenu = false }
+                )
+            }
         }
 
         errorMsg?.let { msg ->
@@ -296,8 +308,8 @@ LaunchedEffect(Unit) {
 private fun TrackMenu(tracks: Tracks, exoPlayer: ExoPlayer, onDismiss: () -> Unit) {
     Surface(
         modifier = Modifier
-    .fillMaxWidth(0.5f)
-    .padding(top = 80.dp),
+            .fillMaxWidth(0.5f)
+            .padding(8.dp),
         color = Color(0xEE161B22)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -351,9 +363,8 @@ private fun ExternalMenu(
     val installed = remember { ExternalPlayerManager.getInstalledPlayers(ctx) }
     Surface(
         modifier = Modifier
-    .fillMaxWidth(0.5f)
-    .padding(top = 80.dp)
-    .align(Alignment.TopEnd),   ← احذف هذا السطر
+            .fillMaxWidth(0.4f)
+            .padding(8.dp),
         color = Color(0xEE161B22)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
