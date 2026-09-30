@@ -25,7 +25,7 @@ import com.stitten.stitteniptv.database.entity.WatchHistoryEntity
         MovieEntity::class,
         SeriesEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
