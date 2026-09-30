@@ -17,6 +17,7 @@ object Routes {
     const val DASHBOARD = "dashboard"
     const val SETTINGS = "settings"
     const val ADVANCED_SETTINGS = "advanced_settings"
+    const val CONNECTION_LOG = "connection_log"
     const val SERIES_DETAILS = "series/{seriesId}"
     const val PLAYER = "player/{url}/{title}"
     const val EPG = "epg/{channelId}/{channelName}/{epgUrl}"
@@ -43,6 +44,7 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
         composable(Routes.DASHBOARD) { DashboardScreen(navController) }
         composable(Routes.SETTINGS) { SettingsScreen(navController) }
         composable(Routes.ADVANCED_SETTINGS) { AdvancedSettingsScreen(navController) }
+        composable(Routes.CONNECTION_LOG) { ConnectionLogScreen(navController) }
         composable(Routes.PARENTAL) { ParentalControlScreen(navController) }
         composable(Routes.ERRORS) { ErrorLogScreen() }
         composable(Routes.SOURCES) { SourcesManagerScreen(navController) }
