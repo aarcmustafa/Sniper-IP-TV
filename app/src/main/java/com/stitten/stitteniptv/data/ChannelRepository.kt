@@ -8,6 +8,7 @@ import com.stitten.stitteniptv.database.entity.ChannelEntity
 import com.stitten.stitteniptv.database.entity.MovieEntity
 import com.stitten.stitteniptv.database.entity.SeriesEntity
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -16,13 +17,26 @@ class ChannelRepository @Inject constructor(
     private val dao: ChannelDao
 ) {
 
-    private val pagingConfig = PagingConfig(
-        pageSize = 50,
-        prefetchDistance = 10,
-        enablePlaceholders = false
-    )
+    @Volatile
+    var liteMode: Boolean = false
 
-    // ============== حفظ القنوات ==============
+    private fun pagingConfig(): PagingConfig {
+        return if (liteMode) {
+            PagingConfig(
+                pageSize = 15,
+                prefetchDistance = 3,
+                enablePlaceholders = false,
+                maxSize = 60
+            )
+        } else {
+            PagingConfig(
+                pageSize = 50,
+                prefetchDistance = 10,
+                enablePlaceholders = false
+            )
+        }
+    }
+
     suspend fun saveChannels(channels: List<Channel>, sourceId: Long = 0) {
         val entities = channels.map {
             ChannelEntity(
@@ -69,76 +83,3 @@ class ChannelRepository @Inject constructor(
             dao.insertSeries(chunk)
         }
     }
-
-    // ============== Flow<PagingData> للقنوات ==============
-    fun getAllChannelsPaged(): Flow<PagingData<ChannelEntity>> {
-        return Pager(config = pagingConfig) {
-            dao.getAllChannels()
-        }.flow
-    }
-
-    fun getChannelsByGroupPaged(group: String): Flow<PagingData<ChannelEntity>> {
-        return Pager(config = pagingConfig) {
-            dao.getChannelsByGroup(group)
-        }.flow
-    }
-
-    fun searchChannelsPaged(query: String): Flow<PagingData<ChannelEntity>> {
-        return Pager(config = pagingConfig) {
-            dao.searchChannels(query)
-        }.flow
-    }
-
-    // ============== Flow<PagingData> للأفلام ==============
-    fun getAllMoviesPaged(): Flow<PagingData<MovieEntity>> {
-        return Pager(config = pagingConfig) {
-            dao.getAllMovies()
-        }.flow
-    }
-
-    fun getMoviesByCategoryPaged(cat: String): Flow<PagingData<MovieEntity>> {
-        return Pager(config = pagingConfig) {
-            dao.getMoviesByCategory(cat)
-        }.flow
-    }
-
-    fun searchMoviesPaged(query: String): Flow<PagingData<MovieEntity>> {
-        return Pager(config = pagingConfig) {
-            dao.searchMovies(query)
-        }.flow
-    }
-
-    // ============== Flow<PagingData> للمسلسلات ==============
-    fun getAllSeriesPaged(): Flow<PagingData<SeriesEntity>> {
-        return Pager(config = pagingConfig) {
-            dao.getAllSeries()
-        }.flow
-    }
-
-    fun getSeriesByCategoryPaged(cat: String): Flow<PagingData<SeriesEntity>> {
-        return Pager(config = pagingConfig) {
-            dao.getSeriesByCategory(cat)
-        }.flow
-    }
-
-    fun searchSeriesPaged(query: String): Flow<PagingData<SeriesEntity>> {
-        return Pager(config = pagingConfig) {
-            dao.searchSeries(query)
-        }.flow
-    }
-
-    // ============== التصنيفات ==============
-    fun getChannelGroups(): Flow<List<String>> = dao.getAllChannelGroups()
-    fun getMovieCategories(): Flow<List<String>> = dao.getAllMovieCategories()
-    fun getSeriesCategories(): Flow<List<String>> = dao.getAllSeriesCategories()
-
-    // ============== Counts ==============
-    suspend fun getChannelCount() = dao.getChannelCount()
-
-    // ============== Clear ==============
-    suspend fun clearAll() {
-        dao.clearChannels()
-        dao.clearMovies()
-        dao.clearSeries()
-    }
-}
