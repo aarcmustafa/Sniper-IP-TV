@@ -5,9 +5,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -30,6 +32,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.stitten.stitteniptv.R
+import com.stitten.stitteniptv.data.PrefsManager
+import com.stitten.stitteniptv.data.XtreamLogger
 import com.stitten.stitteniptv.ui.navigation.Routes
 import com.stitten.stitteniptv.viewmodel.MainViewModel
 
@@ -39,6 +43,7 @@ fun LoginScreen(
     viewModel: MainViewModel = viewModel()
 ) {
     val ctx = LocalContext.current
+    val prefs = remember { PrefsManager(ctx) }
     var mode by remember { mutableStateOf(0) }
     var m3uUrl by remember { mutableStateOf("") }
     var server by remember { mutableStateOf("") }
@@ -46,6 +51,7 @@ fun LoginScreen(
     var pass by remember { mutableStateOf("") }
     var message by remember { mutableStateOf("") }
     var showPassword by remember { mutableStateOf(false) }
+    var logEnabled by remember { mutableStateOf(prefs.xtreamLoggingEnabled) }
 
     val uiState by viewModel.uiState.collectAsState()
 
@@ -154,8 +160,6 @@ fun LoginScreen(
                         singleLine = true
                     )
                     Spacer(Modifier.height(12.dp))
-
-                    // ✅ حقل كلمة السر مع زر الإظهار القابل للضغط
                     OutlinedTextField(
                         value = pass,
                         onValueChange = { pass = it },
@@ -168,7 +172,6 @@ fun LoginScreen(
                             keyboardType = KeyboardType.Password
                         ),
                         trailingIcon = {
-                            // ✅ Box.clickable يعمل على Android TV دائماً
                             Box(
                                 modifier = Modifier
                                     .size(56.dp)
@@ -180,10 +183,7 @@ fun LoginScreen(
                                         Icons.Default.VisibilityOff
                                     else
                                         Icons.Default.Visibility,
-                                    contentDescription = if (showPassword)
-                                        "إخفاء كلمة المرور"
-                                    else
-                                        "إظهار كلمة المرور",
+                                    contentDescription = null,
                                     tint = Color.White,
                                     modifier = Modifier.size(26.dp)
                                 )
@@ -192,6 +192,60 @@ fun LoginScreen(
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
+
+                    Spacer(Modifier.height(16.dp))
+
+                    // ✅ Switch تسجيل تفاصيل الاتصال
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFF161B22).copy(alpha = 0.9f)
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(Modifier.padding(16.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("🔍", fontSize = 20.sp)
+                                    Spacer(Modifier.width(8.dp))
+                                    Column {
+                                        Text(
+                                            "تسجيل تفاصيل الاتصال",
+                                            color = Color.White,
+                                            fontSize = 16.sp,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                        Text(
+                                            "لتشخيص مشاكل الاتصال",
+                                            color = Color.LightGray,
+                                            fontSize = 12.sp
+                                        )
+                                    }
+                                }
+                                Switch(
+                                    checked = logEnabled,
+                                    onCheckedChange = {
+                                        logEnabled = it
+                                        prefs.xtreamLoggingEnabled = it
+                                        XtreamLogger.setEnabled(ctx, it)
+                                    }
+                                )
+                            }
+
+                            if (logEnabled) {
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    "📁 يُحفظ في: STTITEN IP TV/connection_log.txt",
+                                    color = Color(0xFF58A6FF),
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+                    }
 
                     Spacer(Modifier.height(20.dp))
                     Button(
