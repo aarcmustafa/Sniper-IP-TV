@@ -247,3 +247,141 @@ object XtreamApi {
         } catch (e: Exception) { }
         channels
     }
+    
+    // ============== الأفلام ==============
+    suspend fun loadVodStreams(
+        server: String, user: String, pass: String
+    ): List<Movie> = withContext(Dispatchers.IO) {
+        val movies = mutableListOf<Movie>()
+        try {
+            val s = normalizeServer(server)
+            val categoriesMap = loadVodCategories(server, user, pass)
+
+            val url = "$s/player_api.php?username=$user&password=$pass&action=get_vod_streams"
+            val body = HttpClientProvider.fetchText(url).getOrNull() ?: return@withContext emptyList()
+            if (body.isBlank() || body.trimStart().startsWith("<")) return@withContext emptyList()
+            val arr = JSONArray(body)
+
+            val rawMovies = mutableListOf<RawMovie>()
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                rawMovies.add(
+                    RawMovie(
+                        id = obj.optString("stream_id"),
+                        name = obj.optString("name"),
+                        poster = obj.optString("stream_icon"),
+                        categoryId = obj.optString("category_id"),
+                        ext = obj.optString("container_extension", "mp4")
+                    )
+                )
+            }
+
+            val smartCategories = detectSmartCategoriesForMovies(rawMovies, categoriesMap)
+
+            rawMovies.forEach { raw ->
+                val categoryName = smartCategories[raw.categoryId] ?: "باقة ${raw.categoryId}"
+                val url2 = "$s/movie/$user/$pass/${raw.id}.${raw.ext}"
+                movies.add(
+                    Movie(
+                        id = raw.id,
+                        name = raw.name,
+                        poster = raw.poster,
+                        url = url2,
+                        category = categoryName
+                    )
+                )
+            }
+        } catch (e: Exception) { }
+        movies
+    }
+
+    // ============== المسلسلات ==============
+    suspend fun loadSeries(
+        server: String, user: String, pass: String
+    ): List<Series> = withContext(Dispatchers.IO) {
+        val series = mutableListOf<Series>()
+        try {
+            val s = normalizeServer(server)
+            val categoriesMap = loadSeriesCategories(server, user, pass)
+
+            val url = "$s/player_api.php?username=$user&password=$pass&action=get_series"
+            val body = HttpClientProvider.fetchText(url).getOrNull() ?: return@withContext emptyList()
+            if (body.isBlank() || body.trimStart().startsWith("<")) return@withContext emptyList()
+            val arr = JSONArray(body)
+
+            val rawSeries = mutableListOf<RawSeries>()
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                rawSeries.add(
+                    RawSeries(
+                        id = obj.optString("series_id"),
+                        name = obj.optString("name"),
+                        cover = obj.optString("cover"),
+                        categoryId = obj.optString("category_id")
+                    )
+                )
+            }
+
+            val smartCategories = detectSmartCategoriesForSeries(rawSeries, categoriesMap)
+
+            rawSeries.forEach { raw ->
+                val categoryName = smartCategories[raw.categoryId] ?: "باقة ${raw.categoryId}"
+                series.add(
+                    Series(
+                        id = raw.id,
+                        name = raw.name,
+                        poster = raw.cover,
+                        category = categoryName
+                    )
+                )
+            }
+        } catch (e: Exception) { }
+        series
+    }
+
+    suspend fun loadEpisodes(
+        server: String, user: String, pass: String, seriesId: String
+    ): List<Episode> = withContext(Dispatchers.IO) {
+        val episodes = mutableListOf<Episode>()
+        try {
+            val s = normalizeServer(server)
+            val url = "$s/player_api.php?username=$user&password=$pass&action=get_series_info&series_id=$seriesId"
+            val body = HttpClientProvider.fetchText(url).getOrNull() ?: return@withContext emptyList()
+            if (body.isBlank() || body.trimStart().startsWith("<")) return@withContext emptyList()
+            val json = JSONObject(body)
+            val epsObj = json.optJSONObject("episodes") ?: return@withContext episodes
+            val seasonKeys = epsObj.keys()
+            while (seasonKeys.hasNext()) {
+                val season = seasonKeys.next()
+                val arr = epsObj.getJSONArray(season)
+                for (i in 0 until arr.length()) {
+                    val ep = arr.getJSONObject(i)
+                    val epId = ep.optString("id")
+                    val epNum = ep.optInt("episode_num", i + 1)
+                    val title = ep.optString("title", "الحلقة $epNum")
+                    val ext = ep.optString("container_extension", "mp4")
+                    val epUrl = "$s/series/$user/$pass/$epId.$ext"
+                    episodes.add(
+                        Episode(
+                            id = epId,
+                            title = title,
+                            season = season.toIntOrNull() ?: 1,
+                            episode = epNum,
+                            url = epUrl,
+                            poster = ""
+                        )
+                    )
+                }
+            }
+        } catch (e: Exception) { }
+        episodes
+    }
+
+    private fun normalizeServer(server: String): String {
+        var s = server.trim().trimEnd('/')
+        if (!s.startsWith("http://") && !s.startsWith("https://")) {
+            s = "$preferredProtocol://$s"
+        }
+        return s
+    }
+}
