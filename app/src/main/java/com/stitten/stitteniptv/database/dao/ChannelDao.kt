@@ -50,3 +50,20 @@ interface ChannelDao {
 
     @Query("DELETE FROM movies")
     suspend fun clearMovies()
+    
+    // ============== المسلسلات ==============
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSeries(series: List<SeriesEntity>)
+
+    @Query("SELECT * FROM series ORDER BY name ASC")
+    fun getAllSeries(): PagingSource<Int, SeriesEntity>
+
+    @Query("SELECT * FROM series WHERE name LIKE '%' || :query || '%' ORDER BY name ASC")
+    fun searchSeries(query: String): PagingSource<Int, SeriesEntity>
+
+    @Query("SELECT COUNT(*) FROM series")
+    suspend fun getSeriesCount(): Int
+
+    @Query("DELETE FROM series")
+    suspend fun clearSeries()
+}
