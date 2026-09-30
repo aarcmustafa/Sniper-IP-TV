@@ -32,11 +32,10 @@ import androidx.navigation.NavHostController
 import androidx.paging.compose.collectAsLazyPagingItems
 import coil.compose.AsyncImage
 import com.stitten.stitteniptv.R
+import com.stitten.stitteniptv.data.ChannelRepository
 import com.stitten.stitteniptv.data.ContentType
 import com.stitten.stitteniptv.data.PrefsManager
 import com.stitten.stitteniptv.database.entity.ChannelEntity
-import com.stitten.stitteniptv.database.entity.MovieEntity
-import com.stitten.stitteniptv.database.entity.SeriesEntity
 import com.stitten.stitteniptv.ui.components.tvFocusable
 import com.stitten.stitteniptv.ui.navigation.Routes
 import com.stitten.stitteniptv.viewmodel.MainViewModel
@@ -200,10 +199,18 @@ fun DashboardScreen(
             Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
 
                 when (contentType) {
-                    ContentType.LIVE -> LivePagingContent(channelRepo, viewModel, selectedCategory, search, navController)
-                    ContentType.VOD -> VodPagingContent(channelRepo, viewModel, selectedCategory, search, navController)
-                    ContentType.SERIES -> SeriesPagingContent(channelRepo, viewModel, selectedCategory, search, navController)
-                    ContentType.FAVORITES -> FavoritesSimpleContent(viewModel)
+                    ContentType.LIVE -> {
+                        LiveContent(channelRepo, viewModel, selectedCategory, search, navController)
+                    }
+                    ContentType.VOD -> {
+                        VodContent(channelRepo, viewModel, selectedCategory, search, navController)
+                    }
+                    ContentType.SERIES -> {
+                        SeriesContent(channelRepo, viewModel, selectedCategory, search, navController)
+                    }
+                    ContentType.FAVORITES -> {
+                        FavoritesPlaceholder()
+                    }
                 }
 
                 if (uiState.isLoading) {
@@ -215,8 +222,8 @@ fun DashboardScreen(
 }
 
 @Composable
-private fun LivePagingContent(
-    repo: com.stitten.stitteniptv.data.ChannelRepository,
+private fun LiveContent(
+    repo: ChannelRepository,
     viewModel: MainViewModel,
     selectedCategory: String?,
     search: String,
@@ -250,8 +257,8 @@ private fun LivePagingContent(
 }
 
 @Composable
-private fun VodPagingContent(
-    repo: com.stitten.stitteniptv.data.ChannelRepository,
+private fun VodContent(
+    repo: ChannelRepository,
     viewModel: MainViewModel,
     selectedCategory: String?,
     search: String,
@@ -290,8 +297,8 @@ private fun VodPagingContent(
 }
 
 @Composable
-private fun SeriesPagingContent(
-    repo: com.stitten.stitteniptv.data.ChannelRepository,
+private fun SeriesContent(
+    repo: ChannelRepository,
     viewModel: MainViewModel,
     selectedCategory: String?,
     search: String,
@@ -330,12 +337,12 @@ private fun SeriesPagingContent(
 }
 
 @Composable
-private fun FavoritesSimpleContent(viewModel: MainViewModel) {
+private fun FavoritesPlaceholder() {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text("⭐", fontSize = 72.sp, color = Color.Gray)
             Spacer(Modifier.height(16.dp))
-            Text("قيد التطوير", color = Color.White, fontSize = 22.sp)
+            Text("لا توجد عناصر في المفضلة", color = Color.White, fontSize = 22.sp)
         }
     }
 }
