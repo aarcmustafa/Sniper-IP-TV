@@ -2,13 +2,19 @@ package com.stitten.stitteniptv.ui.screens
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -19,7 +25,6 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.stitten.stitteniptv.R
-import com.stitten.stitteniptv.data.DeviceCapabilityDetector
 import com.stitten.stitteniptv.data.PrefsManager
 import com.stitten.stitteniptv.ui.navigation.Routes
 import com.stitten.stitteniptv.viewmodel.MainViewModel
@@ -39,16 +44,12 @@ fun SettingsScreen(
             PlayerEntryPoint::class.java
         )
     }
-    val playerSettings = entryPoint.playerSettingsManager()
     val favoritesSync = entryPoint.favoritesSyncManager()
 
     var is24h by remember { mutableStateOf(prefs.is24Hour) }
     var useInternal by remember { mutableStateOf(prefs.useInternalPlayer) }
-    var useHw by remember { mutableStateOf(prefs.useHardwareDecoder) }
-    var favSyncEnabled by remember { mutableStateOf(playerSettings.favoritesSyncEnabled) }
-    var useHttpsState by remember { mutableStateOf(prefs.useHttps) }
-    var streamFormatState by remember { mutableStateOf(prefs.streamFormat) }
     var liteModeState by remember { mutableStateOf(prefs.liteModeEnabled) }
+    var favSyncEnabled by remember { mutableStateOf(prefs.favoritesSyncEnabled) }
     var syncMessage by remember { mutableStateOf("") }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -63,7 +64,7 @@ fun SettingsScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.75f))
+                    .background(Color.Black.copy(alpha = 0.80f))
             )
         } else {
             Box(
@@ -87,40 +88,50 @@ fun SettingsScreen(
             )
             Spacer(Modifier.height(24.dp))
 
-            SettingRow("صيغة 24 ساعة") {
+            FocusableSettingRow("صيغة 24 ساعة") {
                 Switch(checked = is24h, onCheckedChange = {
                     is24h = it
                     prefs.is24Hour = it
                 })
             }
 
-            SettingRow("استخدام المشغل الداخلي") {
+            FocusableSettingRow("استخدام المشغل الداخلي") {
                 Switch(checked = useInternal, onCheckedChange = {
                     useInternal = it
                     prefs.useInternalPlayer = it
                 })
             }
             Text(
-                if (useInternal)
-                    "✅ المشغل الداخلي مفعّل"
-                else
-                    "🎬 المشغل الخارجي مفعّل",
+                if (useInternal) "✅ المشغل الداخلي مفعّل"
+                else "🎬 المشغل الخارجي سيعمل تلقائياً",
                 color = Color.LightGray,
                 fontSize = 13.sp,
-                modifier = Modifier.padding(bottom = 8.dp)
+                modifier = Modifier.padding(start = 4.dp, bottom = 12.dp)
             )
 
-            SettingRow("فك التشفير العتادي") {
-                Switch(checked = useHw, onCheckedChange = {
-                    useHw = it
-                    prefs.useHardwareDecoder = it
-                })
+            FocusableSettingRow("⚡ وضع Lite") {
+                Switch(
+                    checked = liteModeState,
+                    onCheckedChange = {
+                        liteModeState = it
+                        prefs.liteModeEnabled = it
+                        viewModel.channelRepo.liteMode = it
+                        prefs.userDisabledLiteMode = !it
+                    }
+                )
             }
+            Text(
+                if (liteModeState) "✅ يقلل استهلاك الذاكرة (للأجهزة الضعيفة)"
+                else "ℹ️ الوضع العادي (جودة كاملة)",
+                color = Color.LightGray,
+                fontSize = 13.sp,
+                modifier = Modifier.padding(start = 4.dp, bottom = 12.dp)
+            )
 
-            SettingRow("مزامنة المفضلة بين المصادر") {
+            FocusableSettingRow("مزامنة المفضلة") {
                 Switch(checked = favSyncEnabled, onCheckedChange = {
                     favSyncEnabled = it
-                    playerSettings.favoritesSyncEnabled = it
+                    prefs.favoritesSyncEnabled = it
                 })
             }
 
@@ -135,207 +146,114 @@ fun SettingsScreen(
                     syncMessage = "تمت مزامنة $count قناة"
                 },
                 modifier = Modifier.fillMaxWidth()
-            ) { Text("🔄 مزامنة المفضلة الآن", fontSize = 18.sp) }
+            ) { Text("🔄 مزامنة المفضلة الآن", fontSize = 16.sp) }
 
             if (syncMessage.isNotEmpty()) {
                 Spacer(Modifier.height(8.dp))
-                Text(syncMessage, color = MaterialTheme.colorScheme.primary, fontSize = 14.sp)
+                Text(syncMessage, color = MaterialTheme.colorScheme.primary, fontSize = 13.sp)
             }
 
-            Spacer(Modifier.height(16.dp))
-            HorizontalDivider()
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(20.dp))
+            HorizontalDivider(color = Color(0xFF30363D))
+            Spacer(Modifier.height(20.dp))
+
+            FocusableNavigationRow(
+                title = "⚙️ الإعدادات المتقدمة",
+                subtitle = "فك التشفير، البروتوكول، صيغة البث، تنظيف Cache",
+                onClick = { navController.navigate(Routes.ADVANCED_SETTINGS) }
+            )
+
+            Spacer(Modifier.height(12.dp))
+
+            FocusableNavigationRow(
+                title = "📡 إدارة المصادر",
+                subtitle = "إضافة، تعديل، حذف (Xtream + M3U)",
+                onClick = { navController.navigate(Routes.SOURCES) }
+            )
+
+            Spacer(Modifier.height(12.dp))
+
+            FocusableNavigationRow(
+                title = "🎬 اختيار المشغل الخارجي",
+                subtitle = "VLC، MX Player، MPV، وغيرها",
+                onClick = { navController.navigate(Routes.EXTERNAL_PLAYERS) }
+            )
+
+            Spacer(Modifier.height(12.dp))
+
+            FocusableNavigationRow(
+                title = "🔒 الرقابة الأبوية",
+                subtitle = "PIN وإدارة الحجب",
+                onClick = { navController.navigate(Routes.PARENTAL) }
+            )
+
+            Spacer(Modifier.height(12.dp))
+
+            FocusableNavigationRow(
+                title = "📋 سجل الأخطاء",
+                subtitle = "عرض أخطاء التشغيل",
+                onClick = { navController.navigate(Routes.ERRORS) }
+            )
             
-SettingRow("استخدام HTTPS/TLS") {
-    Switch(checked = useHttpsState, onCheckedChange = {
-        useHttpsState = it
-        prefs.useHttps = it
-        com.stitten.stitteniptv.data.XtreamApi.setPreferredProtocol(it)
-    })
-}
-Text(
-    if (useHttpsState) "🔒 HTTPS — اتصال آمن" else "🌐 HTTP — توافق أعلى",
-    color = Color.LightGray,
-    fontSize = 13.sp,
-    modifier = Modifier.padding(bottom = 8.dp)
-)
+            Spacer(Modifier.height(24.dp))
+            HorizontalDivider(color = Color(0xFF30363D))
+            Spacer(Modifier.height(20.dp))
 
-Text(
-    "🎬 صيغة البث",
-    color = Color.White,
-    fontSize = 20.sp,
-    fontWeight = FontWeight.Bold
-)
-Spacer(Modifier.height(8.dp))
-
-Row(
-    modifier = Modifier.fillMaxWidth(),
-    horizontalArrangement = Arrangement.spacedBy(12.dp)
-) {
-    OutlinedButton(
-        onClick = {
-            streamFormatState = "ts"
-            prefs.streamFormat = "ts"
-            com.stitten.stitteniptv.data.XtreamApi.setPreferredFormat("ts")
-        },
-        modifier = Modifier.weight(1f),
-        colors = ButtonDefaults.outlinedButtonColors(
-            containerColor = if (streamFormatState == "ts")
-                MaterialTheme.colorScheme.primary.copy(alpha = 0.3f) else Color.Transparent
-        )
-    ) { Text("TS (تأخير أقل)") }
-
-    OutlinedButton(
-        onClick = {
-            streamFormatState = "hls"
-            prefs.streamFormat = "hls"
-            com.stitten.stitteniptv.data.XtreamApi.setPreferredFormat("hls")
-        },
-        modifier = Modifier.weight(1f),
-        colors = ButtonDefaults.outlinedButtonColors(
-            containerColor = if (streamFormatState == "hls")
-                MaterialTheme.colorScheme.primary.copy(alpha = 0.3f) else Color.Transparent
-        )
-    ) { Text("HLS (تكيّف)") }
-}
-
-Spacer(Modifier.height(16.dp))
-HorizontalDivider()
-Spacer(Modifier.height(16.dp))
-
-// ============== Lite Mode ==============
-SettingRow("⚡ وضع Lite") {
-    Switch(
-        checked = liteModeState,
-        onCheckedChange = {
-            liteModeState = it
-            prefs.liteModeEnabled = it
-            viewModel.channelRepo.liteMode = it
-            prefs.userDisabledLiteMode = !it
-        }
-    )
-}
-Text(
-    if (liteModeState)
-        "✅ يقلل استهلاك الذاكرة (مناسب للأجهزة الضعيفة)"
-    else
-        "ℹ️ الوضع العادي (جودة كاملة)",
-    color = Color.LightGray,
-    fontSize = 13.sp
-)
-
-Spacer(Modifier.height(16.dp))
-HorizontalDivider()
-Spacer(Modifier.height(16.dp))
-
-// ============== معلومات الجهاز ==============
-Text(
-    "📊 معلومات الجهاز",
-    color = Color.White,
-    fontSize = 20.sp,
-    fontWeight = FontWeight.Bold
-)
-Spacer(Modifier.height(8.dp))
-
-Card(
-    colors = CardDefaults.cardColors(
-        containerColor = Color(0xFF161B22).copy(alpha = 0.9f)
-    ),
-    modifier = Modifier.fillMaxWidth()
-) {
-    Column(Modifier.padding(16.dp)) {
-        val capability = remember {
-            DeviceCapabilityDetector.detect(ctx)
-        }
-
-        Text(
-            "ذاكرة RAM: ${capability.totalRamMb} MB",
-            color = Color.White,
-            fontSize = 14.sp
-        )
-        Text(
-            "متاح: ${capability.availableRamMb} MB",
-            color = Color.LightGray,
-            fontSize = 12.sp
-        )
-        Spacer(Modifier.height(4.dp))
-        Text(
-            "التخزين: ${capability.totalStorageMb / 1024} GB",
-            color = Color.White,
-            fontSize = 14.sp
-        )
-        Text(
-            "متاح: ${capability.availableStorageMb / 1024} GB",
-            color = Color.LightGray,
-            fontSize = 12.sp
-        )
-        Spacer(Modifier.height(4.dp))
-        Text(
-            "الأنوية: ${capability.cpuCores}",
-            color = Color.White,
-            fontSize = 14.sp
-        )
-        Text(
-            "Android: ${capability.androidVersion}",
-            color = Color.White,
-            fontSize = 14.sp
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            if (capability.isLowEnd)
-                "⚠️ جهاز محدود الموارد"
-            else
-                "✅ جهاز قوي",
-            color = if (capability.isLowEnd) Color(0xFFFFA726) else Color(0xFF66BB6A),
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Medium
-        )
-    }
-}
-
-Spacer(Modifier.height(16.dp))
-HorizontalDivider()
-Spacer(Modifier.height(16.dp))
-
-            Button(
-                onClick = { navController.navigate(Routes.EXTERNAL_PLAYERS) },
-                modifier = Modifier.fillMaxWidth()
-            ) { Text("🎬 اختيار المشغل الخارجي", fontSize = 18.sp) }
-
+            Text(
+                "📊 معلومات الجهاز",
+                color = Color.White,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold
+            )
             Spacer(Modifier.height(12.dp))
-            Button(
-                onClick = { navController.navigate(Routes.SOURCES) },
-                modifier = Modifier.fillMaxWidth()
-            ) { Text("📡 إدارة المصادر", fontSize = 18.sp) }
 
-            Spacer(Modifier.height(12.dp))
-            Button(
-                onClick = { navController.navigate(Routes.PARENTAL) },
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = Color(0xFF161B22).copy(alpha = 0.9f)
+                ),
                 modifier = Modifier.fillMaxWidth()
-            ) { Text("🔒 الرقابة الأبوية", fontSize = 18.sp) }
+            ) {
+                Column(Modifier.padding(16.dp)) {
+                    val capability = remember {
+                        com.stitten.stitteniptv.data.DeviceCapabilityDetector.detect(ctx)
+                    }
 
-            Spacer(Modifier.height(12.dp))
-            Button(
-                onClick = { navController.navigate(Routes.ERRORS) },
-                modifier = Modifier.fillMaxWidth()
-            ) { Text("📋 سجل الأخطاء", fontSize = 18.sp) }
+                    InfoRow("ذاكرة RAM", "${capability.totalRamMb} MB")
+                    InfoRow("RAM متاح", "${capability.availableRamMb} MB")
+                    InfoRow("التخزين", "${capability.totalStorageMb / 1024} GB")
+                    InfoRow("متاح", "${capability.availableStorageMb / 1024} GB")
+                    InfoRow("الأنوية", "${capability.cpuCores}")
+                    InfoRow("Android", "${capability.androidVersion}")
+
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        if (capability.isLowEnd) "⚠️ جهاز محدود الموارد"
+                        else "✅ جهاز قوي",
+                        color = if (capability.isLowEnd) Color(0xFFFFA726)
+                        else Color(0xFF66BB6A),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
 
             Spacer(Modifier.height(24.dp))
-            HorizontalDivider()
-            Spacer(Modifier.height(16.dp))
+            HorizontalDivider(color = Color(0xFF30363D))
+            Spacer(Modifier.height(20.dp))
 
             Text(
                 "حول التطبيق",
-                fontSize = 24.sp,
+                fontSize = 22.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.White
             )
-            Spacer(Modifier.height(12.dp))
-            Text("اسم التطبيق: STTITEN IP TV", color = Color.White, fontSize = 18.sp)
-            Text("المطور: جلولي مصطفى", color = Color.White, fontSize = 18.sp)
-            Text("الإصدار: v1.0.0", color = Color.White, fontSize = 18.sp)
+            Spacer(Modifier.height(8.dp))
+            Text("اسم التطبيق: STTITEN IP TV", color = Color.White, fontSize = 16.sp)
+            Text("المطور: جلولي مصطفى", color = Color.White, fontSize = 16.sp)
+            Text("الإصدار: v1.0.0", color = Color.White, fontSize = 16.sp)
 
             Spacer(Modifier.height(32.dp))
+
             Button(
                 onClick = {
                     prefs.clear()
@@ -345,22 +263,112 @@ Spacer(Modifier.height(16.dp))
                 },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.error
+                ),
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("تسجيل الخروج", fontSize = 16.sp) }
+
+            Spacer(Modifier.height(16.dp))
+        }
+    }
+}
+
+// ============== مكونات مع تركيز واضح ==============
+
+@Composable
+private fun FocusableSettingRow(
+    label: String,
+    content: @Composable () -> Unit
+) {
+    var isFocused by remember { mutableStateOf(false) }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp)
+            .border(
+                width = if (isFocused) 3.dp else 1.dp,
+                color = if (isFocused) Color(0xFF58A6FF) else Color.Transparent,
+                shape = RoundedCornerShape(8.dp)
+            )
+            .background(
+                color = if (isFocused) Color(0xFF21262D).copy(alpha = 0.8f)
+                else Color.Transparent,
+                shape = RoundedCornerShape(8.dp)
+            )
+            .padding(12.dp)
+            .onFocusChanged { isFocused = it.isFocused },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            label,
+            color = if (isFocused) Color(0xFF58A6FF) else Color.White,
+            fontSize = 18.sp,
+            fontWeight = if (isFocused) FontWeight.Bold else FontWeight.Normal
+        )
+        content()
+    }
+}
+
+@Composable
+private fun FocusableNavigationRow(
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit
+) {
+    var isFocused by remember { mutableStateOf(false) }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                width = if (isFocused) 3.dp else 0.dp,
+                color = if (isFocused) Color(0xFF58A6FF) else Color.Transparent,
+                shape = RoundedCornerShape(12.dp)
+            )
+            .clickable(onClick = onClick)
+            .onFocusChanged { isFocused = it.isFocused },
+        colors = CardDefaults.cardColors(
+            containerColor = if (isFocused) Color(0xFF1F6FEB)
+            else Color(0xFF161B22).copy(alpha = 0.9f)
+        ),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp).fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    title,
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
                 )
-            ) { Text("تسجيل الخروج", fontSize = 18.sp) }
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    subtitle,
+                    color = Color.White.copy(alpha = 0.8f),
+                    fontSize = 13.sp
+                )
+            }
+            Icon(
+                Icons.Default.ArrowForward,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(24.dp)
+            )
         }
     }
 }
 
 @Composable
-private fun SettingRow(label: String, content: @Composable () -> Unit) {
+private fun InfoRow(label: String, value: String) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(label, color = Color.White, fontSize = 20.sp)
-        content()
+        Text(label, color = Color.LightGray, fontSize = 13.sp)
+        Text(value, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
     }
 }
