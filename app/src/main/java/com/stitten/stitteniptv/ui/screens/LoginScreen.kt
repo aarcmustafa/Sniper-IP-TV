@@ -55,23 +55,18 @@ fun LoginScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-
-        // 1. الخلفية
         Image(
-            painter = painterResource(id = R.drawable.bg_login),
+            painter = painterResource(id = R.drawable.bg_main),
             contentDescription = null,
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Crop
         )
-
-        // 2. طبقة تعتيم خفيفة
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.4f))
+                .background(Color.Black.copy(alpha = 0.5f))
         )
 
-        // 3. المحتوى
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -87,11 +82,7 @@ fun LoginScreen(
                 fontWeight = FontWeight.Bold
             )
             Spacer(Modifier.height(8.dp))
-            Text(
-                "اختر طريقة تسجيل الدخول",
-                color = Color.White,
-                fontSize = 18.sp
-            )
+            Text("اختر طريقة تسجيل الدخول", color = Color.White, fontSize = 18.sp)
             Spacer(Modifier.height(32.dp))
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
@@ -195,7 +186,7 @@ private fun TabButton(text: String, selected: Boolean, onClick: () -> Unit) {
         onClick = onClick,
         colors = ButtonDefaults.buttonColors(
             containerColor = if (selected) MaterialTheme.colorScheme.primary
-            else MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
+            else MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
             contentColor = if (selected) MaterialTheme.colorScheme.onPrimary
             else MaterialTheme.colorScheme.onSurface
         )
