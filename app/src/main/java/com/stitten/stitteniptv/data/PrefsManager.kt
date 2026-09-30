@@ -68,28 +68,28 @@ class PrefsManager(context: Context) {
         get() = prefs.getString("stream_format", "ts") ?: "ts"
         set(value) = prefs.edit().putString("stream_format", value).apply()
 
+    // ============== Lite Mode ==============
+    var liteModeEnabled: Boolean
+        get() = prefs.getBoolean("lite_mode", false)
+        set(value) = prefs.edit().putBoolean("lite_mode", value).apply()
+
+    var autoDetectionDone: Boolean
+        get() = prefs.getBoolean("auto_detection_done", false)
+        set(value) = prefs.edit().putBoolean("auto_detection_done", value).apply()
+
+    var deviceIsLowEnd: Boolean
+        get() = prefs.getBoolean("device_is_low_end", false)
+        set(value) = prefs.edit().putBoolean("device_is_low_end", value).apply()
+
+    var deviceCapabilityInfo: String
+        get() = prefs.getString("device_capability_info", "") ?: ""
+        set(value) = prefs.edit().putString("device_capability_info", value).apply()
+
+    var userDisabledLiteMode: Boolean
+        get() = prefs.getBoolean("user_disabled_lite", false)
+        set(value) = prefs.edit().putBoolean("user_disabled_lite", value).apply()
+
     fun clear() {
         prefs.edit().clear().apply()
     }
 }
-
-// ============== Lite Mode ==============
-var liteModeEnabled: Boolean
-    get() = prefs.getBoolean("lite_mode", false)
-    set(value) = prefs.edit().putBoolean("lite_mode", value).apply()
-
-var autoDetectionDone: Boolean
-    get() = prefs.getBoolean("auto_detection_done", false)
-    set(value) = prefs.edit().putBoolean("auto_detection_done", value).apply()
-
-var deviceIsLowEnd: Boolean
-    get() = prefs.getBoolean("device_is_low_end", false)
-    set(value) = prefs.edit().putBoolean("device_is_low_end", value).apply()
-
-var deviceCapabilityInfo: String
-    get() = prefs.getString("device_capability_info", "") ?: ""
-    set(value) = prefs.edit().putString("device_capability_info", value).apply()
-
-var userDisabledLiteMode: Boolean
-    get() = prefs.getBoolean("user_disabled_lite", false)
-    set(value) = prefs.edit().putBoolean("user_disabled_lite", value).apply()
