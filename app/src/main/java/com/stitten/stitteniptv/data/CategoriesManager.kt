@@ -2,17 +2,23 @@ package com.stitten.stitteniptv.data
 
 object CategoriesManager {
 
-    // ============== كلمات الرياضة العربية ==============
+    // تصنيفات الفئات الرئيسية
+    const val MAIN_ARAB_SPORTS = "⭐ رياضية عربية"
+    const val MAIN_ARAB_COUNTRIES = "🌍 دول عربية"
+    const val MAIN_OTHER = "📺 باقي القنوات"
+
+    // كلمات الرياضة العربية (تشمل باقة ألوان)
     private val ARAB_SPORTS_KEYWORDS = listOf(
         "bein", "be in", "ssc", "alkass", "الكأس", "ad sport",
         "دوري", "الدوري", "كورة", "كرة قدم", "كرة",
         "مباريات", "بث مباشر", "رياضة", "رياضي", "رياضية",
         "الرياضية", "أبو ظبي الرياضية", "دبي الرياضية",
         "الكويت الرياضية", "السعودية الرياضية",
-        "dawri", "dawry"
+        "dawri", "dawry",
+        // باقة ألوان
+        "alwan", "alwan tv", "قناة ألوان", "ألوان"
     )
 
-    // ============== كلمات الرياضة العالمية ==============
     private val WORLD_SPORTS_KEYWORDS = listOf(
         "sport", "sports", "football", "soccer",
         "nba", "nfl", "ufc", "f1", "formula", "motogp",
@@ -22,7 +28,6 @@ object CategoriesManager {
         "tennis", "golf", "hockey"
     )
 
-    // ============== الدول العربية ==============
     private val ARAB_COUNTRIES_KEYWORDS = listOf(
         "مصر", "egypt", "مصرية",
         "السعودية", "saudi", "سعودي", "ksa",
@@ -49,41 +54,30 @@ object CategoriesManager {
         "جزر القمر", "comoros"
     )
 
-    // ============== عربية عامة ==============
     private val ARABIC_GENERAL_KEYWORDS = listOf(
         "عربي", "عربية", "arabic", "arab",
         "mbc", "rotana", "روتانا",
         "نايل", "nile",
         "aljazeera", "الجزيرة",
         "noor", "نور", "zaman", "زمان",
-        "الأقصى", "aqsa",
-        "خليجي", "gulf"
+        "الأقصى", "aqsa", "خليجي", "gulf"
     )
 
-    // ============== استخراج التصنيفات ==============
     fun extractChannelCategories(channels: List<Channel>): List<String> =
-        channels.map { it.group }
-            .filter { it.isNotBlank() }
-            .distinct()
+        channels.map { it.group }.filter { it.isNotBlank() }.distinct()
 
     fun extractMovieCategories(movies: List<Movie>): List<String> =
-        movies.map { it.category }
-            .filter { it.isNotBlank() }
-            .distinct()
+        movies.map { it.category }.filter { it.isNotBlank() }.distinct()
 
     fun extractSeriesCategories(series: List<Series>): List<String> =
-        series.map { it.category }
-            .filter { it.isNotBlank() }
-            .distinct()
+        series.map { it.category }.filter { it.isNotBlank() }.distinct()
 
-    // ============== كشف الفئات ==============
     private fun containsAny(text: String, keywords: List<String>): Boolean {
         val lower = text.lowercase().trim()
         return keywords.any { lower.contains(it.lowercase()) }
     }
 
-    fun isArabSports(category: String): Boolean =
-        containsAny(category, ARAB_SPORTS_KEYWORDS)
+    fun isArabSports(category: String): Boolean = containsAny(category, ARAB_SPORTS_KEYWORDS)
 
     fun isWorldSports(category: String): Boolean {
         if (isArabSports(category)) return false
@@ -101,14 +95,22 @@ object CategoriesManager {
         return containsAny(category, ARABIC_GENERAL_KEYWORDS)
     }
 
-    // ============== كشف نوع المحتوى من أسماء القنوات ==============
     /**
-     * يحلل قائمة أسماء القنوات ويعيد نوع التصنيف الغالب
-     * يُستخدم لإعادة تسمية الباقات المرقمة
+     * الفئة الرئيسية للتصنيف (للعرض في القائمة الرئيسية)
+     */
+    fun getMainCategory(category: String): String {
+        return when {
+            isArabSports(category) -> MAIN_ARAB_SPORTS
+            isArabCountry(category) || isArabicGeneral(category) -> MAIN_ARAB_COUNTRIES
+            else -> MAIN_OTHER
+        }
+    }
+
+    /**
+     * كشف النوع من أسماء القنوات (لإعادة تسمية الباقات المرقمة)
      */
     fun detectTypeFromChannelNames(channelNames: List<String>): String {
         if (channelNames.isEmpty()) return ""
-
         var arabSports = 0
         var worldSports = 0
         var arabCountry = 0
@@ -124,8 +126,6 @@ object CategoriesManager {
         }
 
         val max = maxOf(arabSports, worldSports, arabCountry, arabicGeneral)
-
-        // الحد الأدنى: 30% من القنوات يجب أن تكون من نوع معين
         val threshold = (channelNames.size * 30) / 100
         if (max < threshold || max == 0) return ""
 
@@ -138,14 +138,8 @@ object CategoriesManager {
         }
     }
 
-    // ============== الترتيب بالأولوية ==============
     /**
-     * ترتيب التصنيفات حسب الأولوية:
-     * 1. الرياضية العربية (beIN, SSC, الكأس)
-     * 2. قنوات الدول العربية (مصر، السعودية، قطر...)
-     * 3. الرياضية العالمية (NBA, Premier League)
-     * 4. العربية العامة (MBC, Rotana)
-     * 5. باقي القنوات (باقة X, أخبار, أفلام)
+     * ترتيب التصنيفات حسب الأولوية
      */
     fun sortCategories(categories: List<String>): List<String> {
         val arabSports = mutableListOf<String>()
@@ -164,10 +158,16 @@ object CategoriesManager {
             }
         }
 
-        return arabSports.sorted() +
-                arabCountries.sorted() +
-                worldSports.sorted() +
-                arabicGeneral.sorted() +
-                others.sorted()
+        return arabSports.sorted() + arabCountries.sorted() +
+                worldSports.sorted() + arabicGeneral.sorted() + others.sorted()
     }
+
+    /**
+     * الفئات الرئيسية الثلاث (للعرض في Dashboard)
+     */
+    fun getMainCategories(): List<String> = listOf(
+        MAIN_ARAB_SPORTS,
+        MAIN_ARAB_COUNTRIES,
+        MAIN_OTHER
+    )
 }
