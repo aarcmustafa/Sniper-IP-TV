@@ -202,3 +202,85 @@ Box(modifier = Modifier.fillMaxSize()) {
                 Text("الإعدادات", color = Color.White, fontSize = 15.sp)
             }
         }
+        
+            Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+
+                when (contentType) {
+                    ContentType.LIVE -> LiveContent(
+                        channelRepo, viewModel, selectedMainCategory, search, navController
+                    )
+                    ContentType.VOD -> {
+                        if (!uiState.moviesLoaded && !uiState.loadingMovies) {
+                            EmptyStateWithButton(
+                                title = "قسم الأفلام",
+                                subtitle = "اضغط لتحميل قائمة الأفلام",
+                                buttonText = "تحميل الأفلام"
+                            ) { viewModel.loadMoviesOnDemand() }
+                        } else if (uiState.loadingMovies) {
+                            EmptyLoadingState("جاري تحميل الأفلام...")
+                        } else {
+                            VodContent(
+                                channelRepo, viewModel, selectedMainCategory, search, navController
+                            )
+                        }
+                    }
+                    ContentType.SERIES -> {
+                        if (!uiState.seriesLoaded && !uiState.loadingSeries) {
+                            EmptyStateWithButton(
+                                title = "قسم المسلسلات",
+                                subtitle = "اضغط لتحميل قائمة المسلسلات",
+                                buttonText = "تحميل المسلسلات"
+                            ) { viewModel.loadSeriesOnDemand() }
+                        } else if (uiState.loadingSeries) {
+                            EmptyLoadingState("جاري تحميل المسلسلات...")
+                        } else {
+                            SeriesContent(
+                                channelRepo, viewModel, selectedMainCategory, search, navController
+                            )
+                        }
+                    }
+                    ContentType.FAVORITES -> FavoritesPlaceholder()
+                }
+
+                if (uiState.isLoading &&
+                    (uiState.loadingMovies || uiState.loadingSeries)) {
+                    LoadingOverlay(uiState.loadingProgress, uiState.loadingMessage)
+                }
+            }
+        }
+    }
+}
+
+// ============== حالة فارغة مع زر ==============
+@Composable
+private fun EmptyStateWithButton(
+    title: String,
+    subtitle: String,
+    buttonText: String,
+    onClick: () -> Unit
+) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("📁", fontSize = 72.sp, color = Color.Gray)
+            Spacer(Modifier.height(16.dp))
+            Text(title, color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(8.dp))
+            Text(subtitle, color = Color.Gray, fontSize = 16.sp)
+            Spacer(Modifier.height(24.dp))
+            Button(onClick = onClick, modifier = Modifier.width(280.dp)) {
+                Text(buttonText, fontSize = 18.sp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmptyLoadingState(message: String) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.height(16.dp))
+            Text(message, color = Color.White, fontSize = 18.sp)
+        }
+    }
+}
