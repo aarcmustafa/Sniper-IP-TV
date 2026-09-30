@@ -24,6 +24,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -95,110 +96,114 @@ fun DashboardScreen(
     LaunchedEffect(contentType) {
         selectedCategory = null
     }
+    
+Box(modifier = Modifier.fillMaxSize()) {
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    // ============ الخلفية ============
+    Image(
+        painter = painterResource(id = R.drawable.bg_main),
+        contentDescription = null,
+        modifier = Modifier.fillMaxSize(),
+        contentScale = ContentScale.Crop
+    )
 
-        Image(
-            painter = painterResource(id = R.drawable.bg_main),
-            contentDescription = null,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop
-        )
-
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.75f))
-        )
-        
-Row(modifier = Modifier.fillMaxSize()) {
-
-    Column(
+    Box(
         modifier = Modifier
-            .width(300.dp)
-            .fillMaxHeight()
-            .background(Color(0xFF161B22).copy(alpha = 0.85f))
-            .padding(16.dp)
-    ) {
-        Text(
-            "STTITEN IP TV",
-            color = MaterialTheme.colorScheme.primary,
-            fontSize = 22.sp,
-            fontWeight = FontWeight.Bold
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(currentTime, color = Color.White, fontSize = 16.sp)
-        Spacer(Modifier.height(16.dp))
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.75f))
+    )
 
-        SidebarButton("📺 بث حي", contentType == ContentType.LIVE) {
-            contentType = ContentType.LIVE
-        }
-        SidebarButton("🎬 أفلام", contentType == ContentType.VOD) {
-            contentType = ContentType.VOD
-        }
-        SidebarButton("📼 مسلسلات", contentType == ContentType.SERIES) {
-            contentType = ContentType.SERIES
-        }
-        SidebarButton("❤️ المفضلة", contentType == ContentType.FAVORITES) {
-            contentType = ContentType.FAVORITES
-        }
+    // ============ المحتوى ============
+    Row(modifier = Modifier.fillMaxSize()) {
 
-        Spacer(Modifier.height(12.dp))
-
-        OutlinedTextField(
-            value = search,
-            onValueChange = { search = it },
-            label = { Text("بحث", fontSize = 14.sp) },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true
-        )
-
-        Spacer(Modifier.height(12.dp))
-
-        if (categories.isNotEmpty()) {
+        // ============ الشريط الجانبي ============
+        Column(
+            modifier = Modifier
+                .width(300.dp)
+                .fillMaxHeight()
+                .background(Color(0xFF161B22).copy(alpha = 0.85f))
+                .padding(16.dp)
+        ) {
             Text(
-                "التصنيفات",
-                color = Color.White,
-                fontSize = 16.sp,
+                "STTITEN IP TV",
+                color = MaterialTheme.colorScheme.primary,
+                fontSize = 22.sp,
                 fontWeight = FontWeight.Bold
             )
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(8.dp))
+            Text(currentTime, color = Color.White, fontSize = 16.sp)
+            Spacer(Modifier.height(16.dp))
 
-            LazyColumn(modifier = Modifier.heightIn(max = 240.dp)) {
-                item {
-                    CategoryChip(
-                        name = "الكل",
-                        selected = selectedCategory == null
-                    ) { selectedCategory = null }
-                }
-                items(categories, key = { it }) { cat ->
-                    CategoryChip(
-                        name = cat,
-                        selected = selectedCategory == cat
-                    ) { selectedCategory = cat }
+            SidebarButton("📺 بث حي", contentType == ContentType.LIVE) {
+                contentType = ContentType.LIVE
+            }
+            SidebarButton("🎬 أفلام", contentType == ContentType.VOD) {
+                contentType = ContentType.VOD
+            }
+            SidebarButton("📼 مسلسلات", contentType == ContentType.SERIES) {
+                contentType = ContentType.SERIES
+            }
+            SidebarButton("❤️ المفضلة", contentType == ContentType.FAVORITES) {
+                contentType = ContentType.FAVORITES
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            OutlinedTextField(
+                value = search,
+                onValueChange = { search = it },
+                label = { Text("بحث", fontSize = 14.sp) },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
+
+            Spacer(Modifier.height(12.dp))
+
+            if (categories.isNotEmpty()) {
+                Text(
+                    "التصنيفات",
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.height(6.dp))
+
+                LazyColumn(modifier = Modifier.heightIn(max = 240.dp)) {
+                    item {
+                        CategoryChip(
+                            name = "الكل",
+                            selected = selectedCategory == null
+                        ) { selectedCategory = null }
+                    }
+                    items(categories, key = { it }) { cat ->
+                        CategoryChip(
+                            name = cat,
+                            selected = selectedCategory == cat
+                        ) { selectedCategory = cat }
+                    }
                 }
             }
-        }
 
-        Spacer(Modifier.weight(1f))
+            Spacer(Modifier.weight(1f))
 
-        TextButton(
-            onClick = { navController.navigate(Routes.SOURCES) },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("📡 إدارة المصادر", color = Color.White, fontSize = 16.sp)
-        }
+            TextButton(
+                onClick = { navController.navigate(Routes.SOURCES) },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("📡 إدارة المصادر", color = Color.White, fontSize = 16.sp)
+            }
 
-        TextButton(
-            onClick = { navController.navigate(Routes.SETTINGS) },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Icon(Icons.Default.Settings, contentDescription = null, tint = Color.White)
-            Spacer(Modifier.width(6.dp))
-            Text("الإعدادات", color = Color.White, fontSize = 16.sp)
+            TextButton(
+                onClick = { navController.navigate(Routes.SETTINGS) },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Default.Settings, contentDescription = null, tint = Color.White)
+                Spacer(Modifier.width(6.dp))
+                Text("الإعدادات", color = Color.White, fontSize = 16.sp)
+            }
         }
-    }
-    
+        
+// ============ منطقة العرض الرئيسية ============
 Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
     when (contentType) {
 
@@ -275,7 +280,7 @@ Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
                         channel = ch,
                         isFavorite = viewModel.favorites.isChannelFavorite(ch.id),
                         onToggleFavorite = {
-                            viewModel.toggleChannelFavorite(ch.id)
+                            viewModel.toggleChannelFavorite(ch.id, ch.name)
                         },
                         onClick = {
                             navController.navigate(Routes.player(ch.url, ch.name))
@@ -302,7 +307,7 @@ Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
                         poster = mv.poster,
                         isFavorite = viewModel.favorites.isMovieFavorite(mv.id),
                         onToggleFavorite = {
-                            viewModel.toggleMovieFavorite(mv.id)
+                            viewModel.toggleMovieFavorite(mv.id, mv.name)
                         },
                         onClick = {
                             navController.navigate(Routes.player(mv.url, mv.name))
@@ -311,321 +316,3 @@ Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
                 }
             }
         }
-        
-                    ContentType.SERIES -> {
-                        val list = uiState.series
-                            .filter { sr ->
-                                (selectedCategory == null || sr.category == selectedCategory) &&
-                                (search.isBlank() || sr.name.contains(search, true))
-                            }
-                        LazyVerticalGrid(
-                            columns = GridCells.Fixed(4),
-                            modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(8.dp)
-                        ) {
-                            items(list, key = { it.id }) { sr ->
-                                MediaCard(
-                                    name = sr.name,
-                                    poster = sr.poster,
-                                    isFavorite = viewModel.favorites.isSeriesFavorite(sr.id),
-                                    onToggleFavorite = {
-                                        viewModel.toggleSeriesFavorite(sr.id)
-                                    },
-                                    onClick = {
-                                        navController.navigate(Routes.seriesDetails(sr.id))
-                                    }
-                                )
-                            }
-                        }
-                    }
-
-                    ContentType.FAVORITES -> {
-                        FavoritesContent(
-                            viewModel = viewModel,
-                            search = search,
-                            favoritesVersion = favoritesVersion,
-                            onChannelClick = { ch ->
-                                navController.navigate(Routes.player(ch.url, ch.name))
-                            },
-                            onMovieClick = { mv ->
-                                navController.navigate(Routes.player(mv.url, mv.name))
-                            },
-                            onSeriesClick = { sr ->
-                                navController.navigate(Routes.seriesDetails(sr.id))
-                            }
-                        )
-                    }
-                }
-
-                if (uiState.isLoading) {
-                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SidebarButton(text: String, selected: Boolean, onClick: () -> Unit) {
-    Button(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = if (selected) MaterialTheme.colorScheme.primary
-            else Color(0xFF21262D),
-            contentColor = Color.White
-        )
-    ) { Text(text, fontSize = 16.sp) }
-}
-
-@Composable
-private fun CategoryChip(name: String, selected: Boolean, onClick: () -> Unit) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 2.dp)
-            .tvFocusable(onClick),
-        shape = RoundedCornerShape(8.dp),
-        color = if (selected) MaterialTheme.colorScheme.primary
-        else Color(0xFF21262D)
-    ) {
-        Text(
-            name,
-            color = Color.White,
-            fontSize = 14.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
-        )
-    }
-}
-
-@Composable
-private fun ChannelRow(
-    channel: Channel,
-    isFavorite: Boolean,
-    onToggleFavorite: () -> Unit,
-    onClick: () -> Unit
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-            .tvFocusable(onClick),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF161B22))
-    ) {
-        Row(
-            modifier = Modifier.padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            AsyncImage(
-                model = channel.logo,
-                contentDescription = null,
-                modifier = Modifier.size(64.dp).clip(RoundedCornerShape(8.dp)),
-                contentScale = ContentScale.Fit
-            )
-            Spacer(Modifier.width(16.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    channel.name,
-                    color = Color.White,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                if (channel.group.isNotEmpty()) {
-                    Text(channel.group, color = Color.Gray, fontSize = 14.sp)
-                }
-            }
-            IconButton(
-                onClick = onToggleFavorite,
-                modifier = Modifier.size(48.dp)
-            ) {
-                Icon(
-                    if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                    contentDescription = "مفضلة",
-                    tint = if (isFavorite) Color(0xFFDA3633) else Color.Gray,
-                    modifier = Modifier.size(28.dp)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun MediaCard(
-    name: String,
-    poster: String,
-    isFavorite: Boolean,
-    onToggleFavorite: () -> Unit,
-    onClick: () -> Unit
-) {
-    Card(
-        modifier = Modifier
-            .padding(8.dp)
-            .tvFocusable(onClick),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF161B22))
-    ) {
-        Column {
-            Box {
-                AsyncImage(
-                    model = poster,
-                    contentDescription = name,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(0.7f)
-                        .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp)),
-                    contentScale = ContentScale.Crop
-                )
-                IconButton(
-                    onClick = onToggleFavorite,
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(4.dp)
-                        .size(40.dp)
-                        .background(Color(0x99000000), RoundedCornerShape(50))
-                ) {
-                    Icon(
-                        if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                        contentDescription = "مفضلة",
-                        tint = if (isFavorite) Color(0xFFDA3633) else Color.White,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            }
-            Text(
-                name,
-                color = Color.White,
-                fontSize = 16.sp,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(10.dp)
-            )
-        }
-    }
-}
-
-@Composable
-private fun FavoritesContent(
-    viewModel: MainViewModel,
-    search: String,
-    favoritesVersion: Int,
-    onChannelClick: (Channel) -> Unit,
-    onMovieClick: (Movie) -> Unit,
-    onSeriesClick: (Series) -> Unit
-) {
-    val favChannels = remember(favoritesVersion) {
-        viewModel.getFavoriteChannels().filter {
-            search.isBlank() || it.name.contains(search, true)
-        }
-    }
-    val favMovies = remember(favoritesVersion) {
-        viewModel.getFavoriteMovies().filter {
-            search.isBlank() || it.name.contains(search, true)
-        }
-    }
-    val favSeries = remember(favoritesVersion) {
-        viewModel.getFavoriteSeries().filter {
-            search.isBlank() || it.name.contains(search, true)
-        }
-    }
-
-    if (favChannels.isEmpty() && favMovies.isEmpty() && favSeries.isEmpty()) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("⭐", fontSize = 72.sp, color = Color.Gray)
-                Spacer(Modifier.height(16.dp))
-                Text(
-                    "لا توجد عناصر في المفضلة بعد",
-                    color = Color.White,
-                    fontSize = 22.sp
-                )
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    "اضغط على ⭐ بجانب أي قناة أو فيلم أو مسلسل لإضافته",
-                    color = Color.Gray,
-                    fontSize = 16.sp
-                )
-            }
-        }
-        return
-    }
-
-    LazyColumn(modifier = Modifier.fillMaxSize()) {
-
-        if (favChannels.isNotEmpty()) {
-            item {
-                Text(
-                    "📺 قنوات مفضلة",
-                    color = MaterialTheme.colorScheme.primary,
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(vertical = 12.dp)
-                )
-            }
-            items(favChannels, key = { "fav_ch_${it.id}" }) { ch ->
-                ChannelRow(
-                    channel = ch,
-                    isFavorite = true,
-                    onToggleFavorite = { viewModel.toggleChannelFavorite(ch.id) },
-                    onClick = { onChannelClick(ch) }
-                )
-            }
-        }
-
-        if (favMovies.isNotEmpty()) {
-            item {
-                Text(
-                    "🎬 أفلام مفضلة",
-                    color = MaterialTheme.colorScheme.primary,
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(vertical = 12.dp)
-                )
-            }
-            item {
-                LazyRow {
-                    items(favMovies, key = { "fav_mv_${it.id}" }) { mv ->
-                        Box(modifier = Modifier.width(200.dp)) {
-                            MediaCard(
-                                name = mv.name,
-                                poster = mv.poster,
-                                isFavorite = true,
-                                onToggleFavorite = { viewModel.toggleMovieFavorite(mv.id) },
-                                onClick = { onMovieClick(mv) }
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        if (favSeries.isNotEmpty()) {
-            item {
-                Text(
-                    "📼 مسلسلات مفضلة",
-                    color = MaterialTheme.colorScheme.primary,
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(vertical = 12.dp)
-                )
-            }
-            item {
-                LazyRow {
-                    items(favSeries, key = { "fav_sr_${it.id}" }) { sr ->
-                        Box(modifier = Modifier.width(200.dp)) {
-                            MediaCard(
-                                name = sr.name,
-                                poster = sr.poster,
-                                isFavorite = true,
-                                onToggleFavorite = { viewModel.toggleSeriesFavorite(sr.id) },
-                                onClick = { onSeriesClick(sr) }
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
