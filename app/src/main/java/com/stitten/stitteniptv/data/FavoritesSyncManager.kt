@@ -2,11 +2,14 @@ package com.stitten.stitteniptv.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class FavoritesSyncManager @Inject constructor(context: Context) {
+class FavoritesSyncManager @Inject constructor(
+    @ApplicationContext context: Context
+) {
 
     private val prefs: SharedPreferences =
         context.getSharedPreferences("stitten_fav_sync", Context.MODE_PRIVATE)
@@ -61,7 +64,7 @@ class FavoritesSyncManager @Inject constructor(context: Context) {
     fun getAllMarkedSeriesNames(): Set<String> =
         prefs.all.filter { it.key.startsWith("sr:") && it.value == true }
             .keys.map { it.removePrefix("sr:") }.toSet()
-            
+
     fun syncChannels(channels: List<Channel>, favorites: FavoritesManager): Int {
         var count = 0
         channels.forEach { ch ->
@@ -142,4 +145,3 @@ class FavoritesSyncManager @Inject constructor(context: Context) {
     private fun normalize(name: String): String =
         name.trim().lowercase().replace("\\s+".toRegex(), " ")
 }
-            
