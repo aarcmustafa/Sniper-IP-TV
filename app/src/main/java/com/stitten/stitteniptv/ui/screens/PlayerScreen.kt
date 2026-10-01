@@ -229,3 +229,284 @@ fun PlayerScreen(
         })
         player
     }
+    
+    // ============================================
+    // ⭐ WATCHDOG — يفحص المشغل كل 3 ثوانٍ
+    // ============================================
+    LaunchedEffect(exoPlayer) {
+        var idleCount = 0
+        var bufferingCount = 0
+        var consecutiveNoProgress = 0
+        var lastPosition = 0L
+
+        while (true) {
+            delay(3000)
+            if (!isLive) continue
+
+            try {
+                val state = exoPlayer.playbackState
+                val isPlaying = exoPlayer.isPlaying
+                val position = exoPlayer.currentPosition
+
+                when (state) {
+                    Player.STATE_IDLE -> {
+                        idleCount++
+                        statusText = "⏸ IDLE ($idleCount)"
+                        // 4 دورات × 3 ثوانٍ = 12 ثانية في IDLE
+                        if (idleCount >= 4) {
+                            idleCount = 0
+                            isReconnecting = true
+                            playerRecreated++
+                        }
+                    }
+
+                    Player.STATE_BUFFERING -> {
+                        bufferingCount++
+                        statusText = "⏳ BUFFERING ($bufferingCount)"
+                        // 10 دورات × 3 ثوانٍ = 30 ثانية في BUFFERING
+                        if (bufferingCount >= 10) {
+                            bufferingCount = 0
+                            isReconnecting = true
+                            playerRecreated++
+                        }
+                    }
+
+                    Player.STATE_READY -> {
+                        if (isPlaying) {
+                            idleCount = 0
+                            bufferingCount = 0
+                            statusText = ""
+
+                            // كشف "الجمود" (يعمل لكن الموضع ثابت)
+                            if (position == lastPosition && position > 0) {
+                                consecutiveNoProgress++
+                                if (consecutiveNoProgress >= 5) { // 15 ثانية
+                                    consecutiveNoProgress = 0
+                                    isReconnecting = true
+                                    playerRecreated++
+                                }
+                            } else {
+                                consecutiveNoProgress = 0
+                            }
+                            lastPosition = position
+                        } else {
+                            // READY لكن لا يعمل — حالة غريبة
+                            idleCount++
+                            if (idleCount >= 4) {
+                                idleCount = 0
+                                isReconnecting = true
+                                playerRecreated++
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                // في حال حدث خطأ في الفحص نفسه
+                playerRecreated++
+                break
+            }
+        }
+    }
+
+    LaunchedEffect(playerRecreated) {
+        if (playerRecreated > 0) {
+            delay(2000)
+            isReconnecting = false
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        if (!prefs.useInternalPlayer) {
+            launchExternal(ctx, url, settingsMgr)
+            navController.popBackStack()
+        } else {
+            exoPlayer.prepare()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        if (!isLive) {
+            while (true) {
+                delay(5000)
+                val pos = exoPlayer.currentPosition
+                val dur = exoPlayer.duration
+                if (pos > 0 && dur > 0 && pos < dur - 3000) {
+                    historyMgr.save(
+                        WatchHistoryEntity(
+                            contentId = url,
+                            contentType = "VOD",
+                            title = title,
+                            poster = "",
+                            url = url,
+                            positionMs = pos,
+                            durationMs = dur
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        if (!isLive) {
+            delay(1500)
+            val saved = historyMgr.getById(url)
+            if (saved != null && saved.positionMs > 5000) {
+                exoPlayer.seekTo(saved.positionMs)
+            }
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose { exoPlayer.release() }
+    }
+
+    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+        AndroidView(
+            factory = { c ->
+                PlayerView(c).apply {
+                    player = exoPlayer
+                    useController = true
+                    setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
+                    setShowNextButton(false)
+                    setShowPreviousButton(false)
+                    setControllerShowTimeoutMs(4000)
+                }
+            },
+            modifier = Modifier.fillMaxSize()
+        )
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+                .align(Alignment.TopStart),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = { navController.popBackStack() }) {
+                Icon(Icons.Default.ArrowBack, contentDescription = null, tint = Color.White)
+            }
+            Text(
+                title,
+                color = Color.White,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1
+            )
+            Spacer(Modifier.weight(1f))
+
+            TextButton(onClick = {
+                useHls = !useHls
+                playerRecreated++
+            }) {
+                Text(
+                    if (useHls) "HLS" else "TS",
+                    color = Color(0xFF58A6FF),
+                    fontSize = 12.sp
+                )
+            }
+
+            IconButton(onClick = {
+                isReconnecting = true
+                retryCount = 0
+                playerRecreated++
+            }) {
+                Icon(Icons.Default.Refresh, contentDescription = "إعادة", tint = Color.White)
+            }
+
+            if (!liteMode && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                IconButton(onClick = {
+                    val activity = ctx as? android.app.Activity
+                    activity?.enterPictureInPictureMode(
+                        PictureInPictureParams.Builder()
+                            .setAspectRatio(Rational(16, 9)).build()
+                    )
+                }) {
+                    Icon(Icons.Default.AspectRatio, contentDescription = "PiP", tint = Color.White)
+                }
+            }
+
+            IconButton(onClick = { showTrackMenu = !showTrackMenu }) {
+                Icon(Icons.Default.Subtitles, contentDescription = "ترجمات", tint = Color.White)
+            }
+
+            TextButton(onClick = { launchExternal(ctx, url, settingsMgr) }) {
+                Text("مشغل خارجي", color = Color.White, fontSize = 16.sp)
+            }
+        }
+
+        // شريط الحالة (للتشخيص)
+        if (statusText.isNotEmpty() && isReconnecting) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .background(Color(0xCC000000), shape = MaterialTheme.shapes.medium)
+                    .padding(20.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(
+                        color = Color.White,
+                        modifier = Modifier.size(28.dp),
+                        strokeWidth = 3.dp
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            "🔄 جاري إعادة الاتصال...",
+                            color = Color.White,
+                            fontSize = 16.sp
+                        )
+                        if (statusText.isNotEmpty()) {
+                            Text(
+                                statusText,
+                                color = Color.Gray,
+                                fontSize = 11.sp
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        if (showTrackMenu && tracks != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = 80.dp, end = 16.dp),
+                contentAlignment = Alignment.TopEnd
+            ) {
+                TrackMenuOverlay(
+                    tracks = tracks!!,
+                    exoPlayer = exoPlayer,
+                    onDismiss = { showTrackMenu = false }
+                )
+            }
+        }
+
+        errorMsg?.let { msg ->
+            Card(
+                modifier = Modifier.align(Alignment.Center).padding(24.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF21262D))
+            ) {
+                Column(
+                    Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(msg, color = Color.White, fontSize = 18.sp)
+                    Spacer(Modifier.height(12.dp))
+                    Row {
+                        Button(onClick = {
+                            errorMsg = null
+                            retryCount = 0
+                            playerRecreated++
+                        }) { Text("إعادة المحاولة") }
+                        Spacer(Modifier.width(8.dp))
+                        Button(onClick = { launchExternal(ctx, url, settingsMgr) }) {
+                            Text("مشغل خارجي")
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
