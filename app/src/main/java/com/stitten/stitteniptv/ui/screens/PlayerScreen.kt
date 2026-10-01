@@ -34,7 +34,11 @@ import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.exoplayer.source.ProgressiveMediaSource
+import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
+import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy
 import androidx.media3.ui.PlayerView
 import androidx.navigation.NavHostController
 import com.stitten.stitteniptv.data.ErrorLogger
@@ -60,11 +64,8 @@ fun PlayerScreen(
     val liteMode = prefs.liteModeEnabled
 
     var errorMsg by remember { mutableStateOf<String?>(null) }
-    var retryCount by remember { mutableStateOf(0) }
     var tracks by remember { mutableStateOf<Tracks?>(null) }
     var showTrackMenu by remember { mutableStateOf(false) }
-    var isReconnecting by remember { mutableStateOf(false) }
-    var lastPlaybackPosition by remember { mutableStateOf(0L) }
 
     val entryPoint = remember {
         EntryPointAccessors.fromApplication(
@@ -77,121 +78,108 @@ fun PlayerScreen(
     val settingsMgr: PlayerSettingsManager = entryPoint.playerSettingsManager()
     val scope = rememberCoroutineScope()
 
+    val isLive = remember(url) {
+        url.contains("/live/") || url.endsWith(".ts") || url.endsWith(".m3u8")
+    }
+
     val exoPlayer = remember {
-        val cache = CacheManager.get(ctx, liteMode)
+        // ✅ مصدر البيانات
         val httpFactory = DefaultHttpDataSource.Factory()
             .setUserAgent(HttpClientProvider.getUserAgent())
             .setAllowCrossProtocolRedirects(true)
-            .setConnectTimeoutMs(if (liteMode) 60_000 else 30_000)
-            .setReadTimeoutMs(if (liteMode) 120_000 else 60_000)
+            .setConnectTimeoutMs(30_000)
+            .setReadTimeoutMs(60_000)
 
-        val cacheFactory = CacheDataSource.Factory()
-            .setCache(cache)
-            .setUpstreamDataSourceFactory(httpFactory)
-            .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
-
-        val userBufferMs = if (liteMode) {
-            settingsMgr.bufferMs.coerceAtLeast(15_000)
+        val dataSourceFactory = if (isLive) {
+            httpFactory  // بدون Cache للبث المباشر
         } else {
-            settingsMgr.bufferMs.coerceAtLeast(30_000)
+            val cache = CacheManager.get(ctx, liteMode)
+            CacheDataSource.Factory()
+                .setCache(cache)
+                .setUpstreamDataSourceFactory(httpFactory)
+                .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
         }
-        val minBuffer = userBufferMs
-        val maxBuffer = if (liteMode) userBufferMs * 2 else userBufferMs * 3
+
+        // ✅ Buffer كبير للبث المباشر (مثل التطبيقات الأخرى)
+        val minBufferMs = if (isLive) 90_000L else 30_000L
+        val maxBufferMs = if (isLive) 180_000L else 60_000L
 
         val loadControl = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(minBuffer, maxBuffer, 1500, 3000)
-            .setPrioritizeTimeOverSizeThresholds(true)
-            .setBackBuffer(if (liteMode) 10_000 else 30_000, true)
+            .setBufferDurationsMs(
+                minBufferMs.toInt(),
+                maxBufferMs.toInt(),
+                2500,
+                5000
+            )
+            .setTargetBufferBytes(
+                if (liteMode) 30 * 1024 * 1024 else 80 * 1024 * 1024
+            )
+            .setPrioritizeTimeOverSizeThresholds(false)
+            .setBackBuffer(60_000, true)
             .build()
 
-        val mediaSourceFactory = DefaultMediaSourceFactory(cacheFactory)
-        val mediaSource = mediaSourceFactory.createMediaSource(MediaItem.fromUri(url))
+        // ✅ السياسة المدمجة لإعادة المحاولة — الحل الرئيسي!
+        val loadErrorPolicy = object : DefaultLoadErrorHandlingPolicy(10) {
+            override fun getRetryDelayMsFor(
+                loadErrorInfo: LoadErrorHandlingPolicy.LoadErrorInfo
+            ): Long {
+                return (loadErrorInfo.errorCount * 500L).coerceAtMost(5000L)
+            }
 
+            override fun getMinimumLoadableRetryCount(dataType: Int): Int {
+                return 10
+            }
+        }
+
+        // ✅ إنشاء Player
         val player = ExoPlayer.Builder(ctx)
             .setLoadControl(loadControl)
+            .setLoadErrorHandlingPolicy(loadErrorPolicy)
             .setSeekBackIncrementMs(10_000)
             .setSeekForwardIncrementMs(10_000)
             .setHandleAudioBecomingNoisy(true)
             .setWakeMode(C.WAKE_MODE_NETWORK)
             .build()
 
+        // ✅ اختيار نوع المصدر حسب الامتداد
+        val mediaSource = when {
+            url.endsWith(".m3u8") -> {
+                HlsMediaSource.Factory(dataSourceFactory)
+                    .setAllowChunklessPreparation(true)
+                    .createMediaSource(MediaItem.fromUri(url))
+            }
+            else -> {
+                ProgressiveMediaSource.Factory(dataSourceFactory)
+                    .createMediaSource(MediaItem.fromUri(url))
+            }
+        }
+
         player.setMediaSource(mediaSource)
         player.playWhenReady = true
 
+        // ✅ Listener مبسّط — بدون prepare() وبدون retry يدوي!
         player.addListener(object : Player.Listener {
             override fun onPlayerError(error: PlaybackException) {
-                if (retryCount < 5) {
-                    retryCount++
-                    isReconnecting = true
-                    scope.launch {
-                        delay(1500L * retryCount)
-                        player.prepare()
-                        player.play()
-                        delay(2000)
-                        isReconnecting = false
-                    }
-                } else {
-                    errorMsg = "فشل التشغيل: ${error.message}"
-                    isReconnecting = false
-                    scope.launch {
-                        errorLogger.log(url, error.message ?: "unknown", error.errorCode)
-                    }
+                // ✅ لا تفعل شيئاً — ExoPlayer يتعامل معه!
+                // فقط سجّل للمعلومات
+                scope.launch {
+                    errorLogger.log(url, error.message ?: "unknown", error.errorCode)
                 }
             }
 
-            override fun onTracksChanged(tracks1: Tracks) { tracks = tracks1 }
+            override fun onTracksChanged(tracks1: Tracks) {
+                tracks = tracks1
+            }
 
             override fun onPlaybackStateChanged(state: Int) {
-                when (state) {
-                    Player.STATE_READY -> {
-                        isReconnecting = false
-                        retryCount = 0
-                    }
-                    Player.STATE_BUFFERING -> {
-                        // إذا تجاوز التخزين المؤقت 8 ثوانٍ — أعد التشغيل
-                        scope.launch {
-                            delay(8000)
-                            if (player.playbackState == Player.STATE_BUFFERING) {
-                                isReconnecting = true
-                                player.prepare()
-                                player.play()
-                                delay(2000)
-                                isReconnecting = false
-                            }
-                        }
-                    }
-                    Player.STATE_ENDED -> {
-                        scope.launch { historyMgr.delete(url) }
-                    }
-                }
-            }
-
-            override fun onIsPlayingChanged(isPlaying: Boolean) {
-                if (isPlaying) {
-                    isReconnecting = false
-                    lastPlaybackPosition = player.currentPosition
-                } else if (player.playbackState != Player.STATE_ENDED &&
-                    player.playbackState != Player.STATE_IDLE
-                ) {
-                    // إذا توقف التشغيل ولم ينتهِ الفيديو — حاول الاستئناف
-                    scope.launch {
-                        delay(3000)
-                        if (!player.isPlaying &&
-                            player.playbackState != Player.STATE_ENDED
-                        ) {
-                            isReconnecting = true
-                            player.seekTo(lastPlaybackPosition)
-                            player.play()
-                            delay(2000)
-                            isReconnecting = false
-                        }
-                    }
+                if (state == Player.STATE_ENDED) {
+                    scope.launch { historyMgr.delete(url) }
                 }
             }
         })
         player
     }
-    
+
     LaunchedEffect(Unit) {
         if (!prefs.useInternalPlayer) {
             launchExternal(ctx, url, settingsMgr)
@@ -201,34 +189,37 @@ fun PlayerScreen(
         }
     }
 
-    // حفظ موضع التوقف كل 5 ثوانٍ
+    // حفظ موضع التوقف (فقط لـ VOD)
     LaunchedEffect(Unit) {
-        while (true) {
-            delay(5000)
-            val pos = exoPlayer.currentPosition
-            val dur = exoPlayer.duration
-            if (pos > 0 && dur > 0 && pos < dur - 3000) {
-                lastPlaybackPosition = pos
-                historyMgr.save(
-                    WatchHistoryEntity(
-                        contentId = url,
-                        contentType = "VOD",
-                        title = title,
-                        poster = "",
-                        url = url,
-                        positionMs = pos,
-                        durationMs = dur
+        if (!isLive) {
+            while (true) {
+                delay(5000)
+                val pos = exoPlayer.currentPosition
+                val dur = exoPlayer.duration
+                if (pos > 0 && dur > 0 && pos < dur - 3000) {
+                    historyMgr.save(
+                        WatchHistoryEntity(
+                            contentId = url,
+                            contentType = "VOD",
+                            title = title,
+                            poster = "",
+                            url = url,
+                            positionMs = pos,
+                            durationMs = dur
+                        )
                     )
-                )
+                }
             }
         }
     }
 
     LaunchedEffect(Unit) {
-        delay(1500)
-        val saved = historyMgr.getById(url)
-        if (saved != null && saved.positionMs > 5000) {
-            exoPlayer.seekTo(saved.positionMs)
+        if (!isLive) {
+            delay(1500)
+            val saved = historyMgr.getById(url)
+            if (saved != null && saved.positionMs > 5000) {
+                exoPlayer.seekTo(saved.positionMs)
+            }
         }
     }
 
@@ -261,19 +252,20 @@ fun PlayerScreen(
             IconButton(onClick = { navController.popBackStack() }) {
                 Icon(Icons.Default.ArrowBack, contentDescription = null, tint = Color.White)
             }
-            Text(title, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text(
+                title,
+                color = Color.White,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1
+            )
             Spacer(Modifier.weight(1f))
 
-            // زر إعادة التشغيل اليدوي
             IconButton(onClick = {
-                isReconnecting = true
-                exoPlayer.seekTo(lastPlaybackPosition)
+                // ✅ إعادة تشغيل يدوية عند الحاجة
+                exoPlayer.seekTo(exoPlayer.currentPosition)
                 exoPlayer.prepare()
                 exoPlayer.play()
-                scope.launch {
-                    delay(2000)
-                    isReconnecting = false
-                }
             }) {
                 Icon(Icons.Default.Refresh, contentDescription = "إعادة التشغيل", tint = Color.White)
             }
@@ -296,30 +288,6 @@ fun PlayerScreen(
 
             TextButton(onClick = { launchExternal(ctx, url, settingsMgr) }) {
                 Text("مشغل خارجي", color = Color.White, fontSize = 16.sp)
-            }
-        }
-
-        // مؤشر إعادة الاتصال
-        if (isReconnecting) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .background(Color(0xCC000000), shape = MaterialTheme.shapes.medium)
-                    .padding(20.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(
-                        color = Color.White,
-                        modifier = Modifier.size(28.dp),
-                        strokeWidth = 3.dp
-                    )
-                    Spacer(Modifier.width(12.dp))
-                    Text(
-                        "🔄 جاري إعادة الاتصال...",
-                        color = Color.White,
-                        fontSize = 16.sp
-                    )
-                }
             }
         }
 
@@ -352,7 +320,6 @@ fun PlayerScreen(
                     Row {
                         Button(onClick = {
                             errorMsg = null
-                            retryCount = 0
                             exoPlayer.prepare()
                             exoPlayer.play()
                         }) { Text("إعادة المحاولة") }
