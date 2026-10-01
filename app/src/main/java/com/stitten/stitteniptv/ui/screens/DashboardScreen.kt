@@ -566,3 +566,264 @@ private fun PackageChannels(
         }
     }
 }
+
+// ============== المفضلة ==============
+@Composable
+private fun FavoritesContent(
+    viewModel: MainViewModel,
+    search: String,
+    navController: NavHostController
+) {
+    val favoritesVersion by viewModel.favoritesVersion.collectAsState()
+    val favChannels = remember(favoritesVersion, search) {
+        viewModel.getFavoriteChannels().filter {
+            search.isBlank() || it.name.contains(search, true)
+        }
+    }
+
+    if (favChannels.isEmpty()) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("⭐", fontSize = 72.sp, color = Color.Gray)
+                Spacer(Modifier.height(16.dp))
+                Text("لا توجد قنوات مفضلة", color = Color.White, fontSize = 22.sp)
+                Spacer(Modifier.height(8.dp))
+                Text("اضغط على ⭐ بجانب أي قناة لإضافتها", color = Color.Gray, fontSize = 16.sp)
+            }
+        }
+        return
+    }
+
+    LazyColumn(modifier = Modifier.fillMaxSize()) {
+        items(
+            items = favChannels,
+            key = { ch -> "fav_${ch.id}" }
+        ) { ch ->
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp)
+                    .tvFocusable {
+                        navController.navigate(Routes.player(ch.url, ch.name))
+                    },
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF161B22))
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(ch.logo).crossfade(true).build(),
+                        placeholder = painterResource(R.drawable.ic_placeholder),
+                        error = painterResource(R.drawable.ic_placeholder),
+                        fallback = painterResource(R.drawable.ic_placeholder),
+                        contentDescription = null,
+                        modifier = Modifier.size(64.dp).clip(RoundedCornerShape(8.dp)),
+                        contentScale = ContentScale.Fit
+                    )
+                    Spacer(Modifier.width(16.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            ch.name, color = Color.White, fontSize = 20.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis
+                        )
+                        if (ch.group.isNotEmpty()) {
+                            Text(ch.group, color = Color.Gray, fontSize = 14.sp)
+                        }
+                    }
+                    IconButton(
+                        onClick = { viewModel.toggleChannelFavorite(ch.id, ch.name) }
+                    ) {
+                        Icon(
+                            Icons.Default.Favorite,
+                            contentDescription = null,
+                            tint = Color(0xFFDA3633),
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ============== Channel Row ==============
+@Composable
+private fun ChannelRowFromEntity(
+    entity: ChannelEntity,
+    isFavorite: Boolean,
+    onToggleFavorite: () -> Unit,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .tvFocusable(onClick),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF161B22))
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(entity.logo).crossfade(true).build(),
+                placeholder = painterResource(R.drawable.ic_placeholder),
+                error = painterResource(R.drawable.ic_placeholder),
+                fallback = painterResource(R.drawable.ic_placeholder),
+                contentDescription = null,
+                modifier = Modifier.size(64.dp).clip(RoundedCornerShape(8.dp)),
+                contentScale = ContentScale.Fit
+            )
+            Spacer(Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    entity.name, color = Color.White, fontSize = 20.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis
+                )
+                if (entity.groupName.isNotEmpty()) {
+                    Text(
+                        entity.groupName, color = Color.Gray, fontSize = 14.sp,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+            IconButton(onClick = onToggleFavorite, modifier = Modifier.size(48.dp)) {
+                Icon(
+                    if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                    contentDescription = "مفضلة",
+                    tint = if (isFavorite) Color(0xFFDA3633) else Color.Gray,
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+        }
+    }
+}
+
+// ============== دائرة النسبة ==============
+@Composable
+private fun CircularProgressOverlay(progress: Int, message: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.92f)),
+        contentAlignment = Alignment.Center
+    ) {
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF161B22)),
+            shape = RoundedCornerShape(20.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(40.dp)
+                    .width(400.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier.size(200.dp)
+                ) {
+                    CircularProgressIndicator(
+                        progress = { progress / 100f },
+                        modifier = Modifier.size(200.dp),
+                        color = MaterialTheme.colorScheme.primary,
+                        strokeWidth = 14.dp,
+                        trackColor = Color(0xFF21262D)
+                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            "$progress%",
+                            color = Color.White,
+                            fontSize = 48.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text("مكتمل", color = Color.LightGray, fontSize = 12.sp)
+                    }
+                }
+                Spacer(Modifier.height(28.dp))
+                Text(
+                    message.ifBlank { "جاري التحميل..." },
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Spacer(Modifier.height(20.dp))
+                LinearProgressIndicator(
+                    progress = { progress / 100f },
+                    modifier = Modifier.fillMaxWidth().height(8.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = Color(0xFF21262D)
+                )
+            }
+        }
+    }
+}
+
+// ============== مكونات مساعدة ==============
+@Composable
+private fun RowScope.CustomIconButton(
+    iconRes: Int,
+    label: String,
+    onClick: () -> Unit
+) {
+    var isFocused by remember { mutableStateOf(false) }
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .weight(1f)
+            .clip(RoundedCornerShape(12.dp))
+            .border(
+                width = if (isFocused) 2.dp else 1.dp,
+                color = if (isFocused) Color(0xFF58A6FF) else Color(0xFF30363D),
+                shape = RoundedCornerShape(12.dp)
+            )
+            .background(
+                color = if (isFocused) Color(0xFF1F6FEB).copy(alpha = 0.3f)
+                else Color(0xFF161B22)
+            )
+            .focusable()
+            .onFocusChanged { isFocused = it.isFocused }
+            .onKeyEvent { event ->
+                if (event.type == KeyEventType.KeyUp &&
+                    (event.key == Key.DirectionCenter || event.key == Key.Enter)
+                ) {
+                    onClick()
+                    true
+                } else false
+            }
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp)
+    ) {
+        Icon(
+            painter = painterResource(id = iconRes),
+            contentDescription = label,
+            tint = if (isFocused) Color(0xFF58A6FF) else Color.White,
+            modifier = Modifier.size(32.dp)
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            label,
+            color = if (isFocused) Color(0xFF58A6FF) else Color.White,
+            fontSize = 12.sp,
+            fontWeight = if (isFocused) FontWeight.Bold else FontWeight.Normal
+        )
+    }
+}
+
+@Composable
+private fun SidebarButton(text: String, selected: Boolean, onClick: () -> Unit) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = if (selected) MaterialTheme.colorScheme.primary
+            else Color(0xFF21262D),
+            contentColor = Color.White
+        )
+    ) { Text(text, fontSize = 15.sp) }
+}
