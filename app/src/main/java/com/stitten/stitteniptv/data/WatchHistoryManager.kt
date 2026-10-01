@@ -22,4 +22,26 @@ class WatchHistoryManager @Inject constructor(
     suspend fun delete(id: String) = dao.delete(id)
 
     suspend fun clearAll() = dao.clearAll()
+
+    suspend fun cleanupOld(days: Int = 30): Int {
+        val cutoff = System.currentTimeMillis() -
+                (days.toLong() * 24 * 60 * 60 * 1000)
+        return dao.deleteOlderThan(cutoff)
+    }
+
+    suspend fun keepOnlyRecent(keepCount: Int = 100): Int {
+        return dao.keepOnlyRecent(keepCount)
+    }
+
+    suspend fun performFullCleanup(): Int {
+        return try {
+            val oldRemoved = cleanupOld(30)
+            val excessRemoved = keepOnlyRecent(100)
+            oldRemoved + excessRemoved
+        } catch (e: Exception) {
+            0
+        }
+    }
+
+    suspend fun getCount(): Int = dao.getCount()
 }
