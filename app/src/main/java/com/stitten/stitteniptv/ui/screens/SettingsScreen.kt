@@ -287,3 +287,225 @@ FocusableNavigationRow(
 Spacer(Modifier.height(24.dp))
 HorizontalDivider(color = Color(0xFF30363D))
 Spacer(Modifier.height(20.dp))
+
+            // ============ معلومات الجهاز ============
+            Text(
+                "📊 معلومات الجهاز",
+                color = Color.White,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(Modifier.height(12.dp))
+
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = Color(0xFF161B22).copy(alpha = 0.9f)
+                ),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(Modifier.padding(16.dp)) {
+                    val capability = remember {
+                        com.stitten.stitteniptv.data.DeviceCapabilityDetector.detect(ctx)
+                    }
+
+                    InfoRow("ذاكرة RAM", "${capability.totalRamMb} MB")
+                    InfoRow("RAM متاح", "${capability.availableRamMb} MB")
+                    InfoRow("التخزين", "${capability.totalStorageMb / 1024} GB")
+                    InfoRow("متاح", "${capability.availableStorageMb / 1024} GB")
+                    InfoRow("الأنوية", "${capability.cpuCores}")
+                    InfoRow("Android", "${capability.androidVersion}")
+
+                    Spacer(Modifier.height(10.dp))
+                    Surface(
+                        color = if (capability.isLowEnd)
+                            Color(0xFFFFA726).copy(alpha = 0.2f)
+                        else
+                            Color(0xFF66BB6A).copy(alpha = 0.2f),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(
+                            if (capability.isLowEnd)
+                                "⚠️ جهاز محدود الموارد"
+                            else
+                                "✅ جهاز قوي",
+                            color = if (capability.isLowEnd)
+                                Color(0xFFFFA726)
+                            else
+                                Color(0xFF66BB6A),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(24.dp))
+            HorizontalDivider(color = Color(0xFF30363D))
+            Spacer(Modifier.height(20.dp))
+
+            // ============ حول التطبيق ============
+            Text(
+                "حول التطبيق",
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+            Spacer(Modifier.height(12.dp))
+
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = Color(0xFF161B22).copy(alpha = 0.7f)
+                ),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(Modifier.padding(16.dp)) {
+                    Text(
+                        "STTITEN IP TV",
+                        color = MaterialTheme.colorScheme.primary,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text("المطور: جلولي مصطفى", color = Color.White, fontSize = 15.sp)
+                    Text("الإصدار: v1.0.0", color = Color.LightGray, fontSize = 13.sp)
+                    Text(
+                        "تطبيق IPTV متكامل لـ Android TV",
+                        color = Color.LightGray,
+                        fontSize = 13.sp
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(32.dp))
+
+            Button(
+                onClick = {
+                    prefs.clear()
+                    navController.navigate(Routes.LOGIN) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error
+                ),
+                modifier = Modifier.fillMaxWidth().height(56.dp)
+            ) { Text("🚪 تسجيل الخروج", fontSize = 16.sp) }
+
+            Spacer(Modifier.height(24.dp))
+        }
+    }
+}
+
+// ============ المكونات المساعدة ============
+
+@Composable
+private fun FocusableSettingRow(
+    label: String,
+    content: @Composable () -> Unit
+) {
+    var isFocused by remember { mutableStateOf(false) }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp)
+            .border(
+                width = if (isFocused) 3.dp else 1.dp,
+                color = if (isFocused) Color(0xFF58A6FF) else Color.Transparent,
+                shape = RoundedCornerShape(10.dp)
+            )
+            .background(
+                color = if (isFocused) Color(0xFF21262D).copy(alpha = 0.8f)
+                else Color.Transparent,
+                shape = RoundedCornerShape(10.dp)
+            )
+            .focusable()
+            .onFocusChanged { isFocused = it.isFocused }
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            label,
+            color = if (isFocused) Color(0xFF58A6FF) else Color.White,
+            fontSize = 17.sp,
+            fontWeight = if (isFocused) FontWeight.Bold else FontWeight.Normal
+        )
+        content()
+    }
+}
+
+@Composable
+private fun FocusableNavigationRow(
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit
+) {
+    var isFocused by remember { mutableStateOf(false) }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                width = if (isFocused) 3.dp else 0.dp,
+                color = if (isFocused) Color(0xFF58A6FF) else Color.Transparent,
+                shape = RoundedCornerShape(12.dp)
+            )
+            .focusable()
+            .onFocusChanged { isFocused = it.isFocused }
+            .onKeyEvent { event ->
+                if (event.type == KeyEventType.KeyUp &&
+                    (event.key == Key.DirectionCenter || event.key == Key.Enter)
+                ) {
+                    onClick()
+                    true
+                } else false
+            }
+            .clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isFocused) Color(0xFF1F6FEB)
+            else Color(0xFF161B22).copy(alpha = 0.9f)
+        ),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp).fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    title,
+                    color = Color.White,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    subtitle,
+                    color = Color.White.copy(alpha = 0.75f),
+                    fontSize = 12.sp
+                )
+            }
+            Icon(
+                Icons.Default.ArrowForward,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun InfoRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(label, color = Color.LightGray, fontSize = 13.sp)
+        Text(value, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+    }
+}
