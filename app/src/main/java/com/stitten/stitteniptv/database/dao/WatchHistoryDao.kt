@@ -24,4 +24,13 @@ interface WatchHistoryDao {
 
     @Query("DELETE FROM watch_history")
     suspend fun clearAll()
+
+    @Query("DELETE FROM watch_history WHERE updatedAt < :beforeTimestamp")
+    suspend fun deleteOlderThan(beforeTimestamp: Long): Int
+
+    @Query("SELECT COUNT(*) FROM watch_history")
+    suspend fun getCount(): Int
+
+    @Query("DELETE FROM watch_history WHERE contentId NOT IN (SELECT contentId FROM watch_history ORDER BY updatedAt DESC LIMIT :keepCount)")
+    suspend fun keepOnlyRecent(keepCount: Int): Int
 }
