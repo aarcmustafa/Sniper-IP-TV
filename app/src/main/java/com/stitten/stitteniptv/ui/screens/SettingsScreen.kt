@@ -176,3 +176,114 @@ fun SettingsScreen(
             HorizontalDivider(color = Color(0xFF30363D))
             Spacer(Modifier.height(20.dp))
             
+// ============ قسم المشغل ============
+Text(
+    "🎬 المشغل",
+    color = Color.White,
+    fontSize = 20.sp,
+    fontWeight = FontWeight.Bold
+)
+Spacer(Modifier.height(12.dp))
+
+Card(
+    colors = CardDefaults.cardColors(
+        containerColor = Color(0xFF161B22).copy(alpha = 0.9f)
+    ),
+    shape = RoundedCornerShape(12.dp),
+    modifier = Modifier.fillMaxWidth()
+) {
+    Column(Modifier.padding(16.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("✅", fontSize = 20.sp)
+            Spacer(Modifier.width(10.dp))
+            Text(
+                "المشغل الداخلي مفعّل (ExoPlayer)",
+                color = Color(0xFF66BB6A),
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "🎯 يوفّر تجربة سلسة مع:",
+            color = Color.LightGray,
+            fontSize = 12.sp
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "• Buffer تكيفي حسب الشبكة",
+            color = Color.LightGray,
+            fontSize = 12.sp
+        )
+        Text(
+            "• دعم HLS, DASH, MKV, MP4, TS",
+            color = Color.LightGray,
+            fontSize = 12.sp
+        )
+        Text(
+            "• مسارات صوت وترجمة متعددة",
+            color = Color.LightGray,
+            fontSize = 12.sp
+        )
+        Text(
+            "• إعادة محاولة تلقائية 10 مرات",
+            color = Color.LightGray,
+            fontSize = 12.sp
+        )
+    }
+}
+
+Spacer(Modifier.height(12.dp))
+
+FocusableNavigationRow(
+    title = "🎥 اختيار المشغل الخارجي",
+    subtitle = "VLC، MX Player، MPV — عند فشل الداخلي",
+    onClick = { navController.navigate(Routes.EXTERNAL_PLAYERS) }
+)
+
+Spacer(Modifier.height(24.dp))
+HorizontalDivider(color = Color(0xFF30363D))
+Spacer(Modifier.height(20.dp))
+
+// ============ الإعدادات المتقدمة ============
+Text(
+    "🔧 إعدادات أخرى",
+    color = Color.White,
+    fontSize = 20.sp,
+    fontWeight = FontWeight.Bold
+)
+Spacer(Modifier.height(12.dp))
+
+FocusableNavigationRow(
+    title = "⚙️ الإعدادات المتقدمة",
+    subtitle = "فك التشفير، البروتوكول، صيغة البث، تنظيف Cache",
+    onClick = { navController.navigate(Routes.ADVANCED_SETTINGS) }
+)
+
+Spacer(Modifier.height(12.dp))
+
+FocusableNavigationRow(
+    title = "📡 إدارة المصادر",
+    subtitle = "إضافة، تعديل، حذف (Xtream + M3U)",
+    onClick = { navController.navigate(Routes.SOURCES) }
+)
+
+Spacer(Modifier.height(12.dp))
+
+FocusableNavigationRow(
+    title = "🔒 الرقابة الأبوية",
+    subtitle = "PIN وإدارة الحجب",
+    onClick = { navController.navigate(Routes.PARENTAL) }
+)
+
+Spacer(Modifier.height(12.dp))
+
+FocusableNavigationRow(
+    title = "📋 سجل الأخطاء",
+    subtitle = "عرض أخطاء التشغيل",
+    onClick = { navController.navigate(Routes.ERRORS) }
+)
+
+Spacer(Modifier.height(24.dp))
+HorizontalDivider(color = Color(0xFF30363D))
+Spacer(Modifier.height(20.dp))
