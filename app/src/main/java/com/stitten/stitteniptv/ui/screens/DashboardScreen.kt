@@ -401,3 +401,168 @@ private fun SearchResults(
         }
     }
 }
+
+// ============== قائمة الباقات ==============
+@Composable
+private fun PackagesList(
+    repo: ChannelRepository,
+    onPackageClick: (String) -> Unit
+) {
+    val packages by repo.getChannelGroups().collectAsState(initial = emptyList())
+
+    if (packages.isEmpty()) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.height(16.dp))
+                Text("جاري تحميل الباقات...", color = Color.White, fontSize = 18.sp)
+            }
+        }
+        return
+    }
+
+    LazyColumn(modifier = Modifier.fillMaxSize()) {
+        item(key = "packages_header") {
+            Text(
+                "📦 الباقات (${packages.size})",
+                color = MaterialTheme.colorScheme.primary,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
+        }
+        items(
+            items = packages,
+            key = { pkg -> "package_$pkg" }
+        ) { pkg ->
+            PackageCard(pkg, onPackageClick)
+        }
+    }
+}
+
+@Composable
+private fun PackageCard(
+    name: String,
+    onClick: (String) -> Unit
+) {
+    val priority = CategoriesManager.getPriorityOrder(name)
+    val (badge, badgeColor) = when (priority) {
+        1 -> "⭐" to Color(0xFF1F6FEB)
+        2 -> "🌍" to Color(0xFF238636)
+        3 -> "🏅" to Color(0xFF8B5CF6)
+        else -> "📺" to Color(0xFF21262D)
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 5.dp)
+            .tvFocusable { onClick(name) },
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF161B22))
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(52.dp)
+                    .background(badgeColor, RoundedCornerShape(10.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(badge, fontSize = 26.sp)
+            }
+            Spacer(Modifier.width(16.dp))
+            Text(
+                name,
+                color = Color.White,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+            Icon(
+                Icons.Default.ArrowForward,
+                contentDescription = null,
+                tint = Color.LightGray,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+    }
+}
+
+// ============== قنوات باقة ==============
+@Composable
+private fun PackageChannels(
+    repo: ChannelRepository,
+    viewModel: MainViewModel,
+    packageName: String,
+    navController: NavHostController,
+    onBack: () -> Unit
+) {
+    val pagingItems = remember(packageName) {
+        repo.getChannelsByGroupPaged(packageName)
+    }.collectAsLazyPagingItems()
+
+    LazyColumn(modifier = Modifier.fillMaxSize()) {
+        item(key = "back_button_$packageName") {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp)
+                    .tvFocusable(onBack),
+                colors = CardDefaults.cardColors(
+                    containerColor = Color(0xFF1F6FEB).copy(alpha = 0.25f)
+                )
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.ArrowBack,
+                        contentDescription = null,
+                        tint = Color(0xFF58A6FF),
+                        modifier = Modifier.size(28.dp)
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("← رجوع إلى الباقات", color = Color(0xFF58A6FF), fontSize = 13.sp)
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            packageName,
+                            color = Color.White,
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+        }
+
+        items(
+            count = pagingItems.itemCount,
+            key = { index ->
+                val entity = pagingItems.peek(index)
+                "pkg_${packageName}_${entity?.id ?: "item_$index"}"
+            }
+        ) { index ->
+            val entity = pagingItems[index]
+            if (entity != null) {
+                ChannelRowFromEntity(
+                    entity = entity,
+                    isFavorite = viewModel.favorites.isChannelFavorite(entity.id),
+                    onToggleFavorite = {
+                        viewModel.toggleChannelFavorite(entity.id, entity.name)
+                    },
+                    onClick = {
+                        navController.navigate(Routes.player(entity.url, entity.name))
+                    }
+                )
+            }
+        }
+    }
+}
