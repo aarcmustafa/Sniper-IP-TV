@@ -407,3 +407,138 @@ fun PlayerScreen(
         }
     }
 }
+
+@Composable
+private fun TrackMenuOverlay(
+    tracks: Tracks,
+    exoPlayer: ExoPlayer,
+    onDismiss: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(0.55f).padding(8.dp),
+        color = Color(0xEE161B22),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(16.dp)
+                .heightIn(max = 500.dp)
+        ) {
+            Text(
+                "🎛️ المسارات",
+                color = Color.White,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(Modifier.height(12.dp))
+
+            var hasAudio = false
+            var hasText = false
+
+            tracks.groups.forEach { group ->
+                if (group.type == C.TRACK_TYPE_AUDIO) hasAudio = true
+                if (group.type == C.TRACK_TYPE_TEXT) hasText = true
+            }
+
+            if (!hasAudio && !hasText) {
+                Text(
+                    "لا توجد مسارات إضافية",
+                    color = Color.Gray,
+                    fontSize = 14.sp
+                )
+            }
+
+            tracks.groups.forEach { group ->
+                if (group.type == C.TRACK_TYPE_AUDIO ||
+                    group.type == C.TRACK_TYPE_TEXT
+                ) {
+                    val typeLabel = if (group.type == C.TRACK_TYPE_AUDIO)
+                        "🎵 الصوت" else "💬 الترجمة"
+
+                    Text(
+                        typeLabel,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(Modifier.height(4.dp))
+
+                    for (i in 0 until group.length) {
+                        val format = group.getTrackFormat(i)
+                        val label = format.label
+                            ?: format.language
+                            ?: "مسار $i"
+                        val selected = group.isTrackSelected(i)
+
+                        TrackItem(
+                            label = label,
+                            selected = selected,
+                            onClick = {
+                                exoPlayer.trackSelectionParameters =
+                                    exoPlayer.trackSelectionParameters
+                                        .buildUpon()
+                                        .setOverrideForType(
+                                            TrackSelectionOverride(
+                                                group.mediaTrackGroup, i
+                                            )
+                                        ).build()
+                                onDismiss()
+                            }
+                        )
+                    }
+                    Spacer(Modifier.height(8.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TrackItem(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    var isFocused by remember { mutableStateOf(false) }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp)
+            .border(
+                width = if (isFocused) 2.dp else 0.dp,
+                color = if (isFocused) Color(0xFF58A6FF) else Color.Transparent,
+                shape = RoundedCornerShape(6.dp)
+            )
+            .background(
+                color = if (isFocused) Color(0xFF21262D) else Color.Transparent,
+                shape = RoundedCornerShape(6.dp)
+            )
+            .focusable()
+            .onFocusChanged { isFocused = it.isFocused }
+            .onKeyEvent { event ->
+                if (event.type == KeyEventType.KeyUp &&
+                    (event.key == Key.DirectionCenter || event.key == Key.Enter)
+                ) {
+                    onClick()
+                    true
+                } else false
+            }
+            .clickable(onClick = onClick)
+            .padding(10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            if (selected) "●" else "○",
+            color = if (selected) Color(0xFF238636) else Color.Gray,
+            fontSize = 16.sp
+        )
+        Spacer(Modifier.width(10.dp))
+        Text(
+            label,
+            color = Color.White,
+            fontSize = 14.sp,
+            maxLines = 1
+        )
+    }
+}
