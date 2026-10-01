@@ -11,7 +11,6 @@ import javax.net.ssl.X509TrustManager
 
 object HttpClientProvider {
 
-    // ============== SSL TrustAll ==============
     private fun buildTrustManager(): X509TrustManager {
         return object : X509TrustManager {
             override fun checkClientTrusted(
@@ -37,7 +36,6 @@ object HttpClientProvider {
         }
     }
 
-    // ============== عميل API (كما هو) ==============
     val trustAllClient: OkHttpClient by lazy {
         val sslContext = buildSslContext()
         val tm = buildTrustManager()
@@ -53,14 +51,6 @@ object HttpClientProvider {
             .build()
     }
 
-    // ============== عميل البث (محسّن) ==============
-    /**
-     * عميل مخصص للبث:
-     * - ConnectionPool كبير (20 اتصال)
-     * - Keep-Alive طويل (10 دقائق)
-     * - مهلات قصيرة للاتصال (لتجنب التأخير)
-     * - مهلات طويلة للقراءة (للبث المستمر)
-     */
     val streamingClient: OkHttpClient by lazy {
         val sslContext = buildSslContext()
         val tm = buildTrustManager()
@@ -74,22 +64,17 @@ object HttpClientProvider {
             .followRedirects(true)
             .followSslRedirects(true)
             .retryOnConnectionFailure(true)
-            .pingInterval(30, TimeUnit.SECONDS) // للحفاظ على الاتصال
+            .pingInterval(30, TimeUnit.SECONDS)
             .build()
     }
 
     fun getUserAgent(): String = "VLC/3.0.18 LibVLC/3.0.18"
 
-    // ============== حل 302 Redirect مسبقاً ==============
-    /**
-     * يقوم بطلب HEAD للحصول على الرابط النهائي
-     * يُستخدم لتخزين الرابط المباشر وتجنب 302 في كل طلب
-     */
     suspend fun resolveRedirect(url: String): String {
         return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             try {
-                // إذا كان الرابط مباشراً بالفعل (IP)، لا نحتاج حل
-                if (url.contains("://") && url.substringAfter("://").substringBefore("/").matches(Regex("\\d+\\.\\d+\\.\\d+\\.\\d+.*"))) {
+                if (url.contains("://") && url.substringAfter("://").substringBefore("/")
+                        .matches(Regex("\\d+\\.\\d+\\.\\d+\\.\\d+.*"))) {
                     return@withContext url
                 }
 
@@ -113,3 +98,28 @@ object HttpClientProvider {
             }
         }
     }
+
+    suspend fun fetchText(url: String): Result<String> {
+        return try {
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", getUserAgent())
+                .header("Accept", "*/*")
+                .header("Accept-Encoding", "identity")
+                .header("Connection", "keep-alive")
+                .build()
+
+            val response = trustAllClient.newCall(request).execute()
+            if (response.isSuccessful) {
+                val body = response.body?.string() ?: ""
+                response.close()
+                Result.success(body)
+            } else {
+                response.close()
+                Result.failure(Exception("HTTP ${response.code}"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+}
