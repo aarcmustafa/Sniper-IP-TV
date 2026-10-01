@@ -221,3 +221,189 @@ fun PlayerScreen(
         })
         player
     }
+    
+    LaunchedEffect(Unit) {
+        exoPlayer.prepare()
+    }
+
+    LaunchedEffect(Unit) {
+        if (!isLive) {
+            while (true) {
+                delay(5000)
+                val pos = exoPlayer.currentPosition
+                val dur = exoPlayer.duration
+                if (pos > 0 && dur > 0 && pos < dur - 3000) {
+                    historyMgr.save(
+                        WatchHistoryEntity(
+                            contentId = url,
+                            contentType = "VOD",
+                            title = title,
+                            poster = "",
+                            url = url,
+                            positionMs = pos,
+                            durationMs = dur
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        if (!isLive) {
+            delay(1500)
+            val saved = historyMgr.getById(url)
+            if (saved != null && saved.positionMs > 5000) {
+                exoPlayer.seekTo(saved.positionMs)
+            }
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose { exoPlayer.release() }
+    }
+
+    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+
+        AndroidView(
+            factory = { c ->
+                PlayerView(c).apply {
+                    player = exoPlayer
+                    useController = true
+                    setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
+                    setShowNextButton(false)
+                    setShowPreviousButton(false)
+                    setControllerShowTimeoutMs(4000)
+                    setControllerAutoShow(true)
+                    setControllerHideDuringAds(false)
+                    resizeMode = when (aspectRatioMode) {
+                        0 -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+                        1 -> AspectRatioFrameLayout.RESIZE_MODE_FILL
+                        2 -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                        else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+                    }
+                }
+            },
+            update = { view ->
+                view.resizeMode = when (aspectRatioMode) {
+                    0 -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+                    1 -> AspectRatioFrameLayout.RESIZE_MODE_FILL
+                    2 -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                    else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+                }
+            },
+            modifier = Modifier.fillMaxSize()
+        )
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+                .align(Alignment.TopStart),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = { navController.popBackStack() }) {
+                Icon(Icons.Default.ArrowBack, contentDescription = null, tint = Color.White)
+            }
+            Text(
+                title,
+                color = Color.White,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1
+            )
+            Spacer(Modifier.weight(1f))
+
+            IconButton(onClick = {
+                aspectRatioMode = (aspectRatioMode + 1) % 3
+            }) {
+                Icon(
+                    Icons.Default.AspectRatio,
+                    contentDescription = "أبعاد الشاشة",
+                    tint = Color.White
+                )
+            }
+
+            IconButton(onClick = { showTrackMenu = !showTrackMenu }) {
+                Icon(
+                    Icons.Default.Subtitles,
+                    contentDescription = "ترجمات",
+                    tint = Color.White
+                )
+            }
+
+            IconButton(onClick = {
+                retryCount = 0
+                errorMsg = null
+                exoPlayer.seekTo(exoPlayer.currentPosition)
+                exoPlayer.prepare()
+                exoPlayer.play()
+            }) {
+                Icon(
+                    Icons.Default.Refresh,
+                    contentDescription = "إعادة",
+                    tint = Color.White
+                )
+            }
+
+            if (!liteMode && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                IconButton(onClick = {
+                    val activity = ctx as? android.app.Activity
+                    activity?.enterPictureInPictureMode(
+                        PictureInPictureParams.Builder()
+                            .setAspectRatio(Rational(16, 9)).build()
+                    )
+                }) {
+                    Text("PiP", color = Color.White, fontSize = 14.sp)
+                }
+            }
+        }
+
+        if (showTrackMenu && tracks != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = 80.dp, end = 16.dp),
+                contentAlignment = Alignment.TopEnd
+            ) {
+                TrackMenuOverlay(
+                    tracks = tracks!!,
+                    exoPlayer = exoPlayer,
+                    onDismiss = { showTrackMenu = false }
+                )
+            }
+        }
+
+        errorMsg?.let { msg ->
+            Card(
+                modifier = Modifier.align(Alignment.Center).padding(24.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF21262D))
+            ) {
+                Column(
+                    Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(msg, color = Color.White, fontSize = 18.sp)
+                    Spacer(Modifier.height(12.dp))
+                    Row {
+                        Button(onClick = {
+                            errorMsg = null
+                            retryCount = 0
+                            exoPlayer.prepare()
+                            exoPlayer.play()
+                        }) { Text("إعادة المحاولة") }
+                        Spacer(Modifier.width(8.dp))
+                        Button(onClick = {
+                            val preferred = settingsMgr.externalPlayerPackage
+                            if (preferred.isBlank()) {
+                                ExternalPlayerManager.launchWithChooser(ctx, url)
+                            } else {
+                                ExternalPlayerManager.launchInPackage(ctx, url, preferred)
+                            }
+                        }) { Text("مشغل خارجي") }
+                    }
+                }
+            }
+        }
+    }
+}
