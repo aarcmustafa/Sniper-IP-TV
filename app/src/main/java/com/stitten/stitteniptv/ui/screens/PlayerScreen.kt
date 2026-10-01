@@ -510,3 +510,59 @@ fun PlayerScreen(
         }
     }
 }
+
+@Composable
+private fun TrackMenuOverlay(
+    tracks: Tracks,
+    exoPlayer: ExoPlayer,
+    onDismiss: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(0.5f).padding(8.dp),
+        color = Color(0xEE161B22)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("المسارات", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(8.dp))
+
+            tracks.groups.forEach { group ->
+                if (group.type == C.TRACK_TYPE_AUDIO || group.type == C.TRACK_TYPE_TEXT) {
+                    val type = if (group.type == C.TRACK_TYPE_AUDIO) "🎵 صوت" else "💬 ترجمة"
+                    Text(type, color = Color.Gray, fontSize = 14.sp)
+                    for (i in 0 until group.length) {
+                        val format = group.getTrackFormat(i)
+                        val label = format.label ?: format.language ?: "مسار $i"
+                        val selected = group.isTrackSelected(i)
+                        Text(
+                            "${if (selected) "✓" else "○"} $label",
+                            color = Color.White,
+                            fontSize = 14.sp,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                                .clickable {
+                                    exoPlayer.trackSelectionParameters =
+                                        exoPlayer.trackSelectionParameters
+                                            .buildUpon()
+                                            .setOverrideForType(
+                                                TrackSelectionOverride(group.mediaTrackGroup, i)
+                                            ).build()
+                                    onDismiss()
+                                }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun launchExternal(ctx: Context, url: String, settingsMgr: PlayerSettingsManager) {
+    val preferred = settingsMgr.externalPlayerPackage
+    if (preferred.isBlank()) {
+        ExternalPlayerManager.launchWithChooser(ctx, url)
+    } else {
+        val success = ExternalPlayerManager.launchInPackage(ctx, url, preferred)
+        if (!success) ExternalPlayerManager.launchWithChooser(ctx, url)
+    }
+}
