@@ -248,3 +248,195 @@ fun PlayerScreen(
         })
         player
     }
+    
+    LaunchedEffect(Unit) {
+        if (!prefs.useInternalPlayer) {
+            launchExternal(ctx, url, settingsMgr)
+            navController.popBackStack()
+        } else {
+            exoPlayer.prepare()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        if (!isLive) {
+            while (true) {
+                delay(5000)
+                val pos = exoPlayer.currentPosition
+                val dur = exoPlayer.duration
+                if (pos > 0 && dur > 0 && pos < dur - 3000) {
+                    historyMgr.save(
+                        WatchHistoryEntity(
+                            contentId = url,
+                            contentType = "VOD",
+                            title = title,
+                            poster = "",
+                            url = url,
+                            positionMs = pos,
+                            durationMs = dur
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        if (!isLive) {
+            delay(1500)
+            val saved = historyMgr.getById(url)
+            if (saved != null && saved.positionMs > 5000) {
+                exoPlayer.seekTo(saved.positionMs)
+            }
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose { exoPlayer.release() }
+    }
+
+    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+        AndroidView(
+            factory = { c ->
+                PlayerView(c).apply {
+                    player = exoPlayer
+                    useController = true
+                    setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
+                    setShowNextButton(false)
+                    setShowPreviousButton(false)
+                    setControllerShowTimeoutMs(4000)
+                }
+            },
+            modifier = Modifier.fillMaxSize()
+        )
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+                .align(Alignment.TopStart),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = { navController.popBackStack() }) {
+                Icon(Icons.Default.ArrowBack, contentDescription = null, tint = Color.White)
+            }
+            Text(
+                title,
+                color = Color.White,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1
+            )
+            Spacer(Modifier.weight(1f))
+
+            // زر التبديل بين HLS و TS يدوياً
+            TextButton(onClick = {
+                useHls = !useHls
+                playerRecreated++
+            }) {
+                Text(
+                    if (useHls) "HLS" else "TS",
+                    color = Color(0xFF58A6FF),
+                    fontSize = 12.sp
+                )
+            }
+
+            IconButton(onClick = {
+                isReconnecting = true
+                retryCount = 0
+                exoPlayer.prepare()
+                exoPlayer.play()
+                scope.launch {
+                    delay(2000)
+                    isReconnecting = false
+                }
+            }) {
+                Icon(Icons.Default.Refresh, contentDescription = "إعادة التشغيل", tint = Color.White)
+            }
+
+            if (!liteMode && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                IconButton(onClick = {
+                    val activity = ctx as? android.app.Activity
+                    activity?.enterPictureInPictureMode(
+                        PictureInPictureParams.Builder()
+                            .setAspectRatio(Rational(16, 9)).build()
+                    )
+                }) {
+                    Icon(Icons.Default.AspectRatio, contentDescription = "PiP", tint = Color.White)
+                }
+            }
+
+            IconButton(onClick = { showTrackMenu = !showTrackMenu }) {
+                Icon(Icons.Default.Subtitles, contentDescription = "ترجمات", tint = Color.White)
+            }
+
+            TextButton(onClick = { launchExternal(ctx, url, settingsMgr) }) {
+                Text("مشغل خارجي", color = Color.White, fontSize = 16.sp)
+            }
+        }
+
+        if (isReconnecting) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .background(Color(0xCC000000), shape = MaterialTheme.shapes.medium)
+                    .padding(20.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(
+                        color = Color.White,
+                        modifier = Modifier.size(28.dp),
+                        strokeWidth = 3.dp
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        "🔄 جاري إعادة الاتصال...",
+                        color = Color.White,
+                        fontSize = 16.sp
+                    )
+                }
+            }
+        }
+
+        if (showTrackMenu && tracks != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = 80.dp, end = 16.dp),
+                contentAlignment = Alignment.TopEnd
+            ) {
+                TrackMenuOverlay(
+                    tracks = tracks!!,
+                    exoPlayer = exoPlayer,
+                    onDismiss = { showTrackMenu = false }
+                )
+            }
+        }
+
+        errorMsg?.let { msg ->
+            Card(
+                modifier = Modifier.align(Alignment.Center).padding(24.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF21262D))
+            ) {
+                Column(
+                    Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(msg, color = Color.White, fontSize = 18.sp)
+                    Spacer(Modifier.height(12.dp))
+                    Row {
+                        Button(onClick = {
+                            errorMsg = null
+                            retryCount = 0
+                            playerRecreated++
+                        }) { Text("إعادة إنشاء المشغل") }
+                        Spacer(Modifier.width(8.dp))
+                        Button(onClick = { launchExternal(ctx, url, settingsMgr) }) {
+                            Text("مشغل خارجي")
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
