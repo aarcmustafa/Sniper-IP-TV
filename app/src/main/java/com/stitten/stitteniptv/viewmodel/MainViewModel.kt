@@ -181,3 +181,194 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             dataVersion = _uiState.value.dataVersion + 1
         )
     }
+    
+// ==========================================
+//  تبديل المصدر
+// ==========================================
+fun switchSource(source: SourceEntity) {
+    viewModelScope.launch {
+        XtreamApi.setPreferredProtocol(prefs.useHttps)
+        XtreamApi.setPreferredFormat(prefs.streamFormat)
+        channelRepo.liteMode = prefs.liteModeEnabled
+
+        withContext(Dispatchers.IO) { channelRepo.clearAll() }
+        sourceMgr.setActive(source.id)
+
+        _uiState.value = DashboardUiState(
+            isLoading = true,
+            loadingMessage = "🔐 جاري الاتصال بـ ${source.name}...",
+            loadingProgress = 5,
+            currentSourceName = source.name,
+            currentSourceType = source.type
+        )
+
+        prefs.isLoggedIn = true
+        prefs.loginType = source.type
+        prefs.serverUrl = source.url
+        prefs.username = source.username
+        prefs.password = source.password
+        prefs.m3uUrl = source.url
+
+        when (source.type) {
+            "XTREAM" -> {
+                val valid = withContext(Dispatchers.IO) {
+                    XtreamApi.validate(source.url, source.username, source.password)
+                }
+                if (!valid) {
+                    _uiState.value = DashboardUiState(
+                        error = "❌ فشل الاتصال بـ ${source.name}",
+                        currentSourceName = source.name,
+                        currentSourceType = source.type
+                    )
+                    return@launch
+                }
+                loadChannelsOnly(source.url, source.username, source.password)
+            }
+            "M3U" -> loadM3uSource(source)
+        }
+    }
+}
+
+// ==========================================
+//  تحميل مصدر M3U
+// ==========================================
+private suspend fun loadM3uSource(source: SourceEntity) {
+    _uiState.value = _uiState.value.copy(
+        loadingMessage = "📥 جاري تحميل M3U...",
+        loadingProgress = 20
+    )
+
+    val channels = if (source.url.startsWith("content://")) {
+        emptyList()
+    } else {
+        withContext(Dispatchers.IO) {
+            M3uParser.loadFromUrlStreaming(
+                ctx = getApplication(),
+                url = source.url,
+                onProgress = { downloaded, total ->
+                    val progress = if (total > 0) {
+                        ((downloaded * 100) / total).toInt().coerceIn(5, 95)
+                    } else {
+                        (downloaded / 2).toInt().coerceIn(5, 95)
+                    }
+                    _uiState.value = _uiState.value.copy(
+                        loadingProgress = progress,
+                        loadingMessage = if (total > 0)
+                            "📥 تحميل... $downloaded / $total MB"
+                        else
+                            "📥 تحميل... $downloaded MB"
+                    )
+                }
+            )
+        }
+    }
+
+    if (channels.isEmpty()) {
+        _uiState.value = DashboardUiState(
+            error = "❌ فشل تحميل M3U: ${source.name}",
+            currentSourceName = source.name,
+            currentSourceType = source.type
+        )
+        return
+    }
+
+    val limited = channels.take(getChannelLimit())
+    withContext(Dispatchers.IO) { channelRepo.saveChannels(limited) }
+
+    _uiState.value = _uiState.value.copy(
+        channelsCount = limited.size,
+        isLoading = false,
+        loadingProgress = 100,
+        loadingMessage = "✅ ${limited.size} قناة",
+        dataVersion = _uiState.value.dataVersion + 1
+    )
+}
+
+// ==========================================
+//  تحديث المصدر الحالي يدوياً
+// ==========================================
+fun refreshM3uSource() {
+    viewModelScope.launch {
+        val source = withContext(Dispatchers.IO) { sourceMgr.getActive() }
+        if (source != null) {
+            switchSource(source)
+            return@launch
+        }
+
+        // احتياطي: استخدم الإعدادات المحفوظة
+        when (prefs.loginType) {
+            "M3U" -> {
+                val url = prefs.m3uUrl
+                if (url.isBlank()) return@launch
+
+                withContext(Dispatchers.IO) { channelRepo.clearAll() }
+
+                _uiState.value = DashboardUiState(
+                    isLoading = true,
+                    loadingMessage = "🔄 جاري التحديث...",
+                    loadingProgress = 5
+                )
+
+                val list = M3uParser.loadFromUrl(url)
+                val limited = list.take(getChannelLimit())
+
+                withContext(Dispatchers.IO) {
+                    channelRepo.saveChannels(limited)
+                }
+
+                _uiState.value = DashboardUiState(
+                    channelsCount = limited.size,
+                    loadingProgress = 100
+                )
+            }
+            "XTREAM" -> {
+                loadChannelsOnly(
+                    prefs.serverUrl,
+                    prefs.username,
+                    prefs.password
+                )
+            }
+        }
+    }
+}
+
+// ==========================================
+//  تحميل المحتوى المحفوظ عند فتح التطبيق
+// ==========================================
+fun loadCachedContent() {
+    viewModelScope.launch {
+        XtreamApi.setPreferredProtocol(prefs.useHttps)
+        XtreamApi.setPreferredFormat(prefs.streamFormat)
+        channelRepo.liteMode = prefs.liteModeEnabled
+
+        val active = withContext(Dispatchers.IO) { sourceMgr.getActive() }
+        if (active != null) {
+            switchSource(active)
+            return@launch
+        }
+
+        when (prefs.loginType) {
+            "M3U" -> {
+                if (prefs.m3uUrl.isBlank()) return@launch
+                val list = M3uParser.loadFromUrl(prefs.m3uUrl)
+                val limited = list.take(getChannelLimit())
+                withContext(Dispatchers.IO) {
+                    channelRepo.clearAll()
+                    channelRepo.saveChannels(limited)
+                }
+                _uiState.value = DashboardUiState(
+                    channelsCount = limited.size,
+                    loadingProgress = 100
+                )
+            }
+            "XTREAM" -> {
+                if (prefs.serverUrl.isBlank()) return@launch
+                loadChannelsOnly(
+                    prefs.serverUrl,
+                    prefs.username,
+                    prefs.password
+                )
+            }
+        }
+    }
+}
