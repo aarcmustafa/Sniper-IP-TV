@@ -317,3 +317,261 @@ private fun AccountsListScreen(
         }
     }
 }
+
+// ============== بطاقة حساب ==============
+@Composable
+private fun AccountCard(
+    source: SourceEntity,
+    onPick: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
+    var isFocused by remember { mutableStateOf(false) }
+
+    val isXtream = source.type == "XTREAM"
+    val icon = if (isXtream) "🎬" else "📥"
+    val typeName = if (isXtream) "Xtream API" else "قائمة M3U"
+    val accentColor = if (isXtream) Color(0xFF1F6FEB) else Color(0xFF238636)
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(90.dp)
+            .border(
+                width = if (isFocused) 3.dp else 0.dp,
+                color = if (isFocused) Color(0xFF58A6FF) else Color.Transparent,
+                shape = RoundedCornerShape(14.dp)
+            ),
+        colors = CardDefaults.cardColors(
+            containerColor = if (source.isActive) accentColor.copy(alpha = 0.3f)
+            else Color(0xFF161B22)
+        ),
+        shape = RoundedCornerShape(14.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // أيقونة + زر التشغيل (الجانب الأيسر)
+            Box(
+                modifier = Modifier
+                    .size(64.dp)
+                    .background(accentColor, RoundedCornerShape(12.dp))
+                    .clickable(onClick = onPick),
+                contentAlignment = Alignment.Center
+            ) {
+                if (source.isActive) {
+                    Icon(
+                        Icons.Default.Check,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(32.dp)
+                    )
+                } else {
+                    Text(icon, fontSize = 32.sp)
+                }
+            }
+
+            Spacer(Modifier.width(16.dp))
+
+            // معلومات الحساب (قابل للضغط للدخول)
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(onClick = onPick)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        source.name,
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (source.isActive) {
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "نشط",
+                            color = Color(0xFF66BB6A),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    typeName,
+                    color = accentColor,
+                    fontSize = 13.sp
+                )
+                if (source.url.isNotBlank()) {
+                    Text(
+                        source.url.take(50),
+                        color = Color.Gray,
+                        fontSize = 11.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            // زر التعديل
+            IconButton(
+                onClick = onEdit,
+                modifier = Modifier.size(48.dp)
+            ) {
+                Icon(
+                    Icons.Default.Edit,
+                    contentDescription = "تعديل",
+                    tint = Color.White,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+
+            // زر الحذف
+            IconButton(
+                onClick = onDelete,
+                modifier = Modifier.size(48.dp)
+            ) {
+                Icon(
+                    Icons.Default.Delete,
+                    contentDescription = "حذف",
+                    tint = Color(0xFFDA3633),
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+        }
+    }
+}
+
+// ============== بطاقة حساب ==============
+@Composable
+private fun AccountCard(
+    source: SourceEntity,
+    onPick: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
+    var isFocused by remember { mutableStateOf(false) }
+
+    val isXtream = source.type == "XTREAM"
+    val icon = if (isXtream) "🎬" else "📥"
+    val typeName = if (isXtream) "Xtream API" else "قائمة M3U"
+    val accentColor = if (isXtream) Color(0xFF1F6FEB) else Color(0xFF238636)
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(90.dp)
+            .border(
+                width = if (isFocused) 3.dp else 0.dp,
+                color = if (isFocused) Color(0xFF58A6FF) else Color.Transparent,
+                shape = RoundedCornerShape(14.dp)
+            ),
+        colors = CardDefaults.cardColors(
+            containerColor = if (source.isActive) accentColor.copy(alpha = 0.3f)
+            else Color(0xFF161B22)
+        ),
+        shape = RoundedCornerShape(14.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // أيقونة + زر التشغيل (الجانب الأيسر)
+            Box(
+                modifier = Modifier
+                    .size(64.dp)
+                    .background(accentColor, RoundedCornerShape(12.dp))
+                    .clickable(onClick = onPick),
+                contentAlignment = Alignment.Center
+            ) {
+                if (source.isActive) {
+                    Icon(
+                        Icons.Default.Check,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(32.dp)
+                    )
+                } else {
+                    Text(icon, fontSize = 32.sp)
+                }
+            }
+
+            Spacer(Modifier.width(16.dp))
+
+            // معلومات الحساب (قابل للضغط للدخول)
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(onClick = onPick)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        source.name,
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (source.isActive) {
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "نشط",
+                            color = Color(0xFF66BB6A),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    typeName,
+                    color = accentColor,
+                    fontSize = 13.sp
+                )
+                if (source.url.isNotBlank()) {
+                    Text(
+                        source.url.take(50),
+                        color = Color.Gray,
+                        fontSize = 11.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            // زر التعديل
+            IconButton(
+                onClick = onEdit,
+                modifier = Modifier.size(48.dp)
+            ) {
+                Icon(
+                    Icons.Default.Edit,
+                    contentDescription = "تعديل",
+                    tint = Color.White,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+
+            // زر الحذف
+            IconButton(
+                onClick = onDelete,
+                modifier = Modifier.size(48.dp)
+            ) {
+                Icon(
+                    Icons.Default.Delete,
+                    contentDescription = "حذف",
+                    tint = Color(0xFFDA3633),
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+        }
+    }
+}
