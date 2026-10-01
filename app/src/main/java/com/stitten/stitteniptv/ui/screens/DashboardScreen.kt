@@ -221,3 +221,183 @@ fun DashboardScreen(
         )
     }
 }
+
+// ============== الشريط الجانبي ==============
+@Composable
+private fun SidebarContent(
+    currentTime: String,
+    sourceName: String,
+    showFavorites: Boolean,
+    onShowChannels: () -> Unit,
+    onShowFavorites: () -> Unit,
+    search: String,
+    onSearchChange: (String) -> Unit,
+    onSwitchSource: () -> Unit,
+    onRefresh: () -> Unit,
+    onSourcesClick: () -> Unit,
+    onSettingsClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .width(300.dp)
+            .fillMaxHeight()
+            .background(Color(0xFF161B22).copy(alpha = 0.9f))
+            .padding(16.dp)
+    ) {
+        Text(
+            "STTITEN IP TV",
+            color = MaterialTheme.colorScheme.primary,
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(currentTime, color = Color.White, fontSize = 15.sp)
+
+        if (sourceName.isNotEmpty()) {
+            Spacer(Modifier.height(6.dp))
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .tvFocusable(onSwitchSource),
+                colors = CardDefaults.cardColors(
+                    containerColor = Color(0xFF1F6FEB).copy(alpha = 0.2f)
+                ),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.SwapHoriz,
+                        contentDescription = "تبديل",
+                        tint = Color(0xFF58A6FF),
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            sourceName,
+                            color = Color.White,
+                            fontSize = 13.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            "اضغط للتبديل",
+                            color = Color.LightGray,
+                            fontSize = 10.sp
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        SidebarButton("📺 القنوات", !showFavorites, onShowChannels)
+        SidebarButton("❤️ المفضلة", showFavorites, onShowFavorites)
+
+        Spacer(Modifier.height(12.dp))
+
+        SidebarButton("🔄 تحديث القنوات", false, onRefresh)
+
+        Spacer(Modifier.height(16.dp))
+
+        OutlinedTextField(
+            value = search,
+            onValueChange = onSearchChange,
+            label = { Text("بحث", fontSize = 14.sp) },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
+        )
+
+        Spacer(Modifier.weight(1f))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            CustomIconButton(
+                iconRes = R.drawable.ic_sources_custom,
+                label = "المصادر",
+                onClick = onSourcesClick
+            )
+            CustomIconButton(
+                iconRes = R.drawable.ic_settings_custom,
+                label = "الإعدادات",
+                onClick = onSettingsClick
+            )
+        }
+    }
+}
+
+// ============== عرض القنوات ==============
+@Composable
+private fun ChannelsContent(
+    repo: ChannelRepository,
+    viewModel: MainViewModel,
+    search: String,
+    navController: NavHostController
+) {
+    var selectedPackage by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(search) {
+        if (search.isNotBlank()) selectedPackage = null
+    }
+
+    when {
+        search.isNotBlank() -> SearchResults(repo, viewModel, search, navController)
+        selectedPackage == null -> PackagesList(repo) { pkg ->
+            selectedPackage = pkg
+        }
+        else -> {
+            key(selectedPackage) {
+                PackageChannels(
+                    repo = repo,
+                    viewModel = viewModel,
+                    packageName = selectedPackage!!,
+                    navController = navController,
+                    onBack = { selectedPackage = null }
+                )
+            }
+        }
+    }
+}
+
+// ============== البحث ==============
+@Composable
+private fun SearchResults(
+    repo: ChannelRepository,
+    viewModel: MainViewModel,
+    search: String,
+    navController: NavHostController
+) {
+    val pagingItems = remember(search) {
+        repo.searchChannelsPaged(search)
+    }.collectAsLazyPagingItems()
+
+    LazyColumn(modifier = Modifier.fillMaxSize()) {
+        items(
+            count = pagingItems.itemCount,
+            key = { index ->
+                val entity = pagingItems.peek(index)
+                "search_${entity?.id ?: "item_$index"}"
+            }
+        ) { index ->
+            val entity = pagingItems[index]
+            if (entity != null) {
+                ChannelRowFromEntity(
+                    entity = entity,
+                    isFavorite = viewModel.favorites.isChannelFavorite(entity.id),
+                    onToggleFavorite = {
+                        viewModel.toggleChannelFavorite(entity.id, entity.name)
+                    },
+                    onClick = {
+                        navController.navigate(Routes.player(entity.url, entity.name))
+                    }
+                )
+            }
+        }
+    }
+}
