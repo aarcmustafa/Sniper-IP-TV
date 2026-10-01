@@ -2,6 +2,7 @@ package com.stitten.stitteniptv.data
 
 import okhttp3.ConnectionPool
 import okhttp3.OkHttpClient
+import okhttp3.Request
 import java.security.cert.X509Certificate
 import java.util.concurrent.TimeUnit
 import javax.net.ssl.SSLContext
@@ -10,86 +11,105 @@ import javax.net.ssl.X509TrustManager
 
 object HttpClientProvider {
 
-    private val connectionPool = ConnectionPool(
-        maxIdleConnections = 10,
-        keepAliveDuration = 5,
-        timeUnit = TimeUnit.MINUTES
-    )
+    // ============== SSL TrustAll ==============
+    private fun buildTrustManager(): X509TrustManager {
+        return object : X509TrustManager {
+            override fun checkClientTrusted(
+                chain: Array<X509Certificate>, authType: String
+            ) {}
 
-    val trustAllClient: OkHttpClient by lazy {
-        try {
-            val trustAllCerts = arrayOf<TrustManager>(object : X509TrustManager {
-                override fun checkClientTrusted(
-                    chain: Array<X509Certificate>, authType: String
-                ) {}
+            override fun checkServerTrusted(
+                chain: Array<X509Certificate>, authType: String
+            ) {}
 
-                override fun checkServerTrusted(
-                    chain: Array<X509Certificate>, authType: String
-                ) {}
-
-                override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
-            })
-            val sslContext = SSLContext.getInstance("TLS")
-            sslContext.init(null, trustAllCerts, java.security.SecureRandom())
-
-            OkHttpClient.Builder()
-                .connectTimeout(30, TimeUnit.SECONDS)
-                .readTimeout(120, TimeUnit.SECONDS)
-                .writeTimeout(30, TimeUnit.SECONDS)
-                .callTimeout(180, TimeUnit.SECONDS)
-                .connectionPool(connectionPool)
-                .retryOnConnectionFailure(true)
-                .dns(SmartDns)
-                .protocols(listOf(
-                    okhttp3.Protocol.HTTP_2,
-                    okhttp3.Protocol.HTTP_1_1
-                ))
-                .sslSocketFactory(
-                    sslContext.socketFactory,
-                    trustAllCerts[0] as X509TrustManager
-                )
-                .hostnameVerifier { _, _ -> true }
-                .followRedirects(true)
-                .followSslRedirects(true)
-                .build()
-        } catch (e: Exception) {
-            OkHttpClient.Builder()
-                .connectTimeout(30, TimeUnit.SECONDS)
-                .readTimeout(120, TimeUnit.SECONDS)
-                .callTimeout(180, TimeUnit.SECONDS)
-                .connectionPool(connectionPool)
-                .dns(SmartDns)
-                .retryOnConnectionFailure(true)
-                .build()
+            override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
         }
+    }
+
+    private fun buildSslContext(): SSLContext? {
+        return try {
+            val tm = buildTrustManager()
+            val ctx = SSLContext.getInstance("SSL")
+            ctx.init(null, arrayOf<TrustManager>(tm), java.security.SecureRandom())
+            ctx
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    // ============== عميل API (كما هو) ==============
+    val trustAllClient: OkHttpClient by lazy {
+        val sslContext = buildSslContext()
+        val tm = buildTrustManager()
+        OkHttpClient.Builder()
+            .connectTimeout(60, TimeUnit.SECONDS)
+            .readTimeout(180, TimeUnit.SECONDS)
+            .callTimeout(300, TimeUnit.SECONDS)
+            .sslSocketFactory(sslContext!!.socketFactory, tm)
+            .hostnameVerifier { _, _ -> true }
+            .followRedirects(true)
+            .followSslRedirects(true)
+            .retryOnConnectionFailure(true)
+            .build()
+    }
+
+    // ============== عميل البث (محسّن) ==============
+    /**
+     * عميل مخصص للبث:
+     * - ConnectionPool كبير (20 اتصال)
+     * - Keep-Alive طويل (10 دقائق)
+     * - مهلات قصيرة للاتصال (لتجنب التأخير)
+     * - مهلات طويلة للقراءة (للبث المستمر)
+     */
+    val streamingClient: OkHttpClient by lazy {
+        val sslContext = buildSslContext()
+        val tm = buildTrustManager()
+        OkHttpClient.Builder()
+            .connectionPool(ConnectionPool(20, 10, TimeUnit.MINUTES))
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .writeTimeout(15, TimeUnit.SECONDS)
+            .sslSocketFactory(sslContext!!.socketFactory, tm)
+            .hostnameVerifier { _, _ -> true }
+            .followRedirects(true)
+            .followSslRedirects(true)
+            .retryOnConnectionFailure(true)
+            .pingInterval(30, TimeUnit.SECONDS) // للحفاظ على الاتصال
+            .build()
     }
 
     fun getUserAgent(): String = "VLC/3.0.18 LibVLC/3.0.18"
 
-    suspend fun fetchText(url: String): Result<String> {
-        return try {
-            val request = okhttp3.Request.Builder()
-                .url(url)
-                .header("User-Agent", getUserAgent())
-                .header("Accept", "*/*")
-                .header("Accept-Encoding", "identity")
-                .header("Connection", "keep-alive")
-                .build()
+    // ============== حل 302 Redirect مسبقاً ==============
+    /**
+     * يقوم بطلب HEAD للحصول على الرابط النهائي
+     * يُستخدم لتخزين الرابط المباشر وتجنب 302 في كل طلب
+     */
+    suspend fun resolveRedirect(url: String): String {
+        return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                // إذا كان الرابط مباشراً بالفعل (IP)، لا نحتاج حل
+                if (url.contains("://") && url.substringAfter("://").substringBefore("/").matches(Regex("\\d+\\.\\d+\\.\\d+\\.\\d+.*"))) {
+                    return@withContext url
+                }
 
-            val response = trustAllClient.newCall(request).execute()
+                val request = Request.Builder()
+                    .url(url)
+                    .header("User-Agent", getUserAgent())
+                    .head()
+                    .build()
 
-            if (response.isSuccessful) {
-                val body = response.body?.string() ?: ""
+                val response = streamingClient.newCall(request).execute()
+                val finalUrl = response.request.url.toString()
                 response.close()
-                Result.success(body)
-            } else {
-                response.close()
-                Result.failure(Exception("HTTP ${response.code}"))
+
+                if (finalUrl != url && finalUrl.isNotBlank()) {
+                    finalUrl
+                } else {
+                    url
+                }
+            } catch (e: Exception) {
+                url
             }
-        } catch (e: Exception) {
-            Result.failure(e)
         }
     }
-
-    fun clearDnsCache() = SmartDns.clearCache()
-}
