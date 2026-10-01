@@ -36,7 +36,6 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
 import androidx.navigation.NavHostController
-import com.stitten.stitteniptv.data.ContentRepository
 import com.stitten.stitteniptv.data.ErrorLogger
 import com.stitten.stitteniptv.data.ExternalPlayerManager
 import com.stitten.stitteniptv.data.HttpClientProvider
@@ -63,8 +62,7 @@ fun PlayerScreen(
     var tracks by remember { mutableStateOf<Tracks?>(null) }
     var showTrackMenu by remember { mutableStateOf(false) }
     var isReconnecting by remember { mutableStateOf(false) }
-    var resolvedUrl by remember { mutableStateOf(url) }
-    var isResolving by remember { mutableStateOf(false) }
+    var isPrewarming by remember { mutableStateOf(true) }
 
     val entryPoint = remember {
         EntryPointAccessors.fromApplication(
@@ -81,33 +79,22 @@ fun PlayerScreen(
         url.contains("/live/") || url.endsWith(".ts") || url.endsWith(".m3u8")
     }
 
-    // ============== حل 302 Redirect ==============
+    // ============== Pre-warm Connection ==============
     LaunchedEffect(url) {
         if (isLive) {
-            // تحقق أولاً من الـ Cache
-            val cached = ContentRepository.getDirectUrl(url)
-            if (cached != null) {
-                resolvedUrl = cached
-                return@LaunchedEffect
-            }
-
-            // حل الرابط
-            isResolving = true
+            isPrewarming = true
             try {
-                val direct = HttpClientProvider.resolveRedirect(url)
-                if (direct != url) {
-                    ContentRepository.saveDirectUrl(url, direct)
-                    resolvedUrl = direct
-                }
-            } catch (e: Exception) {
-                // استخدام الرابط الأصلي
-            }
-            isResolving = false
+                HttpClientProvider.prewarmConnection(url)
+            } catch (e: Exception) { }
+            delay(150) // إعطاء وقت للـ DNS و TCP
+            isPrewarming = false
+        } else {
+            isPrewarming = false
         }
     }
 
-    val exoPlayer = remember(resolvedUrl) {
-        // ============== OkHttpDataSource للبث ==============
+    val exoPlayer = remember(url) {
+        // ============== OkHttpDataSource (مع Connection Pool) ==============
         val httpFactory = OkHttpDataSource.Factory(
             HttpClientProvider.streamingClient
         )
@@ -115,15 +102,29 @@ fun PlayerScreen(
             .setDefaultRequestProperties(
                 mapOf(
                     "Accept" to "*/*",
+                    "Accept-Encoding" to "identity",
                     "Connection" to "keep-alive"
                 )
             )
 
-        // ============== Buffer ضخم ==============
-        val minBufferMs = if (liteMode) 60_000 else 120_000    // 60s أو 120s
-        val maxBufferMs = if (liteMode) 120_000 else 300_000   // 120s أو 300s
-        val playbackBufferMs = 2500                             // ابدأ بعد 2.5 ثانية
-        val rebufferBufferMs = 10_000                           // استأنف بعد 10 ثوانٍ
+        // ============== Buffer ضخم جداً (للتعامل مع Connection: close) ==============
+        // المفتاح: Buffer كافٍ لتحمّل إعادة الاتصال TCP بين كل قطعة
+        val minBufferMs: Int
+        val maxBufferMs: Int
+        val targetBufferBytes: Int
+
+        if (liteMode) {
+            minBufferMs = 120_000      // 120 ثانية
+            maxBufferMs = 240_000      // 240 ثانية
+            targetBufferBytes = 40 * 1024 * 1024  // 40 MB
+        } else {
+            minBufferMs = 180_000      // 180 ثانية (3 دقائق!)
+            maxBufferMs = 360_000      // 360 ثانية (6 دقائق!)
+            targetBufferBytes = 150 * 1024 * 1024 // 150 MB
+        }
+
+        val playbackBufferMs = 3000     // ابدأ التشغيل بعد 3 ثوانٍ
+        val rebufferBufferMs = 15_000   // استئناف بعد 15 ثانية
 
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
@@ -132,17 +133,14 @@ fun PlayerScreen(
                 playbackBufferMs,
                 rebufferBufferMs
             )
-            .setTargetBufferBytes(
-                if (liteMode) 30 * 1024 * 1024  // 30 MB
-                else 100 * 1024 * 1024            // 100 MB
-            )
+            .setTargetBufferBytes(targetBufferBytes)
             .setPrioritizeTimeOverSizeThresholds(true)
-            .setBackBuffer(30_000, true)
+            .setBackBuffer(60_000, true)
             .build()
 
         val mediaSourceFactory = DefaultMediaSourceFactory(httpFactory)
         val mediaSource = mediaSourceFactory.createMediaSource(
-            MediaItem.fromUri(resolvedUrl)
+            MediaItem.fromUri(url)
         )
 
         val player = ExoPlayer.Builder(ctx)
@@ -159,12 +157,14 @@ fun PlayerScreen(
 
         player.addListener(object : Player.Listener {
             override fun onPlayerError(error: PlaybackException) {
-                if (retryCount < 3) {
+                if (retryCount < 5) {
                     retryCount++
                     val delayMs = when (retryCount) {
-                        1 -> 2000L
-                        2 -> 4000L
-                        else -> 8000L
+                        1 -> 1500L
+                        2 -> 3000L
+                        3 -> 5000L
+                        4 -> 8000L
+                        else -> 12000L
                     }
                     isReconnecting = true
                     scope.launch {
@@ -178,7 +178,7 @@ fun PlayerScreen(
                     }
                 } else {
                     isReconnecting = false
-                    errorMsg = "فشل التشغيل بعد 3 محاولات: ${error.message}"
+                    errorMsg = "فشل التشغيل بعد 5 محاولات: ${error.message}"
                     scope.launch {
                         errorLogger.log(url, error.message ?: "unknown", error.errorCode)
                     }
@@ -194,7 +194,7 @@ fun PlayerScreen(
                     Player.STATE_READY -> {
                         isReconnecting = false
                         scope.launch {
-                            delay(15_000)
+                            delay(30_000) // بعد 30 ثانية من التشغيل الناجح
                             if (player.playbackState == Player.STATE_READY && player.isPlaying) {
                                 retryCount = 0
                             }
@@ -323,8 +323,8 @@ fun PlayerScreen(
             }
         }
 
-        // مؤشر حل الرابط
-        if (isResolving) {
+        // مؤشر Pre-warming
+        if (isPrewarming) {
             Box(
                 modifier = Modifier
                     .align(Alignment.Center)
@@ -339,7 +339,7 @@ fun PlayerScreen(
                     )
                     Spacer(Modifier.width(12.dp))
                     Text(
-                        "🔍 جاري تجهيز البث...",
+                        "⚡ جاري تجهيز البث...",
                         color = Color.White,
                         fontSize = 16.sp
                     )
@@ -412,61 +412,5 @@ fun PlayerScreen(
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun TrackMenuOverlay(
-    tracks: Tracks,
-    exoPlayer: ExoPlayer,
-    onDismiss: () -> Unit
-) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(0.5f).padding(8.dp),
-        color = Color(0xEE161B22)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text("المسارات", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(8.dp))
-
-            tracks.groups.forEach { group ->
-                if (group.type == C.TRACK_TYPE_AUDIO || group.type == C.TRACK_TYPE_TEXT) {
-                    val type = if (group.type == C.TRACK_TYPE_AUDIO) "🎵 صوت" else "💬 ترجمة"
-                    Text(type, color = Color.Gray, fontSize = 14.sp)
-                    for (i in 0 until group.length) {
-                        val format = group.getTrackFormat(i)
-                        val label = format.label ?: format.language ?: "مسار $i"
-                        val selected = group.isTrackSelected(i)
-                        Text(
-                            "${if (selected) "✓" else "○"} $label",
-                            color = Color.White,
-                            fontSize = 14.sp,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp)
-                                .clickable {
-                                    exoPlayer.trackSelectionParameters =
-                                        exoPlayer.trackSelectionParameters
-                                            .buildUpon()
-                                            .setOverrideForType(
-                                                TrackSelectionOverride(group.mediaTrackGroup, i)
-                                            ).build()
-                                    onDismiss()
-                                }
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-private fun launchExternal(ctx: Context, url: String, settingsMgr: PlayerSettingsManager) {
-    val preferred = settingsMgr.externalPlayerPackage
-    if (preferred.isBlank()) {
-        ExternalPlayerManager.launchWithChooser(ctx, url)
-    } else {
-        val success = ExternalPlayerManager.launchInPackage(ctx, url, preferred)
-        if (!success) ExternalPlayerManager.launchWithChooser(ctx, url)
     }
 }
