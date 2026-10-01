@@ -31,7 +31,6 @@ import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
 import androidx.media3.datasource.DataSource
-import androidx.media3.datasource.TransferListener
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
@@ -70,6 +69,7 @@ fun PlayerScreen(
     var isReconnecting by remember { mutableStateOf(false) }
     var useHls by remember { mutableStateOf(true) }
     var playerRecreated by remember { mutableStateOf(0) }
+    var statusText by remember { mutableStateOf("") }
 
     val entryPoint = remember {
         EntryPointAccessors.fromApplication(
@@ -87,7 +87,8 @@ fun PlayerScreen(
     }
 
     val exoPlayer = remember(playerRecreated, useHls) {
-        // ============== DataSource ==============
+        isReconnecting = false
+
         val okHttpSource = OkHttpDataSource.Factory(
             HttpClientProvider.streamingClient
         )
@@ -100,36 +101,31 @@ fun PlayerScreen(
                 )
             )
 
-        // لف الـ OkHttpDataSource بـ RetryDataSource
         val dataSourceFactory = object : DataSource.Factory {
             override fun createDataSource(): DataSource {
                 return RetryDataSource(
                     okHttpSource.createDataSource(),
-                    maxRetries = 15,
+                    maxRetries = 20,
                     retryDelayMs = 200
                 )
             }
         }
 
-        // ============== اختيار نوع المصدر ==============
         val mediaSource: MediaSource = if (isLive && useHls) {
             StreamMediaSourceFactory.create(url, dataSourceFactory)
         } else {
             StreamMediaSourceFactory.createProgressive(url, dataSourceFactory)
         }
 
-        // ============== Buffer ضخم ==============
         val minBufferMs = if (liteMode) 120_000 else 180_000
         val maxBufferMs = if (liteMode) 240_000 else 360_000
-        val playbackBufferMs = 3000
-        val rebufferBufferMs = 15_000
 
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
                 minBufferMs,
                 maxBufferMs,
-                playbackBufferMs,
-                rebufferBufferMs
+                3000,
+                15_000
             )
             .setTargetBufferBytes(
                 if (liteMode) 40 * 1024 * 1024 else 150 * 1024 * 1024
@@ -138,20 +134,15 @@ fun PlayerScreen(
             .setBackBuffer(60_000, true)
             .build()
 
-        // ============== Load Error Handling: إعادة محاولة لا محدودة ==============
-        val errorPolicy = object : DefaultLoadErrorHandlingPolicy(15) {
+        val errorPolicy = object : DefaultLoadErrorHandlingPolicy(20) {
             override fun getRetryDelayMsFor(
                 loadErrorInfo: LoadErrorHandlingPolicy.LoadErrorInfo
             ): Long {
-                // تأخير تدريجي: 500ms، 1000ms، 1500ms...
                 val count = loadErrorInfo.errorCount
                 return (500L * count).coerceAtMost(5000L)
             }
 
-            override fun getMinimumLoadableRetryCount(dataType: Int): Int {
-                // إعادة محاولة لا محدودة تقريباً
-                return 20
-            }
+            override fun getMinimumLoadableRetryCount(dataType: Int): Int = 20
         }
 
         val player = ExoPlayer.Builder(ctx)
@@ -172,13 +163,14 @@ fun PlayerScreen(
 
         player.addListener(object : Player.Listener {
             override fun onPlayerError(error: PlaybackException) {
-                // إذا فشل مع HLS → جرّب TS
-                if (useHls && isLive && error.errorCode == PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED) {
+                if (useHls && isLive &&
+                    error.errorCode == PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED) {
                     useHls = false
                     playerRecreated++
                     return
                 }
-                if (!useHls && isLive && error.errorCode == PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED) {
+                if (!useHls && isLive &&
+                    error.errorCode == PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED) {
                     useHls = true
                     playerRecreated++
                     return
@@ -186,10 +178,9 @@ fun PlayerScreen(
 
                 if (retryCount < 5) {
                     retryCount++
-                    val delayMs = (1500L * retryCount).coerceAtMost(10_000L)
                     isReconnecting = true
                     scope.launch {
-                        delay(delayMs)
+                        delay((1500L * retryCount).coerceAtMost(10_000L))
                         try {
                             player.prepare()
                             player.play()
@@ -198,17 +189,8 @@ fun PlayerScreen(
                         isReconnecting = false
                     }
                 } else {
-                    // حاول إعادة إنشاء المشغل بالكامل
-                    if (retryCount < 7) {
-                        retryCount++
-                        playerRecreated++
-                    } else {
-                        isReconnecting = false
-                        errorMsg = "فشل التشغيل: ${error.message}"
-                        scope.launch {
-                            errorLogger.log(url, error.message ?: "unknown", error.errorCode)
-                        }
-                    }
+                    retryCount++
+                    playerRecreated++
                 }
             }
 
@@ -228,11 +210,10 @@ fun PlayerScreen(
                         }
                     }
                     Player.STATE_ENDED -> {
-                        // ✅ حالة مهمة: البث "انتهى" — أعد التشغيل من البداية
-                        // هذا هو الحل الرئيسي لمشكلة Connection: close!
                         if (isLive) {
+                            // البث "انتهى" وهمياً (Connection: close)
                             scope.launch {
-                                delay(500)
+                                delay(300)
                                 try {
                                     player.seekTo(0)
                                     player.prepare()
@@ -248,251 +229,3 @@ fun PlayerScreen(
         })
         player
     }
-    
-    LaunchedEffect(Unit) {
-        if (!prefs.useInternalPlayer) {
-            launchExternal(ctx, url, settingsMgr)
-            navController.popBackStack()
-        } else {
-            exoPlayer.prepare()
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        if (!isLive) {
-            while (true) {
-                delay(5000)
-                val pos = exoPlayer.currentPosition
-                val dur = exoPlayer.duration
-                if (pos > 0 && dur > 0 && pos < dur - 3000) {
-                    historyMgr.save(
-                        WatchHistoryEntity(
-                            contentId = url,
-                            contentType = "VOD",
-                            title = title,
-                            poster = "",
-                            url = url,
-                            positionMs = pos,
-                            durationMs = dur
-                        )
-                    )
-                }
-            }
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        if (!isLive) {
-            delay(1500)
-            val saved = historyMgr.getById(url)
-            if (saved != null && saved.positionMs > 5000) {
-                exoPlayer.seekTo(saved.positionMs)
-            }
-        }
-    }
-
-    DisposableEffect(Unit) {
-        onDispose { exoPlayer.release() }
-    }
-
-    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
-        AndroidView(
-            factory = { c ->
-                PlayerView(c).apply {
-                    player = exoPlayer
-                    useController = true
-                    setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
-                    setShowNextButton(false)
-                    setShowPreviousButton(false)
-                    setControllerShowTimeoutMs(4000)
-                }
-            },
-            modifier = Modifier.fillMaxSize()
-        )
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-                .align(Alignment.TopStart),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = { navController.popBackStack() }) {
-                Icon(Icons.Default.ArrowBack, contentDescription = null, tint = Color.White)
-            }
-            Text(
-                title,
-                color = Color.White,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1
-            )
-            Spacer(Modifier.weight(1f))
-
-            // زر التبديل بين HLS و TS يدوياً
-            TextButton(onClick = {
-                useHls = !useHls
-                playerRecreated++
-            }) {
-                Text(
-                    if (useHls) "HLS" else "TS",
-                    color = Color(0xFF58A6FF),
-                    fontSize = 12.sp
-                )
-            }
-
-            IconButton(onClick = {
-                isReconnecting = true
-                retryCount = 0
-                exoPlayer.prepare()
-                exoPlayer.play()
-                scope.launch {
-                    delay(2000)
-                    isReconnecting = false
-                }
-            }) {
-                Icon(Icons.Default.Refresh, contentDescription = "إعادة التشغيل", tint = Color.White)
-            }
-
-            if (!liteMode && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                IconButton(onClick = {
-                    val activity = ctx as? android.app.Activity
-                    activity?.enterPictureInPictureMode(
-                        PictureInPictureParams.Builder()
-                            .setAspectRatio(Rational(16, 9)).build()
-                    )
-                }) {
-                    Icon(Icons.Default.AspectRatio, contentDescription = "PiP", tint = Color.White)
-                }
-            }
-
-            IconButton(onClick = { showTrackMenu = !showTrackMenu }) {
-                Icon(Icons.Default.Subtitles, contentDescription = "ترجمات", tint = Color.White)
-            }
-
-            TextButton(onClick = { launchExternal(ctx, url, settingsMgr) }) {
-                Text("مشغل خارجي", color = Color.White, fontSize = 16.sp)
-            }
-        }
-
-        if (isReconnecting) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .background(Color(0xCC000000), shape = MaterialTheme.shapes.medium)
-                    .padding(20.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(
-                        color = Color.White,
-                        modifier = Modifier.size(28.dp),
-                        strokeWidth = 3.dp
-                    )
-                    Spacer(Modifier.width(12.dp))
-                    Text(
-                        "🔄 جاري إعادة الاتصال...",
-                        color = Color.White,
-                        fontSize = 16.sp
-                    )
-                }
-            }
-        }
-
-        if (showTrackMenu && tracks != null) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(top = 80.dp, end = 16.dp),
-                contentAlignment = Alignment.TopEnd
-            ) {
-                TrackMenuOverlay(
-                    tracks = tracks!!,
-                    exoPlayer = exoPlayer,
-                    onDismiss = { showTrackMenu = false }
-                )
-            }
-        }
-
-        errorMsg?.let { msg ->
-            Card(
-                modifier = Modifier.align(Alignment.Center).padding(24.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF21262D))
-            ) {
-                Column(
-                    Modifier.padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(msg, color = Color.White, fontSize = 18.sp)
-                    Spacer(Modifier.height(12.dp))
-                    Row {
-                        Button(onClick = {
-                            errorMsg = null
-                            retryCount = 0
-                            playerRecreated++
-                        }) { Text("إعادة إنشاء المشغل") }
-                        Spacer(Modifier.width(8.dp))
-                        Button(onClick = { launchExternal(ctx, url, settingsMgr) }) {
-                            Text("مشغل خارجي")
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun TrackMenuOverlay(
-    tracks: Tracks,
-    exoPlayer: ExoPlayer,
-    onDismiss: () -> Unit
-) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(0.5f).padding(8.dp),
-        color = Color(0xEE161B22)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text("المسارات", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(8.dp))
-
-            tracks.groups.forEach { group ->
-                if (group.type == C.TRACK_TYPE_AUDIO || group.type == C.TRACK_TYPE_TEXT) {
-                    val type = if (group.type == C.TRACK_TYPE_AUDIO) "🎵 صوت" else "💬 ترجمة"
-                    Text(type, color = Color.Gray, fontSize = 14.sp)
-                    for (i in 0 until group.length) {
-                        val format = group.getTrackFormat(i)
-                        val label = format.label ?: format.language ?: "مسار $i"
-                        val selected = group.isTrackSelected(i)
-                        Text(
-                            "${if (selected) "✓" else "○"} $label",
-                            color = Color.White,
-                            fontSize = 14.sp,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp)
-                                .clickable {
-                                    exoPlayer.trackSelectionParameters =
-                                        exoPlayer.trackSelectionParameters
-                                            .buildUpon()
-                                            .setOverrideForType(
-                                                TrackSelectionOverride(group.mediaTrackGroup, i)
-                                            ).build()
-                                    onDismiss()
-                                }
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-private fun launchExternal(ctx: Context, url: String, settingsMgr: PlayerSettingsManager) {
-    val preferred = settingsMgr.externalPlayerPackage
-    if (preferred.isBlank()) {
-        ExternalPlayerManager.launchWithChooser(ctx, url)
-    } else {
-        val success = ExternalPlayerManager.launchInPackage(ctx, url, preferred)
-        if (!success) ExternalPlayerManager.launchWithChooser(ctx, url)
-    }
-}
