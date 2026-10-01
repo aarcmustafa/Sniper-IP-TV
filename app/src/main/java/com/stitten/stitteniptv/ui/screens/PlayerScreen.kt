@@ -2,14 +2,13 @@ package com.stitten.stitteniptv.ui.screens
 
 import android.app.PictureInPictureParams
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.util.Rational
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.AspectRatio
@@ -19,13 +18,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -37,19 +30,13 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
-import androidx.media3.datasource.DefaultHttpDataSource
-import androidx.media3.datasource.cache.CacheDataSource
+import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
-import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
-import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
-import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
-import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy
-import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import androidx.navigation.NavHostController
-import com.stitten.stitteniptv.data.AdaptiveBuffer
+import com.stitten.stitteniptv.data.ContentRepository
 import com.stitten.stitteniptv.data.ErrorLogger
 import com.stitten.stitteniptv.data.ExternalPlayerManager
 import com.stitten.stitteniptv.data.HttpClientProvider
@@ -57,7 +44,6 @@ import com.stitten.stitteniptv.data.PlayerSettingsManager
 import com.stitten.stitteniptv.data.PrefsManager
 import com.stitten.stitteniptv.data.WatchHistoryManager
 import com.stitten.stitteniptv.database.entity.WatchHistoryEntity
-import com.stitten.stitteniptv.player.CacheManager
 import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -73,10 +59,12 @@ fun PlayerScreen(
     val liteMode = prefs.liteModeEnabled
 
     var errorMsg by remember { mutableStateOf<String?>(null) }
+    var retryCount by remember { mutableStateOf(0) }
     var tracks by remember { mutableStateOf<Tracks?>(null) }
     var showTrackMenu by remember { mutableStateOf(false) }
-    var aspectRatioMode by remember { mutableStateOf(0) }
-    var retryCount by remember { mutableStateOf(0) }
+    var isReconnecting by remember { mutableStateOf(false) }
+    var resolvedUrl by remember { mutableStateOf(url) }
+    var isResolving by remember { mutableStateOf(false) }
 
     val entryPoint = remember {
         EntryPointAccessors.fromApplication(
@@ -93,98 +81,78 @@ fun PlayerScreen(
         url.contains("/live/") || url.endsWith(".ts") || url.endsWith(".m3u8")
     }
 
-    val exoPlayer = remember {
-        val httpFactory = DefaultHttpDataSource.Factory()
+    // ============== حل 302 Redirect ==============
+    LaunchedEffect(url) {
+        if (isLive) {
+            // تحقق أولاً من الـ Cache
+            val cached = ContentRepository.getDirectUrl(url)
+            if (cached != null) {
+                resolvedUrl = cached
+                return@LaunchedEffect
+            }
+
+            // حل الرابط
+            isResolving = true
+            try {
+                val direct = HttpClientProvider.resolveRedirect(url)
+                if (direct != url) {
+                    ContentRepository.saveDirectUrl(url, direct)
+                    resolvedUrl = direct
+                }
+            } catch (e: Exception) {
+                // استخدام الرابط الأصلي
+            }
+            isResolving = false
+        }
+    }
+
+    val exoPlayer = remember(resolvedUrl) {
+        // ============== OkHttpDataSource للبث ==============
+        val httpFactory = OkHttpDataSource.Factory(
+            HttpClientProvider.streamingClient
+        )
             .setUserAgent(HttpClientProvider.getUserAgent())
-            .setAllowCrossProtocolRedirects(true)
-            .setConnectTimeoutMs(30_000)
-            .setReadTimeoutMs(60_000)
+            .setDefaultRequestProperties(
+                mapOf(
+                    "Accept" to "*/*",
+                    "Connection" to "keep-alive"
+                )
+            )
 
-        val dataSourceFactory = if (isLive) {
-            httpFactory
-        } else {
-            val cache = CacheManager.get(ctx, liteMode)
-            CacheDataSource.Factory()
-                .setCache(cache)
-                .setUpstreamDataSourceFactory(httpFactory)
-                .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
-        }
-
-        val minBufferMs = if (isLive) {
-            AdaptiveBuffer.getMinBufferMs(ctx, liteMode)
-        } else {
-            30_000
-        }
-        val maxBufferMs = if (isLive) {
-            AdaptiveBuffer.getMaxBufferMs(ctx, liteMode)
-        } else {
-            60_000
-        }
+        // ============== Buffer ضخم ==============
+        val minBufferMs = if (liteMode) 60_000 else 120_000    // 60s أو 120s
+        val maxBufferMs = if (liteMode) 120_000 else 300_000   // 120s أو 300s
+        val playbackBufferMs = 2500                             // ابدأ بعد 2.5 ثانية
+        val rebufferBufferMs = 10_000                           // استأنف بعد 10 ثوانٍ
 
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
                 minBufferMs,
                 maxBufferMs,
-                AdaptiveBuffer.getPlaybackBufferMs(liteMode),
-                AdaptiveBuffer.getRebufferBufferMs(liteMode)
+                playbackBufferMs,
+                rebufferBufferMs
             )
             .setTargetBufferBytes(
-                AdaptiveBuffer.getTargetBufferBytes(liteMode)
+                if (liteMode) 30 * 1024 * 1024  // 30 MB
+                else 100 * 1024 * 1024            // 100 MB
             )
-            .setPrioritizeTimeOverSizeThresholds(false)
-            .setBackBuffer(AdaptiveBuffer.getBackBufferMs(liteMode), true)
+            .setPrioritizeTimeOverSizeThresholds(true)
+            .setBackBuffer(30_000, true)
             .build()
 
-        val loadErrorPolicy = object : DefaultLoadErrorHandlingPolicy(10) {
-            override fun getRetryDelayMsFor(
-                loadErrorInfo: LoadErrorHandlingPolicy.LoadErrorInfo
-            ): Long {
-                return (loadErrorInfo.errorCount * 500L).coerceAtMost(5000L)
-            }
+        val mediaSourceFactory = DefaultMediaSourceFactory(httpFactory)
+        val mediaSource = mediaSourceFactory.createMediaSource(
+            MediaItem.fromUri(resolvedUrl)
+        )
 
-            override fun getMinimumLoadableRetryCount(dataType: Int): Int {
-                return 10
-            }
-        }
-
-        val mediaSourceFactory = DefaultMediaSourceFactory(dataSourceFactory)
-            .setLoadErrorHandlingPolicy(loadErrorPolicy)
-
-        val renderersFactory = DefaultRenderersFactory(ctx)
-            .setEnableDecoderFallback(true)
-            .setExtensionRendererMode(
-                DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER
-            )
-            .forceEnableMediaCodecAsynchronousQueueing()
-
-        val trackSelector = DefaultTrackSelector(ctx).apply {
-            setParameters(
-                buildUponParameters()
-                    .setPreferredAudioLanguage(settingsMgr.preferredAudioLanguage)
-                    .setPreferredTextLanguage(settingsMgr.preferredSubtitleLanguage)
-                    .setExceedRendererCapabilitiesIfNecessary(true)
-                    .setExceedVideoConstraintsIfNecessary(true)
-                    .setAllowVideoMixedMimeTypeAdaptiveness(true)
-                    .setAllowVideoNonSeamlessAdaptiveness(true)
-                    .setForceHighestSupportedBitrate(false)
-                    .build()
-            )
-        }
-
-        val player = ExoPlayer.Builder(ctx, renderersFactory)
-            .setTrackSelector(trackSelector)
+        val player = ExoPlayer.Builder(ctx)
             .setLoadControl(loadControl)
-            .setMediaSourceFactory(mediaSourceFactory)
             .setSeekBackIncrementMs(10_000)
             .setSeekForwardIncrementMs(10_000)
             .setHandleAudioBecomingNoisy(true)
             .setWakeMode(C.WAKE_MODE_NETWORK)
-            .setVideoScalingMode(C.VIDEO_SCALING_MODE_SCALE_TO_FIT)
+            .setPauseAtEndOfMediaItems(false)
             .build()
-
-        val mediaSource = mediaSourceFactory.createMediaSource(
-            MediaItem.fromUri(url)
-        )
 
         player.setMediaSource(mediaSource)
         player.playWhenReady = true
@@ -193,13 +161,24 @@ fun PlayerScreen(
             override fun onPlayerError(error: PlaybackException) {
                 if (retryCount < 3) {
                     retryCount++
+                    val delayMs = when (retryCount) {
+                        1 -> 2000L
+                        2 -> 4000L
+                        else -> 8000L
+                    }
+                    isReconnecting = true
                     scope.launch {
-                        delay(2000L * retryCount)
-                        player.prepare()
-                        player.play()
+                        delay(delayMs)
+                        try {
+                            player.prepare()
+                            player.play()
+                        } catch (e: Exception) { }
+                        delay(2000)
+                        isReconnecting = false
                     }
                 } else {
-                    errorMsg = "تعذّر التشغيل: ${error.message}"
+                    isReconnecting = false
+                    errorMsg = "فشل التشغيل بعد 3 محاولات: ${error.message}"
                     scope.launch {
                         errorLogger.log(url, error.message ?: "unknown", error.errorCode)
                     }
@@ -211,334 +190,21 @@ fun PlayerScreen(
             }
 
             override fun onPlaybackStateChanged(state: Int) {
-                if (state == Player.STATE_READY) {
-                    retryCount = 0
-                }
-                if (state == Player.STATE_ENDED) {
-                    scope.launch { historyMgr.delete(url) }
+                when (state) {
+                    Player.STATE_READY -> {
+                        isReconnecting = false
+                        scope.launch {
+                            delay(15_000)
+                            if (player.playbackState == Player.STATE_READY && player.isPlaying) {
+                                retryCount = 0
+                            }
+                        }
+                    }
+                    Player.STATE_ENDED -> {
+                        scope.launch { historyMgr.delete(url) }
+                    }
                 }
             }
         })
         player
     }
-    
-    LaunchedEffect(Unit) {
-        exoPlayer.prepare()
-    }
-
-    LaunchedEffect(Unit) {
-        if (!isLive) {
-            while (true) {
-                delay(5000)
-                val pos = exoPlayer.currentPosition
-                val dur = exoPlayer.duration
-                if (pos > 0 && dur > 0 && pos < dur - 3000) {
-                    historyMgr.save(
-                        WatchHistoryEntity(
-                            contentId = url,
-                            contentType = "VOD",
-                            title = title,
-                            poster = "",
-                            url = url,
-                            positionMs = pos,
-                            durationMs = dur
-                        )
-                    )
-                }
-            }
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        if (!isLive) {
-            delay(1500)
-            val saved = historyMgr.getById(url)
-            if (saved != null && saved.positionMs > 5000) {
-                exoPlayer.seekTo(saved.positionMs)
-            }
-        }
-    }
-
-    DisposableEffect(Unit) {
-        onDispose { exoPlayer.release() }
-    }
-
-    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
-
-        AndroidView(
-            factory = { c ->
-                PlayerView(c).apply {
-                    player = exoPlayer
-                    useController = true
-                    setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
-                    setShowNextButton(false)
-                    setShowPreviousButton(false)
-                    setControllerShowTimeoutMs(4000)
-                    setControllerAutoShow(true)
-                    setControllerHideDuringAds(false)
-                    resizeMode = when (aspectRatioMode) {
-                        0 -> AspectRatioFrameLayout.RESIZE_MODE_FIT
-                        1 -> AspectRatioFrameLayout.RESIZE_MODE_FILL
-                        2 -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                        else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
-                    }
-                }
-            },
-            update = { view ->
-                view.resizeMode = when (aspectRatioMode) {
-                    0 -> AspectRatioFrameLayout.RESIZE_MODE_FIT
-                    1 -> AspectRatioFrameLayout.RESIZE_MODE_FILL
-                    2 -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                    else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
-                }
-            },
-            modifier = Modifier.fillMaxSize()
-        )
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-                .align(Alignment.TopStart),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = { navController.popBackStack() }) {
-                Icon(Icons.Default.ArrowBack, contentDescription = null, tint = Color.White)
-            }
-            Text(
-                title,
-                color = Color.White,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1
-            )
-            Spacer(Modifier.weight(1f))
-
-            IconButton(onClick = {
-                aspectRatioMode = (aspectRatioMode + 1) % 3
-            }) {
-                Icon(
-                    Icons.Default.AspectRatio,
-                    contentDescription = "أبعاد الشاشة",
-                    tint = Color.White
-                )
-            }
-
-            IconButton(onClick = { showTrackMenu = !showTrackMenu }) {
-                Icon(
-                    Icons.Default.Subtitles,
-                    contentDescription = "ترجمات",
-                    tint = Color.White
-                )
-            }
-
-            IconButton(onClick = {
-                retryCount = 0
-                errorMsg = null
-                exoPlayer.seekTo(exoPlayer.currentPosition)
-                exoPlayer.prepare()
-                exoPlayer.play()
-            }) {
-                Icon(
-                    Icons.Default.Refresh,
-                    contentDescription = "إعادة",
-                    tint = Color.White
-                )
-            }
-
-            if (!liteMode && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                IconButton(onClick = {
-                    val activity = ctx as? android.app.Activity
-                    activity?.enterPictureInPictureMode(
-                        PictureInPictureParams.Builder()
-                            .setAspectRatio(Rational(16, 9)).build()
-                    )
-                }) {
-                    Text("PiP", color = Color.White, fontSize = 14.sp)
-                }
-            }
-        }
-
-        if (showTrackMenu && tracks != null) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(top = 80.dp, end = 16.dp),
-                contentAlignment = Alignment.TopEnd
-            ) {
-                TrackMenuOverlay(
-                    tracks = tracks!!,
-                    exoPlayer = exoPlayer,
-                    onDismiss = { showTrackMenu = false }
-                )
-            }
-        }
-
-        errorMsg?.let { msg ->
-            Card(
-                modifier = Modifier.align(Alignment.Center).padding(24.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF21262D))
-            ) {
-                Column(
-                    Modifier.padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(msg, color = Color.White, fontSize = 18.sp)
-                    Spacer(Modifier.height(12.dp))
-                    Row {
-                        Button(onClick = {
-                            errorMsg = null
-                            retryCount = 0
-                            exoPlayer.prepare()
-                            exoPlayer.play()
-                        }) { Text("إعادة المحاولة") }
-                        Spacer(Modifier.width(8.dp))
-                        Button(onClick = {
-                            val preferred = settingsMgr.externalPlayerPackage
-                            if (preferred.isBlank()) {
-                                ExternalPlayerManager.launchWithChooser(ctx, url)
-                            } else {
-                                ExternalPlayerManager.launchInPackage(ctx, url, preferred)
-                            }
-                        }) { Text("مشغل خارجي") }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun TrackMenuOverlay(
-    tracks: Tracks,
-    exoPlayer: ExoPlayer,
-    onDismiss: () -> Unit
-) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(0.55f).padding(8.dp),
-        color = Color(0xEE161B22),
-        shape = RoundedCornerShape(12.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .padding(16.dp)
-                .heightIn(max = 500.dp)
-        ) {
-            Text(
-                "🎛️ المسارات",
-                color = Color.White,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(Modifier.height(12.dp))
-
-            var hasAudio = false
-            var hasText = false
-
-            tracks.groups.forEach { group ->
-                if (group.type == C.TRACK_TYPE_AUDIO) hasAudio = true
-                if (group.type == C.TRACK_TYPE_TEXT) hasText = true
-            }
-
-            if (!hasAudio && !hasText) {
-                Text(
-                    "لا توجد مسارات إضافية",
-                    color = Color.Gray,
-                    fontSize = 14.sp
-                )
-            }
-
-            tracks.groups.forEach { group ->
-                if (group.type == C.TRACK_TYPE_AUDIO ||
-                    group.type == C.TRACK_TYPE_TEXT
-                ) {
-                    val typeLabel = if (group.type == C.TRACK_TYPE_AUDIO)
-                        "🎵 الصوت" else "💬 الترجمة"
-
-                    Text(
-                        typeLabel,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(Modifier.height(4.dp))
-
-                    for (i in 0 until group.length) {
-                        val format = group.getTrackFormat(i)
-                        val label = format.label
-                            ?: format.language
-                            ?: "مسار $i"
-                        val selected = group.isTrackSelected(i)
-
-                        TrackItem(
-                            label = label,
-                            selected = selected,
-                            onClick = {
-                                exoPlayer.trackSelectionParameters =
-                                    exoPlayer.trackSelectionParameters
-                                        .buildUpon()
-                                        .setOverrideForType(
-                                            TrackSelectionOverride(
-                                                group.mediaTrackGroup, i
-                                            )
-                                        ).build()
-                                onDismiss()
-                            }
-                        )
-                    }
-                    Spacer(Modifier.height(8.dp))
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun TrackItem(
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit
-) {
-    var isFocused by remember { mutableStateOf(false) }
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 2.dp)
-            .border(
-                width = if (isFocused) 2.dp else 0.dp,
-                color = if (isFocused) Color(0xFF58A6FF) else Color.Transparent,
-                shape = RoundedCornerShape(6.dp)
-            )
-            .background(
-                color = if (isFocused) Color(0xFF21262D) else Color.Transparent,
-                shape = RoundedCornerShape(6.dp)
-            )
-            .focusable()
-            .onFocusChanged { isFocused = it.isFocused }
-            .onKeyEvent { event ->
-                if (event.type == KeyEventType.KeyUp &&
-                    (event.key == Key.DirectionCenter || event.key == Key.Enter)
-                ) {
-                    onClick()
-                    true
-                } else false
-            }
-            .clickable(onClick = onClick)
-            .padding(10.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            if (selected) "●" else "○",
-            color = if (selected) Color(0xFF238636) else Color.Gray,
-            fontSize = 16.sp
-        )
-        Spacer(Modifier.width(10.dp))
-        Text(
-            label,
-            color = Color.White,
-            fontSize = 14.sp,
-            maxLines = 1
-        )
-    }
-}
