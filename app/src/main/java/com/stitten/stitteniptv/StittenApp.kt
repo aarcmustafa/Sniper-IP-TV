@@ -7,30 +7,47 @@ import coil.disk.DiskCache
 import coil.memory.MemoryCache
 import com.stitten.stitteniptv.data.DeviceCapabilityDetector
 import com.stitten.stitteniptv.data.PrefsManager
+import com.stitten.stitteniptv.data.WatchHistoryManager
 import dagger.hilt.android.HiltAndroidApp
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 @HiltAndroidApp
 class StittenApp : Application(), ImageLoaderFactory {
 
+    @Inject
+    lateinit var watchHistoryManager: WatchHistoryManager
+
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     override fun onCreate() {
         super.onCreate()
         performAutoDetection()
+        performStartupCleanup()
     }
 
     private fun performAutoDetection() {
         val prefs = PrefsManager(this)
-
         if (prefs.autoDetectionDone) return
 
         val capability = DeviceCapabilityDetector.detect(this)
-
         prefs.autoDetectionDone = true
         prefs.deviceIsLowEnd = capability.isLowEnd
         prefs.deviceCapabilityInfo = capability.reason
 
-        // تفعيل صامت — بدون إشعار
         if (capability.isLowEnd && !prefs.userDisabledLiteMode) {
             prefs.liteModeEnabled = true
+        }
+    }
+
+    private fun performStartupCleanup() {
+        appScope.launch {
+            try {
+                watchHistoryManager.performFullCleanup()
+            } catch (e: Exception) { }
         }
     }
 
