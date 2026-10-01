@@ -67,7 +67,7 @@ class PrefsManager(context: Context) {
     var streamFormat: String
         get() = prefs.getString("stream_format", "ts") ?: "ts"
         set(value) = prefs.edit().putString("stream_format", value).apply()
-        
+
     // ============== Lite Mode ==============
     var liteModeEnabled: Boolean
         get() = prefs.getBoolean("lite_mode", false)
@@ -88,11 +88,6 @@ class PrefsManager(context: Context) {
     var userDisabledLiteMode: Boolean
         get() = prefs.getBoolean("user_disabled_lite", false)
         set(value) = prefs.edit().putBoolean("user_disabled_lite", value).apply()
-
-    // ============== تسجيل الاتصال ==============
-    var xtreamLoggingEnabled: Boolean
-        get() = prefs.getBoolean("xtream_logging", false)
-        set(value) = prefs.edit().putBoolean("xtream_logging", value).apply()
 
     fun clear() {
         prefs.edit().clear().apply()
