@@ -540,3 +540,111 @@ private fun ChannelRowFromEntity(
         }
     }
 }
+
+// ============== Loading — مرة واحدة فقط ==============
+@Composable
+private fun LoadingOverlay(progress: Int, message: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.9f)),
+        contentAlignment = Alignment.Center
+    ) {
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF161B22)),
+            modifier = Modifier.width(500.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(32.dp).fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.size(180.dp)) {
+                    CircularProgressIndicator(
+                        progress = { progress / 100f },
+                        modifier = Modifier.size(180.dp),
+                        color = MaterialTheme.colorScheme.primary,
+                        strokeWidth = 12.dp,
+                        trackColor = Color(0xFF21262D)
+                    )
+                    Text(
+                        "$progress%",
+                        color = Color.White,
+                        fontSize = 44.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Spacer(Modifier.height(24.dp))
+                Text(
+                    message.ifBlank { "جاري التحميل..." },
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Medium,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(Modifier.height(16.dp))
+                LinearProgressIndicator(
+                    progress = { progress / 100f },
+                    modifier = Modifier.fillMaxWidth().height(8.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = Color(0xFF21262D)
+                )
+            }
+        }
+    }
+}
+
+// ============== المكونات المساعدة ==============
+@Composable
+private fun RowScope.CustomIconButton(
+    iconRes: Int,
+    label: String,
+    onClick: () -> Unit
+) {
+    var isFocused by remember { mutableStateOf(false) }
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .weight(1f)
+            .clip(RoundedCornerShape(12.dp))
+            .border(
+                width = if (isFocused) 2.dp else 1.dp,
+                color = if (isFocused) Color(0xFF58A6FF) else Color(0xFF30363D),
+                shape = RoundedCornerShape(12.dp)
+            )
+            .background(
+                color = if (isFocused) Color(0xFF1F6FEB).copy(alpha = 0.3f)
+                else Color(0xFF161B22)
+            )
+            .clickable(onClick = onClick)
+            .onFocusChanged { isFocused = it.isFocused }
+            .padding(vertical = 12.dp)
+    ) {
+        Icon(
+            painter = painterResource(id = iconRes),
+            contentDescription = label,
+            tint = if (isFocused) Color(0xFF58A6FF) else Color.White,
+            modifier = Modifier.size(32.dp)
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            label,
+            color = if (isFocused) Color(0xFF58A6FF) else Color.White,
+            fontSize = 12.sp,
+            fontWeight = if (isFocused) FontWeight.Bold else FontWeight.Normal
+        )
+    }
+}
+
+@Composable
+private fun SidebarButton(text: String, selected: Boolean, onClick: () -> Unit) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = if (selected) MaterialTheme.colorScheme.primary
+            else Color(0xFF21262D),
+            contentColor = Color.White
+        )
+    ) { Text(text, fontSize = 16.sp) }
+}
