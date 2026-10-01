@@ -1,40 +1,40 @@
 package com.stitten.stitteniptv.ui.screens
 
-import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.stitten.stitteniptv.R
-import com.stitten.stitteniptv.data.PrefsManager
-import com.stitten.stitteniptv.data.XtreamLogger
+import com.stitten.stitteniptv.database.entity.SourceEntity
 import com.stitten.stitteniptv.ui.navigation.Routes
 import com.stitten.stitteniptv.viewmodel.MainViewModel
+import dagger.hilt.android.EntryPointAccessors
 
 @Composable
 fun LoginScreen(
@@ -42,32 +42,20 @@ fun LoginScreen(
     viewModel: MainViewModel = viewModel()
 ) {
     val ctx = LocalContext.current
-    val prefs = remember { PrefsManager(ctx) }
-    var mode by remember { mutableStateOf(0) }
-    var m3uUrl by remember { mutableStateOf("") }
-    var server by remember { mutableStateOf("") }
-    var user by remember { mutableStateOf("") }
-    var pass by remember { mutableStateOf("") }
-    var message by remember { mutableStateOf("") }
-    var showPassword by remember { mutableStateOf(false) }
-    var logEnabled by remember { mutableStateOf(prefs.xtreamLoggingEnabled) }
-
+    val entryPoint = remember {
+        EntryPointAccessors.fromApplication(
+            ctx.applicationContext,
+            PlayerEntryPoint::class.java
+        )
+    }
+    val sourceMgr = entryPoint.sourceManager()
+    val sources by sourceMgr.getAll().collectAsState(initial = emptyList())
     val uiState by viewModel.uiState.collectAsState()
 
-    val filePicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        uri?.let {
-            val content = ctx.contentResolver.openInputStream(it)
-                ?.bufferedReader()?.readText() ?: ""
-            viewModel.loginM3u("", content) { ok ->
-                if (ok) navController.navigate(Routes.DASHBOARD)
-                else message = "فشل تحميل الملف"
-            }
-        }
-    }
+    var confirmDelete by remember { mutableStateOf<SourceEntity?>(null) }
 
     Box(modifier = Modifier.fillMaxSize()) {
+        // الخلفية
         Image(
             painter = painterResource(id = R.drawable.bg_main),
             contentDescription = null,
@@ -77,221 +65,255 @@ fun LoginScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.5f))
+                .background(Color.Black.copy(alpha = 0.75f))
         )
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(32.dp)
-                .verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(
-                "STTITEN IP TV",
-                color = Color.White,
-                fontSize = 42.sp,
-                fontWeight = FontWeight.Bold
+        // المحتوى
+        if (sources.isEmpty()) {
+            WelcomeScreen(
+                onAddXtream = { navController.navigate(Routes.ADD_SOURCE + "?type=XTREAM") },
+                onAddM3u = { navController.navigate(Routes.ADD_SOURCE + "?type=M3U") }
             )
-            Spacer(Modifier.height(8.dp))
-            Text("اختر طريقة تسجيل الدخول", color = Color.White, fontSize = 18.sp)
-            Spacer(Modifier.height(32.dp))
+        } else {
+            AccountsListScreen(
+                sources = sources,
+                onPickSource = { source ->
+                    viewModel.switchSource(source)
+                    navController.navigate(Routes.DASHBOARD) {
+                        popUpTo(Routes.LOGIN) { inclusive = false }
+                    }
+                },
+                onAddNew = { navController.navigate(Routes.ADD_SOURCE) },
+                onEdit = { source ->
+                    navController.navigate(Routes.addSourceEdit(source.id))
+                },
+                onDelete = { source -> confirmDelete = source },
+                isLoading = uiState.isLoading,
+                loadingMessage = uiState.loadingMessage
+            )
+        }
 
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-                TabButton("M3U Online", mode == 0) { mode = 0 }
-                Spacer(Modifier.width(12.dp))
-                TabButton("M3U Local", mode == 1) { mode = 1 }
-                Spacer(Modifier.width(12.dp))
-                TabButton("Xtream API", mode == 2) { mode = 2 }
-            }
-            Spacer(Modifier.height(32.dp))
-            
-            when (mode) {
-                0 -> {
-                    OutlinedTextField(
-                        value = m3uUrl,
-                        onValueChange = { m3uUrl = it },
-                        label = { Text("رابط M3U / M3U8") },
-                        placeholder = { Text("http://example.com/list.m3u") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
+        // Loading Overlay
+        if (uiState.isLoading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.9f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator(
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(64.dp)
                     )
-                    Spacer(Modifier.height(20.dp))
-                    Button(
-                        onClick = {
-                            if (m3uUrl.isBlank()) { message = "أدخل الرابط"; return@Button }
-                            viewModel.loginM3u(m3uUrl) { ok ->
-                                if (ok) navController.navigate(Routes.DASHBOARD)
-                                else message = "فشل تحميل الرابط"
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) { Text("تحميل", fontSize = 18.sp) }
-                }
-                1 -> {
-                    Text(
-                        "اختر ملف M3U من ذاكرة الجهاز أو USB",
-                        color = Color.White,
-                        fontSize = 18.sp
-                    )
-                    Spacer(Modifier.height(20.dp))
-                    Button(
-                        onClick = { filePicker.launch("*/*") },
-                        modifier = Modifier.fillMaxWidth()
-                    ) { Text("فتح منتقي الملفات", fontSize = 18.sp) }
-                }
-                2 -> {
-                    OutlinedTextField(
-                        value = server,
-                        onValueChange = { server = it },
-                        label = { Text("Server URL") },
-                        placeholder = { Text("http://example.com:8080") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    OutlinedTextField(
-                        value = user,
-                        onValueChange = { user = it },
-                        label = { Text("Username") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    OutlinedTextField(
-                        value = pass,
-                        onValueChange = { pass = it },
-                        label = { Text("Password") },
-                        visualTransformation = if (showPassword)
-                            VisualTransformation.None
-                        else
-                            PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Password
-                        ),
-                        trailingIcon = {
-                            Box(
-                                modifier = Modifier
-                                    .size(56.dp)
-                                    .clickable { showPassword = !showPassword },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = if (showPassword)
-                                        Icons.Default.VisibilityOff
-                                    else
-                                        Icons.Default.Visibility,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(26.dp)
-                                )
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
-                    )
-
                     Spacer(Modifier.height(16.dp))
+                    Text(
+                        uiState.loadingMessage.ifBlank { "جاري التحميل..." },
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        }
+    }
 
-                    Card(
-                        colors = CardDefaults.cardColors(
-                            containerColor = Color(0xFF161B22).copy(alpha = 0.9f)
-                        ),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(Modifier.padding(16.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text("🔍", fontSize = 20.sp)
-                                    Spacer(Modifier.width(8.dp))
-                                    Column {
-                                        Text(
-                                            "تسجيل تفاصيل الاتصال",
-                                            color = Color.White,
-                                            fontSize = 16.sp,
-                                            fontWeight = FontWeight.Medium
-                                        )
-                                        Text(
-                                            "لتشخيص مشاكل الاتصال",
-                                            color = Color.LightGray,
-                                            fontSize = 12.sp
-                                        )
-                                    }
-                                }
-                                Switch(
-                                    checked = logEnabled,
-                                    onCheckedChange = {
-                                        logEnabled = it
-                                        prefs.xtreamLoggingEnabled = it
-                                        XtreamLogger.setEnabled(ctx, it)
-                                    }
-                                )
-                            }
-
-                            if (logEnabled) {
-                                Spacer(Modifier.height(8.dp))
-                                Text(
-                                    "📁 يُحفظ في: Android/data/${ctx.packageName}/files/STTITEN IP TV/",
-                                    color = Color(0xFF58A6FF),
-                                    fontSize = 10.sp
-                                )
-                                Spacer(Modifier.height(4.dp))
-                                Text(
-                                    "✅ لا يحتاج أي إذن",
-                                    color = Color(0xFF66BB6A),
-                                    fontSize = 10.sp
-                                )
-                            }
+    // Dialog تأكيد الحذف
+    confirmDelete?.let { source ->
+        AlertDialog(
+            onDismissRequest = { confirmDelete = null },
+            title = { Text("تأكيد الحذف") },
+            text = { Text("هل تريد حذف \"${source.name}\" نهائياً؟") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deleteSource(source) {
+                            confirmDelete = null
                         }
                     }
-
-                    Spacer(Modifier.height(20.dp))
-                    Button(
-                        onClick = {
-                            if (server.isBlank() || user.isBlank() || pass.isBlank()) {
-                                message = "املأ كل الحقول"; return@Button
-                            }
-                            if (!server.contains(".")) {
-                                message = "أدخل اسم سيرفر صحيح"
-                                return@Button
-                            }
-                            viewModel.loginXtream(server, user, pass) { ok ->
-                                if (ok) navController.navigate(Routes.DASHBOARD)
-                                else message = "فشل الاتصال بالخادم"
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) { Text("تسجيل الدخول", fontSize = 18.sp) }
+                ) { Text("حذف", color = Color(0xFFDA3633)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDelete = null }) {
+                    Text("إلغاء")
                 }
             }
+        )
+    }
+}
 
-            if (message.isNotEmpty()) {
-                Spacer(Modifier.height(16.dp))
-                Text(message, color = MaterialTheme.colorScheme.error, fontSize = 16.sp)
+// ============== شاشة الترحيب (لا توجد حسابات) ==============
+@Composable
+private fun WelcomeScreen(
+    onAddXtream: () -> Unit,
+    onAddM3u: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(
+            "STTITEN IP TV",
+            color = MaterialTheme.colorScheme.primary,
+            fontSize = 48.sp,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(Modifier.height(12.dp))
+        Text(
+            "أضف حسابك للبدء",
+            color = Color.White,
+            fontSize = 20.sp
+        )
+        Spacer(Modifier.height(48.dp))
+
+        // زر Xtream
+        Card(
+            modifier = Modifier
+                .width(500.dp)
+                .height(100.dp)
+                .clickable(onClick = onAddXtream),
+            colors = CardDefaults.cardColors(
+                containerColor = Color(0xFF1F6FEB).copy(alpha = 0.9f)
+            ),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxSize().padding(20.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("🎬", fontSize = 40.sp)
+                Spacer(Modifier.width(20.dp))
+                Column {
+                    Text(
+                        "حساب Xtream",
+                        color = Color.White,
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        "استخدم بيانات Xtream API",
+                        color = Color.White.copy(alpha = 0.8f),
+                        fontSize = 14.sp
+                    )
+                }
             }
-            if (uiState.isLoading) {
-                Spacer(Modifier.height(20.dp))
-                CircularProgressIndicator()
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        // زر M3U
+        Card(
+            modifier = Modifier
+                .width(500.dp)
+                .height(100.dp)
+                .clickable(onClick = onAddM3u),
+            colors = CardDefaults.cardColors(
+                containerColor = Color(0xFF238636).copy(alpha = 0.9f)
+            ),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxSize().padding(20.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("📥", fontSize = 40.sp)
+                Spacer(Modifier.width(20.dp))
+                Column {
+                    Text(
+                        "قائمة M3U / M3U8",
+                        color = Color.White,
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        "رابط أو ملف من الجهاز",
+                        color = Color.White.copy(alpha = 0.8f),
+                        fontSize = 14.sp
+                    )
+                }
             }
         }
     }
 }
 
+// ============== شاشة قائمة الحسابات ==============
 @Composable
-private fun TabButton(text: String, selected: Boolean, onClick: () -> Unit) {
-    Button(
-        onClick = onClick,
-        colors = ButtonDefaults.buttonColors(
-            containerColor = if (selected) MaterialTheme.colorScheme.primary
-            else MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-            contentColor = if (selected) MaterialTheme.colorScheme.onPrimary
-            else MaterialTheme.colorScheme.onSurface
+private fun AccountsListScreen(
+    sources: List<SourceEntity>,
+    onPickSource: (SourceEntity) -> Unit,
+    onAddNew: () -> Unit,
+    onEdit: (SourceEntity) -> Unit,
+    onDelete: (SourceEntity) -> Unit,
+    isLoading: Boolean,
+    loadingMessage: String
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(32.dp)
+    ) {
+        // العنوان
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "STTITEN IP TV",
+                color = MaterialTheme.colorScheme.primary,
+                fontSize = 32.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(Modifier.weight(1f))
+            Text(
+                "${sources.size} حساب",
+                color = Color.LightGray,
+                fontSize = 16.sp
+            )
+        }
+
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "اختر حساباً للدخول",
+            color = Color.LightGray,
+            fontSize = 16.sp
         )
-    ) { Text(text, fontSize = 14.sp) }
+
+        Spacer(Modifier.height(24.dp))
+
+        // قائمة الحسابات
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            items(sources, key = { it.id }) { source ->
+                AccountCard(
+                    source = source,
+                    onPick = { onPickSource(source) },
+                    onEdit = { onEdit(source) },
+                    onDelete = { onDelete(source) }
+                )
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        // زر إضافة حساب جديد
+        Button(
+            onClick = onAddNew,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(64.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFF238636)
+            ),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(28.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("إضافة حساب جديد", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        }
+    }
 }
