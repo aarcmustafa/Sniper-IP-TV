@@ -22,7 +22,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -43,60 +42,36 @@ import kotlinx.coroutines.delay
 @Composable
 fun SplashScreen(navController: NavHostController) {
 
-    // ═══════════════════════════════════════════════════════════
-    //  حالة الحركات
-    // ═══════════════════════════════════════════════════════════
-
-    // ظهور تدريجي للشعار
     var logoVisible by remember { mutableStateOf(false) }
     var logoScale by remember { mutableStateOf(0.3f) }
     var logoAlpha by remember { mutableStateOf(0f) }
-
-    // ظهور الحروف واحدًا واحدًا
     var visibleLetters by remember { mutableStateOf(0) }
-
-    // ظهور IP TV
     var ipTvVisible by remember { mutableStateOf(false) }
-
-    // ظهور نقاط التحميل
     var dotsVisible by remember { mutableStateOf(false) }
 
-    // ═══════════════════════════════════════════════════════════
-    //  تسلسل الحركات + الانتقال التلقائي
-    // ═══════════════════════════════════════════════════════════
-
     LaunchedEffect(Unit) {
-        // 1) ظهور الشعار مع تكبير
         logoVisible = true
         delay(100)
         logoScale = 1f
         logoAlpha = 1f
 
-        // 2) ظهور حروف STTITEN بالتتابع
         delay(400)
         for (i in 1..7) {
             visibleLetters = i
             delay(120)
         }
 
-        // 3) ظهور IP TV
         delay(200)
         ipTvVisible = true
 
-        // 4) ظهور نقاط التحميل
         delay(300)
         dotsVisible = true
 
-        // 5) الانتقال إلى Dashboard
         delay(1200)
         navController.navigate(Routes.DASHBOARD) {
             popUpTo(Routes.SPLASH) { inclusive = true }
         }
     }
-
-    // ═══════════════════════════════════════════════════════════
-    //  التوهج النابض (Infinite)
-    // ═══════════════════════════════════════════════════════════
 
     val infiniteTransition = rememberInfiniteTransition(label = "glow")
     val glowAlpha by infiniteTransition.animateFloat(
@@ -108,10 +83,6 @@ fun SplashScreen(navController: NavHostController) {
         ),
         label = "glowAlpha",
     )
-
-    // ═══════════════════════════════════════════════════════════
-    //  الواجهة
-    // ═══════════════════════════════════════════════════════════
 
     Box(
         modifier = Modifier
@@ -131,8 +102,7 @@ fun SplashScreen(navController: NavHostController) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-
-            // ─────── شعار 🎬 بتكبير ───────
+            // الشعار
             Text(
                 text = "🎬",
                 fontSize = 80.sp,
@@ -143,7 +113,7 @@ fun SplashScreen(navController: NavHostController) {
 
             Spacer(Modifier.height(32.dp))
 
-            // ─────── كلمة STTITEN حرفًا حرفًا ───────
+            // STTITEN حرفًا حرفًا
             Row {
                 val letters = "STTITEN"
                 letters.forEachIndexed { index, char ->
@@ -155,35 +125,25 @@ fun SplashScreen(navController: NavHostController) {
                         fontWeight = FontWeight.ExtraBold,
                         modifier = Modifier
                             .alpha(if (isVisible) 1f else 0f)
-                            .scale(if (isVisible) 1f else 0.5f)
-                            .then(
-                                if (isVisible) {
-                                    Modifier.glowShadow(
-                                        color = Color(0xFF1F6FEB),
-                                        alpha = glowAlpha,
-                                    )
-                                } else Modifier
-                            ),
+                            .scale(if (isVisible) 1f else 0.5f),
                     )
                     Spacer(Modifier.size(4.dp))
                 }
             }
 
-            // ─────── خط فاصل متوهج ───────
             Spacer(Modifier.height(8.dp))
 
+            // خط فاصل متوهج
             Box(
                 modifier = Modifier
                     .size(width = 120.dp, height = 2.dp)
                     .clip(RoundedCornerShape(2.dp))
-                    .background(
-                        Color(0xFF1F6FEB).copy(alpha = glowAlpha),
-                    ),
+                    .background(Color(0xFF1F6FEB).copy(alpha = glowAlpha)),
             )
 
             Spacer(Modifier.height(12.dp))
 
-            // ─────── كلمة IP TV ───────
+            // IP TV
             Text(
                 text = "I P   T V",
                 color = Color(0xFF1F6FEB),
@@ -195,17 +155,13 @@ fun SplashScreen(navController: NavHostController) {
 
             Spacer(Modifier.height(64.dp))
 
-            // ─────── نقاط التحميل المتحركة ───────
+            // نقاط التحميل
             if (dotsVisible) {
                 LoadingDots()
             }
         }
     }
 }
-
-// ═══════════════════════════════════════════════════════════════
-//  نقاط التحميل المتحركة
-// ═══════════════════════════════════════════════════════════════
 
 @Composable
 private fun LoadingDots() {
@@ -237,20 +193,3 @@ private fun LoadingDots() {
         }
     }
 }
-
-// ═══════════════════════════════════════════════════════════════
-//  تعديل بسيط: توهج للحرف
-// ═══════════════════════════════════════════════════════════════
-
-private fun Modifier.glowShadow(
-    color: Color,
-    alpha: Float,
-    blur: Float = 12f,
-): Modifier = this.then(
-    Modifier.androidx.compose.ui.draw.shadow(
-        elevation = (blur * alpha).dp,
-        shape = RoundedCornerShape(4.dp),
-        ambientColor = color,
-        spotColor = color,
-    )
-)
