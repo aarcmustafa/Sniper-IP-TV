@@ -58,6 +58,7 @@ dependencies {
 
     // TV
     implementation("androidx.tv:tv-material:1.0.0")
+    implementation("androidx.tv:tv-foundation:1.0.0")   // ✅ مضاف — لدعم التركيز (Focus) في TV
     implementation("androidx.leanback:leanback:1.0.0")
 
     // Media3
@@ -94,6 +95,15 @@ dependencies {
 
     // OkHttp
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")   // ✅ مضاف — لتسجيل الطلبات وتشخيص User-Agent
+
+    // ✅ مضاف — DataStore (مطلوب لـ UserAgentProvider)
+    implementation("androidx.datastore:datastore-preferences:1.1.1")
+
+    // ✅ مضاف — Test
+    testImplementation("junit:junit:4.13.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
