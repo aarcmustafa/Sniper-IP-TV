@@ -20,7 +20,6 @@ import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tv
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -42,6 +41,7 @@ import com.stitten.stitteniptv.database.entity.WatchHistoryEntity
 import com.stitten.stitteniptv.ui.components.ContentRow
 import com.stitten.stitteniptv.ui.components.ContinueWatchingSection
 import com.stitten.stitteniptv.ui.components.HeroBanner
+import com.stitten.stitteniptv.ui.components.LoadingProgress
 import com.stitten.stitteniptv.ui.components.PosterCard
 import com.stitten.stitteniptv.ui.components.tvFocusable
 import com.stitten.stitteniptv.ui.navigation.Routes
@@ -59,7 +59,15 @@ fun DashboardScreen(
             .background(Color(0xFF0D1117))
     ) {
         when {
-            state.isLoading -> LoadingView()
+            state.isLoading -> Box(
+                Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center,
+            ) {
+                LoadingProgress(
+                    progress = state.progress,
+                    label = state.progressLabel,
+                )
+            }
 
             state.errorMessage != null -> ErrorView(
                 message = state.errorMessage!!,
@@ -81,7 +89,7 @@ fun DashboardScreen(
                     navController.navigate(Routes.player(history.url, history.title))
                 },
                 onRemoveHistory = viewModel::removeFromHistory,
-                onSearchClick = { /* TODO: Search screen */ },
+                onSearchClick = { },
                 onSettingsClick = { navController.navigate(Routes.SETTINGS) },
                 onLiveClick = { navController.navigate(Routes.LIVE) },
                 onMoviesClick = { navController.navigate(Routes.MOVIES) },
@@ -266,17 +274,6 @@ private fun DashboardTopBar(
 
         IconButton(onClick = onSettingsClick) {
             Icon(Icons.Default.Settings, "إعدادات", tint = Color.White)
-        }
-    }
-}
-
-@Composable
-private fun LoadingView() {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            CircularProgressIndicator(color = Color(0xFF1F6FEB))
-            Spacer(Modifier.height(16.dp))
-            Text("جارٍ التحميل...", color = Color.White, fontSize = 16.sp)
         }
     }
 }
