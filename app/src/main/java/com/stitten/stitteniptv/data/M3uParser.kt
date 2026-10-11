@@ -8,9 +8,21 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStreamReader
 
+/**
+ * نتيجة تحليل M3U مُصنّفة.
+ */
+data class M3uParseResult(
+    val channels: List<Channel> = emptyList(),
+    val movies: List<Movie> = emptyList(),
+    val series: List<Series> = emptyList(),
+    val seriesEpisodes: Map<String, List<Episode>> = emptyMap(),
+)
+
 object M3uParser {
 
-    // ============== التحميل العادي (ملفات صغيرة < 20 MB) ==============
+    // ═══════════════════════════════════════════════════════════
+    //  التحميل العادي (ملفات صغيرة < 20 MB)
+    // ═══════════════════════════════════════════════════════════
     suspend fun loadFromUrl(url: String): List<Channel> = withContext(Dispatchers.IO) {
         try {
             val result = HttpClientProvider.fetchText(url)
@@ -25,7 +37,25 @@ object M3uParser {
         }
     }
 
-    // ============== التحميل الانسيابي (ملفات ضخمة > 20 MB) ==============
+    // ✅ جديد: تحميل مُصنّف
+    suspend fun loadFromUrlStructured(url: String): M3uParseResult =
+        withContext(Dispatchers.IO) {
+            try {
+                val result = HttpClientProvider.fetchText(url)
+                if (result.isFailure) return@withContext M3uParseResult()
+                val content = result.getOrNull() ?: return@withContext M3uParseResult()
+                if (!content.contains("#EXTM3U") && !content.contains("#EXTINF")) {
+                    return@withContext M3uParseResult()
+                }
+                parseStructured(content)
+            } catch (e: Exception) {
+                M3uParseResult()
+            }
+        }
+
+    // ═══════════════════════════════════════════════════════════
+    //  التحميل الانسيابي (ملفات ضخمة > 20 MB)
+    // ═══════════════════════════════════════════════════════════
     suspend fun loadFromUrlStreaming(
         ctx: Context,
         url: String,
@@ -34,16 +64,11 @@ object M3uParser {
         val tempFile = File(ctx.cacheDir, "temp_playlist.m3u")
 
         try {
-            // 1. تحميل الملف إلى القرص (بدون تحميله في الذاكرة)
             val downloaded = downloadToFile(url, tempFile, onProgress)
             if (!downloaded) return@withContext emptyList()
 
-            // 2. تحليل الملف من القرص سطراً بسطر
             val channels = parseFileStreaming(tempFile)
-
-            // 3. حذف الملف المؤقت
             tempFile.delete()
-
             channels
         } catch (e: Exception) {
             tempFile.delete()
@@ -51,7 +76,30 @@ object M3uParser {
         }
     }
 
-    // ============== التحميل إلى ملف (Disk I/O) ==============
+    // ✅ جديد: تحميل انسيابي مُصنّف
+    suspend fun loadFromUrlStreamingStructured(
+        ctx: Context,
+        url: String,
+        onProgress: (downloadedMb: Long, totalMb: Long) -> Unit = { _, _ -> }
+    ): M3uParseResult = withContext(Dispatchers.IO) {
+        val tempFile = File(ctx.cacheDir, "temp_playlist.m3u")
+
+        try {
+            val downloaded = downloadToFile(url, tempFile, onProgress)
+            if (!downloaded) return@withContext M3uParseResult()
+
+            val result = parseFileStreamingStructured(tempFile)
+            tempFile.delete()
+            result
+        } catch (e: Exception) {
+            tempFile.delete()
+            M3uParseResult()
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  التحميل إلى ملف (Disk I/O)
+    // ═══════════════════════════════════════════════════════════
     private fun downloadToFile(
         url: String,
         target: File,
@@ -81,7 +129,7 @@ object M3uParser {
 
             body.byteStream().use { input ->
                 FileOutputStream(target).use { output ->
-                    val buffer = ByteArray(64 * 1024) // 64 KB buffer
+                    val buffer = ByteArray(64 * 1024)
                     var bytesRead: Int
                     var totalRead = 0L
                     var lastReported = 0L
@@ -90,7 +138,6 @@ object M3uParser {
                         output.write(buffer, 0, bytesRead)
                         totalRead += bytesRead
 
-                        // الإبلاغ عن التقدم كل 1 MB
                         val currentMb = totalRead / (1024 * 1024)
                         if (currentMb > lastReported) {
                             lastReported = currentMb
@@ -108,95 +155,12 @@ object M3uParser {
         }
     }
 
-    // ============== تحليل الملف سطراً بسطر (Streaming) ==============
-    private fun parseFileStreaming(file: File): List<Channel> {
-        if (!file.exists() || file.length() == 0L) return emptyList()
-
-        val channels = mutableListOf<Channel>()
-        var pendingName = ""
-        var pendingLogo = ""
-        var pendingGroup = ""
-        var index = 0
-
-        BufferedReader(InputStreamReader(file.inputStream(), "UTF-8"), 64 * 1024).use { reader ->
-            var line: String?
-            while (reader.readLine().also { line = it } != null) {
-                val trimmed = line?.trim() ?: continue
-
-                when {
-                    trimmed.startsWith("#EXTINF") -> {
-                        pendingName = trimmed.substringAfterLast(",", "").trim()
-                        pendingLogo = extractAttribute(trimmed, "tvg-logo")
-                        pendingGroup = extractAttribute(trimmed, "group-title")
-                    }
-                    trimmed.isNotEmpty() && !trimmed.startsWith("#") -> {
-                        if (pendingName.isNotEmpty()) {
-                            channels.add(
-                                Channel(
-                                    id = "ch_${index++}",
-                                    name = pendingName.ifEmpty { "Channel $index" },
-                                    logo = pendingLogo,
-                                    url = trimmed,
-                                    group = pendingGroup.ifEmpty { "عام" }
-                                )
-                            )
-                            pendingName = ""
-                            pendingLogo = ""
-                            pendingGroup = ""
-                        }
-                    }
-                }
-            }
-        }
-
-        return channels
-    }
-    
-    // ============== تحميل من محتوى نصي ==============
+    // ═══════════════════════════════════════════════════════════
+    //  تحميل من محتوى نصي
+    // ═══════════════════════════════════════════════════════════
     suspend fun loadFromContent(content: String): List<Channel> =
         withContext(Dispatchers.IO) { parse(content) }
 
-    // ============== تحليل نص عادي ==============
-    private fun parse(content: String): List<Channel> {
-        if (content.isBlank()) return emptyList()
-        val channels = mutableListOf<Channel>()
-        val lines = content.lines()
-        var pendingName = ""
-        var pendingLogo = ""
-        var pendingGroup = ""
-        var index = 0
-
-        for (line in lines) {
-            val trimmed = line.trim()
-            when {
-                trimmed.startsWith("#EXTINF") -> {
-                    pendingName = trimmed.substringAfterLast(",", "").trim()
-                    pendingLogo = extractAttribute(trimmed, "tvg-logo")
-                    pendingGroup = extractAttribute(trimmed, "group-title")
-                }
-                trimmed.isNotEmpty() && !trimmed.startsWith("#") -> {
-                    if (pendingName.isNotEmpty()) {
-                        channels.add(
-                            Channel(
-                                id = "ch_${index++}",
-                                name = pendingName.ifEmpty { "Channel $index" },
-                                logo = pendingLogo,
-                                url = trimmed,
-                                group = pendingGroup.ifEmpty { "عام" }
-                            )
-                        )
-                        pendingName = ""
-                        pendingLogo = ""
-                        pendingGroup = ""
-                    }
-                }
-            }
-        }
-        return channels
-    }
-
-    private fun extractAttribute(line: String, attr: String): String {
-        val regex = "$attr=\"([^\"]*)\"".toRegex()
-        return regex.find(line)?.groupValues?.get(1) ?: ""
-    }
-}
+    // ✅ جديد: محتوى مُصنّف
+    suspend fun loadFromContentStructured(content: String): M3uParseResult =
+        withContext(Dispatchers.IO) { parseStructured(content) }
