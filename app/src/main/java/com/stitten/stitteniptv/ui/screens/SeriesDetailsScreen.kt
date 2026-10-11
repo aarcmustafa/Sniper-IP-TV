@@ -80,10 +80,12 @@ fun SeriesDetailsScreen(
     var selectedTab by remember { mutableStateOf(SeriesDetailTab.EPISODES) }
 
     LaunchedEffect(seriesId) {
+        // ─── 1) جلب المسلسل من Room ───
         try {
             series = channelRepo.getSeriesById(seriesId)
         } catch (_: Exception) { }
 
+        // ─── 2) احتياطي: من الذاكرة ───
         if (series == null) {
             try {
                 val found = ContentRepository.series.firstOrNull {
@@ -111,17 +113,13 @@ fun SeriesDetailsScreen(
             } catch (_: Exception) { }
         }
 
+        // ─── 3) حالة المفضلة ───
         isFavorite = try {
             favorites.getFavoriteSeriesIds().contains(seriesId)
         } catch (_: Exception) { false }
 
-        val numericId = if (seriesId.contains("_")) {
-            seriesId.substringAfterLast("_")
-        } else {
-            seriesId
-        }
-
-        mainViewModel.loadEpisodes(numericId) { eps ->
+        // ─── 4) ✅ نمرّر الـ ID الكامل — loadEpisodes سيجرب كل الاحتمالات ───
+        mainViewModel.loadEpisodes(seriesId) { eps ->
             episodes = eps
             selectedSeason = eps.firstOrNull()?.season
             loading = false
@@ -345,7 +343,6 @@ private fun SeriesContent(
             }
 
             SeriesDetailTab.EPISODES -> {
-                // ─── المواسم ───
                 val seasons = episodes.map { it.season }.distinct().sorted()
                 if (seasons.size > 1) {
                     item(key = "seasons") {
@@ -378,7 +375,6 @@ private fun SeriesContent(
                     }
                 }
 
-                // ─── الحلقات ───
                 val visible = if (selectedSeason == null) episodes
                 else episodes.filter { it.season == selectedSeason }
 
