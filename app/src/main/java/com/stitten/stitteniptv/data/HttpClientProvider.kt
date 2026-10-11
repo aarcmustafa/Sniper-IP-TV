@@ -1,6 +1,7 @@
 package com.stitten.stitteniptv.data
 
 import android.content.Context
+import android.util.Log
 import okhttp3.ConnectionPool
 import okhttp3.Cookie
 import okhttp3.CookieJar
@@ -10,6 +11,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.logging.HttpLoggingInterceptor
 import java.net.InetAddress
 import java.security.cert.X509Certificate
 import java.util.concurrent.ConcurrentHashMap
@@ -22,9 +24,29 @@ object HttpClientProvider {
 
     private const val PREFS_NAME = "http_client_cookies"
     private const val KEY_COOKIES = "cookies"
+    private const val TAG = "HTTP_CLIENT"
 
     @Volatile
     private var appContext: Context? = null
+
+    // ═══════════════════════════════════════════════════════════
+    //  Logging Interceptor (للتشخيص فقط)
+    // ═══════════════════════════════════════════════════════════
+
+    private val loggingInterceptor = HttpLoggingInterceptor { message ->
+        try {
+            Log.d(TAG, message)
+        } catch (_: Exception) { }
+    }.apply {
+        // BASIC = method + URL + code + time
+        // HEADERS = + headers
+        // BODY = + body (بطيء جدًا)
+        level = if (BuildConfig.DEBUG) {
+            HttpLoggingInterceptor.Level.HEADERS
+        } else {
+            HttpLoggingInterceptor.Level.NONE
+        }
+    }
 
     // ═══════════════════════════════════════════════════════════
     //  User-Agent
@@ -43,7 +65,6 @@ object HttpClientProvider {
     @Volatile
     private var prefsRef: PrefsManager? = null
 
-    /** ✅ تعديل: يستقبل Context + PrefsManager */
     fun init(context: Context, prefs: PrefsManager) {
         appContext = context.applicationContext
         prefsRef = prefs
@@ -85,14 +106,12 @@ object HttpClientProvider {
                     list.removeAll {
                         it.name == newCookie.name && it.path == newCookie.path
                     }
-                    // ✅ لا نحفظ الكوكي المنتهية
                     if (newCookie.expiresAt > System.currentTimeMillis() ||
                         newCookie.expiresAt == Long.MAX_VALUE
                     ) {
                         list.add(newCookie)
                     }
                 }
-                // ✅ حفظ على القرص
                 saveCookies()
             } catch (_: Exception) { }
         }
@@ -109,7 +128,6 @@ object HttpClientProvider {
         }
     }
 
-    /** حفظ كل الكوكيز في SharedPreferences */
     private fun saveCookies() {
         try {
             val ctx = appContext ?: return
@@ -129,7 +147,6 @@ object HttpClientProvider {
         } catch (_: Exception) { }
     }
 
-    /** تحميل الكوكيز من SharedPreferences */
     private fun loadCookies() {
         try {
             val ctx = appContext ?: return
@@ -148,7 +165,6 @@ object HttpClientProvider {
                     val httpUrl = url.toHttpUrlOrNull() ?: return@forEach
                     val cookie = Cookie.parse(httpUrl, cookieStr) ?: return@forEach
 
-                    // تجاهل الكوكي المنتهية
                     if (cookie.expiresAt < now && cookie.expiresAt != Long.MAX_VALUE) {
                         return@forEach
                     }
@@ -162,7 +178,6 @@ object HttpClientProvider {
         } catch (_: Exception) { }
     }
 
-    /** مسح كل الكوكيز من الذاكرة + القرص */
     fun clearCookies() {
         try {
             cookieStore.clear()
@@ -172,14 +187,10 @@ object HttpClientProvider {
         } catch (_: Exception) { }
     }
 
-    /** إعادة تحميل الكوكيز من القرص */
     fun reloadCookies() {
         loadCookies()
     }
 
-    /**
-     * يجمع كل الكوكيز الخاصة برابط معين في نص واحد.
-     */
     fun getCookiesHeader(url: String): String? {
         return try {
             val httpUrl = url.toHttpUrlOrNull() ?: return null
@@ -257,6 +268,7 @@ object HttpClientProvider {
         val tm = buildTrustManager()
         OkHttpClient.Builder()
             .addInterceptor(uaInterceptor)
+            .addInterceptor(loggingInterceptor)          // ✅ تسجيل
             .cookieJar(cookieJar)
             .connectTimeout(60, TimeUnit.SECONDS)
             .readTimeout(180, TimeUnit.SECONDS)
@@ -279,6 +291,7 @@ object HttpClientProvider {
         val tm = buildTrustManager()
         OkHttpClient.Builder()
             .addInterceptor(uaInterceptor)
+            .addInterceptor(loggingInterceptor)          // ✅ تسجيل
             .cookieJar(cookieJar)
             .connectionPool(ConnectionPool(32, 15, TimeUnit.MINUTES))
             .connectTimeout(20, TimeUnit.SECONDS)
@@ -347,7 +360,7 @@ object HttpClientProvider {
     }
 
     // ═══════════════════════════════════════════════════════════
-    //  fetchText
+    //  fetchText — مع تسجيل النتائج
     // ═══════════════════════════════════════════════════════════
 
     suspend fun fetchText(url: String): Result<String> {
@@ -361,10 +374,17 @@ object HttpClientProvider {
                 response.close()
                 Result.success(body)
             } else {
+                // ✅ تسجيل كود الخطأ
+                try {
+                    Log.w(TAG, "fetchText FAILED: HTTP ${response.code} for $url")
+                } catch (_: Exception) { }
                 response.close()
                 Result.failure(Exception("HTTP ${response.code}"))
             }
         } catch (e: Exception) {
+            try {
+                Log.e(TAG, "fetchText EXCEPTION for $url", e)
+            } catch (_: Exception) { }
             Result.failure(e)
         }
     }
