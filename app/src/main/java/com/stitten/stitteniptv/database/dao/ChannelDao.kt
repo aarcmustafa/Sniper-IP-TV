@@ -37,9 +37,12 @@ interface ChannelDao {
     @Query("DELETE FROM channels")
     suspend fun clearChannels()
 
-    /** ✅ جديد: دفعة واحدة من القنوات (بدون Paging) — للشاشة الرئيسية */
     @Query("SELECT * FROM channels ORDER BY groupPriority ASC, name ASC LIMIT :limit")
     suspend fun getChannelsBatch(limit: Int): List<ChannelEntity>
+
+    /** قناة واحدة بواسطة ID */
+    @Query("SELECT * FROM channels WHERE id = :id LIMIT 1")
+    suspend fun getChannelById(id: String): ChannelEntity?
 
     // ═══════════════════════════════════════════════════════════
     //  الأفلام
@@ -59,27 +62,21 @@ interface ChannelDao {
     @Query("DELETE FROM movies")
     suspend fun clearMovies()
 
-    /** أحدث الأفلام (للـ Hero + صف "أحدث الأفلام") */
     @Query("SELECT * FROM movies ORDER BY addedAt DESC, name ASC LIMIT :limit")
     fun getLatestMovies(limit: Int = 20): Flow<List<MovieEntity>>
 
-    /** أحدث الأفلام كـ Paging (لقائمة كاملة) */
     @Query("SELECT * FROM movies ORDER BY addedAt DESC, name ASC")
     fun getLatestMoviesPaged(): PagingSource<Int, MovieEntity>
 
-    /** فيلم واحد بواسطة ID */
     @Query("SELECT * FROM movies WHERE id = :id LIMIT 1")
     suspend fun getMovieById(id: String): MovieEntity?
 
-    /** فيلم واحد كـ Flow */
     @Query("SELECT * FROM movies WHERE id = :id LIMIT 1")
     fun observeMovieById(id: String): Flow<MovieEntity?>
 
-    /** الأفلام حسب التصنيف */
     @Query("SELECT * FROM movies WHERE category = :category ORDER BY addedAt DESC, name ASC")
     fun getMoviesByCategory(category: String): PagingSource<Int, MovieEntity>
 
-    /** الأفلام الأعلى تقييمًا */
     @Query("""
         SELECT * FROM movies 
         WHERE rating IS NOT NULL AND rating != '' 
@@ -88,19 +85,15 @@ interface ChannelDao {
     """)
     fun getTopRatedMovies(limit: Int = 20): Flow<List<MovieEntity>>
 
-    /** الأفلام حسب المصدر */
     @Query("SELECT * FROM movies WHERE sourceId = :sourceId ORDER BY addedAt DESC, name ASC")
     fun getMoviesBySource(sourceId: Long): PagingSource<Int, MovieEntity>
 
-    /** كل التصنيفات للأفلام */
     @Query("SELECT DISTINCT category FROM movies WHERE category != '' ORDER BY category ASC")
     fun getAllMovieCategories(): Flow<List<String>>
 
-    /** حذف فيلم واحد */
     @Query("DELETE FROM movies WHERE id = :id")
     suspend fun deleteMovieById(id: String)
 
-    /** حذف أفلام مصدر معين */
     @Query("DELETE FROM movies WHERE sourceId = :sourceId")
     suspend fun deleteMoviesBySource(sourceId: Long)
 
@@ -122,27 +115,21 @@ interface ChannelDao {
     @Query("DELETE FROM series")
     suspend fun clearSeries()
 
-    /** مسلسل واحد بواسطة ID */
     @Query("SELECT * FROM series WHERE id = :id LIMIT 1")
     suspend fun getSeriesById(id: String): SeriesEntity?
 
-    /** مسلسل واحد كـ Flow */
     @Query("SELECT * FROM series WHERE id = :id LIMIT 1")
     fun observeSeriesById(id: String): Flow<SeriesEntity?>
 
-    /** المسلسلات حسب التصنيف */
     @Query("SELECT * FROM series WHERE category = :category ORDER BY name ASC")
     fun getSeriesByCategory(category: String): PagingSource<Int, SeriesEntity>
 
-    /** كل تصنيفات المسلسلات */
     @Query("SELECT DISTINCT category FROM series WHERE category != '' ORDER BY category ASC")
     fun getAllSeriesCategories(): Flow<List<String>>
 
-    /** حذف مسلسل واحد */
     @Query("DELETE FROM series WHERE id = :id")
     suspend fun deleteSeriesById(id: String)
 
-    /** ✅ جديد: دفعة واحدة من المسلسلات (بدون Paging) — للشاشة الرئيسية */
     @Query("SELECT * FROM series ORDER BY addedAt DESC, name ASC LIMIT :limit")
     suspend fun getSeriesBatch(limit: Int): List<SeriesEntity>
 }
