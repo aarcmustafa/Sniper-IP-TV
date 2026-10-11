@@ -4,11 +4,27 @@ import android.net.Uri
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.BaseDataSource
 import androidx.media3.datasource.DataSpec
-import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.TransferListener
+import androidx.media3.datasource.okhttp.OkHttpDataSource
 import com.stitten.stitteniptv.data.HttpClientProvider
 import java.io.IOException
 
+/**
+ * DataSource يعتمد على OkHttp بدل DefaultHttpDataSource.
+ *
+ * الفوائد:
+ *  - User-Agent من HttpClientProvider تلقائيًا
+ *  - Cookies من CookieJar (نفس المستخدم في API)
+ *  - Referer + Origin + Accept-Language
+ *  - Logging (في Debug)
+ *  - Connection Pool مشترك مع بقية التطبيق
+ *  - DNS Cache مخصص
+ *  - Ping كل 25 ثانية
+ *
+ * المنطق:
+ *  - يجرّب كل رابط في [candidates] بالترتيب
+ *  - إذا فشل واحد → ينتقل للتالي
+ */
 @UnstableApi
 class RetryHttpDataSource(
     private val candidates: List<String>,
@@ -16,12 +32,11 @@ class RetryHttpDataSource(
 ) : BaseDataSource(true) {
 
     private var currentIndex = 0
-    private var current: DefaultHttpDataSource? = null
+    private var current: OkHttpDataSource? = null
     private var currentUri: String? = null
     private var bytesRemaining = 0L
 
     override fun open(dataSpec: DataSpec): Long {
-        val ua = HttpClientProvider.getUserAgent()
         var lastError: IOException? = null
 
         val requested = dataSpec.uri.toString()
@@ -31,7 +46,7 @@ class RetryHttpDataSource(
         for (i in startIndex until candidates.size) {
             val url = candidates[i]
             try {
-                val source = buildSource(ua, url)
+                val source = buildSource()
                 val newSpec = dataSpec.withUri(Uri.parse(url))
                 val len = source.open(newSpec)
                 current = source
@@ -44,44 +59,22 @@ class RetryHttpDataSource(
                 lastError = e
                 current?.close()
                 current = null
+            } catch (e: Exception) {
+                // بعض الأخطاء قد تكون RuntimeException من OkHttp
+                lastError = IOException(e.message, e)
+                current?.close()
+                current = null
             }
         }
         throw lastError ?: IOException("All stream candidates failed")
     }
 
     /**
-     * يبني DefaultHttpDataSource مع:
-     *  - User-Agent
-     *  - Cookie header (من CookieJar)
-     *  - Referer header (لتجاوز حجب بعض السيرفرات)
-     *  - AllowCrossProtocolRedirects
+     * يبني OkHttpDataSource يعتمد على streamingClient المشترك.
+     * كل الرؤوس (UA, Cookies, Referer) تُضاف تلقائيًا من OkHttpClient.
      */
-    private fun buildSource(ua: String, url: String): DefaultHttpDataSource {
-        val headers = mutableMapOf<String, String>()
-
-        // 🍪 Cookie header
-        try {
-            val cookieHeader = HttpClientProvider.getCookiesHeader(url)
-            if (!cookieHeader.isNullOrBlank()) {
-                headers["Cookie"] = cookieHeader
-            }
-        } catch (_: Exception) { }
-
-        // 🔗 Referer header (بعض السيرفرات تطلبه)
-        try {
-            val host = Uri.parse(url).host
-            if (!host.isNullOrBlank()) {
-                headers["Referer"] = "http://$host/"
-                headers["Origin"] = "http://$host"
-            }
-        } catch (_: Exception) { }
-
-        return DefaultHttpDataSource.Factory()
-            .setUserAgent(ua)
-            .setDefaultRequestProperties(headers)
-            .setConnectTimeoutMs(30_000)
-            .setReadTimeoutMs(30_000)
-            .setAllowCrossProtocolRedirects(true)
+    private fun buildSource(): OkHttpDataSource {
+        return OkHttpDataSource.Factory(HttpClientProvider.streamingClient)
             .createDataSource()
     }
 
@@ -89,7 +82,12 @@ class RetryHttpDataSource(
         if (length == 0) return 0
         if (bytesRemaining == 0L) return -1
 
-        val read = current?.read(buffer, offset, length) ?: -1
+        val read = try {
+            current?.read(buffer, offset, length) ?: -1
+        } catch (_: Exception) {
+            -1
+        }
+
         if (read > 0) {
             bytesRemaining -= read
             bytesTransferred(read)
@@ -102,6 +100,7 @@ class RetryHttpDataSource(
     override fun close() {
         try {
             current?.close()
+        } catch (_: Exception) {
         } finally {
             current = null
             currentUri = null
