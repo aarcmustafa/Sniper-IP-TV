@@ -3,6 +3,7 @@ package com.stitten.stitteniptv.database.dao
 import androidx.paging.PagingSource
 import androidx.room.*
 import com.stitten.stitteniptv.database.entity.ChannelEntity
+import com.stitten.stitteniptv.database.entity.EpisodeEntity
 import com.stitten.stitteniptv.database.entity.MovieEntity
 import com.stitten.stitteniptv.database.entity.SeriesEntity
 import kotlinx.coroutines.flow.Flow
@@ -40,7 +41,6 @@ interface ChannelDao {
     @Query("SELECT * FROM channels ORDER BY groupPriority ASC, name ASC LIMIT :limit")
     suspend fun getChannelsBatch(limit: Int): List<ChannelEntity>
 
-    /** قناة واحدة بواسطة ID */
     @Query("SELECT * FROM channels WHERE id = :id LIMIT 1")
     suspend fun getChannelById(id: String): ChannelEntity?
 
@@ -132,4 +132,28 @@ interface ChannelDao {
 
     @Query("SELECT * FROM series ORDER BY addedAt DESC, name ASC LIMIT :limit")
     suspend fun getSeriesBatch(limit: Int): List<SeriesEntity>
+
+    // ═══════════════════════════════════════════════════════════
+    //  ✅ جديد — الحلقات
+    // ═══════════════════════════════════════════════════════════
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertEpisodes(episodes: List<EpisodeEntity>)
+
+    @Query("SELECT * FROM episodes WHERE seriesId = :seriesId ORDER BY season ASC, episode ASC")
+    suspend fun getEpisodesBySeries(seriesId: String): List<EpisodeEntity>
+
+    @Query("SELECT * FROM episodes WHERE seriesId = :seriesId ORDER BY season ASC, episode ASC")
+    fun observeEpisodesBySeries(seriesId: String): Flow<List<EpisodeEntity>>
+
+    @Query("SELECT COUNT(*) FROM episodes WHERE seriesId = :seriesId")
+    suspend fun getEpisodeCountForSeries(seriesId: String): Int
+
+    @Query("SELECT COUNT(*) FROM episodes")
+    suspend fun getEpisodeCount(): Int
+
+    @Query("DELETE FROM episodes WHERE seriesId = :seriesId")
+    suspend fun deleteEpisodesBySeries(seriesId: String)
+
+    @Query("DELETE FROM episodes")
+    suspend fun clearEpisodes()
 }
