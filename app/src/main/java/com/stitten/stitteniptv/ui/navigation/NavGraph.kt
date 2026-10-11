@@ -53,10 +53,11 @@ object Routes {
         "epg/$channelId/${URLEncoder.encode(channelName, "UTF-8")}/${URLEncoder.encode(epgUrl, "UTF-8")}"
     fun addSourceEdit(id: Long) = "add_source/edit/$id"
     fun movieDetails(id: String) = "movie/$id"
+    fun addSourceWithType(type: String) = "add_source?type=$type"
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  إعدادات الانتقالات
+//  الانتقالات
 // ═══════════════════════════════════════════════════════════════
 
 private const val TRANSITION_MS = 350
@@ -99,32 +100,21 @@ private val fadeOnlyExit: AnimatedContentTransitionScope<*>.() -> androidx.compo
             scaleOut(targetScale = 0.98f, animationSpec = tween(250))
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  AppNavGraph
-// ═══════════════════════════════════════════════════════════════
-
 @Composable
 fun AppNavGraph(navController: NavHostController = rememberNavController()) {
     NavHost(
         navController = navController,
         startDestination = Routes.SPLASH,
-
         enterTransition = enterSlide,
         exitTransition = exitSlide,
         popEnterTransition = popEnterSlide,
         popExitTransition = popExitSlide,
     ) {
 
-        // ═══════════════════════════════════════════════════════════
-        //  الأساسية
-        // ═══════════════════════════════════════════════════════════
         composable(Routes.SPLASH) { SplashScreen(navController) }
         composable(Routes.LOGIN) { LoginScreen(navController) }
         composable(Routes.DASHBOARD) { DashboardScreen(navController) }
 
-        // ═══════════════════════════════════════════════════════════
-        //  القنوات + الأفلام + المسلسلات + البحث + المفضلة
-        // ═══════════════════════════════════════════════════════════
         composable(Routes.LIVE) { LiveScreen(navController) }
         composable(Routes.MOVIES) { MoviesScreen(navController) }
         composable(Routes.SERIES_LIST) { SeriesListScreen(navController) }
@@ -134,26 +124,39 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
         composable(
             Routes.MOVIE_DETAILS,
             arguments = listOf(navArgument("movieId") { type = NavType.StringType })
-        ) { entry ->
-            MovieDetailsScreen(navController)
-        }
+        ) { MovieDetailsScreen(navController) }
 
-        // ═══════════════════════════════════════════════════════════
-        //  الإعدادات
-        // ═══════════════════════════════════════════════════════════
         composable(Routes.SETTINGS) { SettingsScreen(navController) }
         composable(Routes.ADVANCED_SETTINGS) { AdvancedSettingsScreen(navController) }
         composable(Routes.PARENTAL) { ParentalControlScreen(navController) }
-        composable(Routes.ERRORS) { ErrorLogScreen(navController) }   // ✅ معدَّل
+        composable(Routes.ERRORS) { ErrorLogScreen(navController) }
 
-        // ═══════════════════════════════════════════════════════════
-        //  المصادر
-        // ═══════════════════════════════════════════════════════════
         composable(Routes.SOURCES) { SourcesManagerScreen(navController) }
         composable(Routes.EXTERNAL_PLAYERS) { ExternalPlayersScreen(navController) }
-        composable(Routes.ADD_SOURCE) {
-            AddSourceScreen(navController, editSourceId = -1L)
+
+        // ✅ ADD_SOURCE مع دعم type
+        composable(
+            "${Routes.ADD_SOURCE}?type={type}",
+            arguments = listOf(
+                navArgument("type") {
+                    type = NavType.StringType
+                    defaultValue = ""
+                }
+            )
+        ) { entry ->
+            val type = entry.arguments?.getString("type") ?: ""
+            val initialMode = when (type.uppercase()) {
+                "XTREAM" -> 2
+                "M3U", "M3U8" -> 0
+                else -> 0
+            }
+            AddSourceScreen(
+                navController = navController,
+                editSourceId = -1L,
+                initialMode = initialMode,
+            )
         }
+
         composable(
             Routes.ADD_SOURCE_EDIT,
             arguments = listOf(navArgument("sourceId") { type = NavType.LongType })
@@ -162,9 +165,6 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
             AddSourceScreen(navController, editSourceId = id)
         }
 
-        // ═══════════════════════════════════════════════════════════
-        //  تفاصيل المسلسل
-        // ═══════════════════════════════════════════════════════════
         composable(
             Routes.SERIES_DETAILS,
             arguments = listOf(navArgument("seriesId") { type = NavType.StringType })
@@ -173,9 +173,6 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
             SeriesDetailsScreen(navController, id)
         }
 
-        // ═══════════════════════════════════════════════════════════
-        //  المشغل — انتقال مختلف
-        // ═══════════════════════════════════════════════════════════
         composable(
             Routes.PLAYER,
             arguments = listOf(
@@ -192,9 +189,6 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
             PlayerScreen(navController, url, title)
         }
 
-        // ═══════════════════════════════════════════════════════════
-        //  دليل البرامج (EPG)
-        // ═══════════════════════════════════════════════════════════
         composable(
             Routes.EPG,
             arguments = listOf(
