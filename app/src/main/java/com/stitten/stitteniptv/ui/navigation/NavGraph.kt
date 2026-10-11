@@ -7,6 +7,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.stitten.stitteniptv.ui.favorites.FavoritesScreen
 import com.stitten.stitteniptv.ui.live.LiveScreen
 import com.stitten.stitteniptv.ui.screens.*
 import com.stitten.stitteniptv.ui.search.SearchScreen
@@ -32,12 +33,13 @@ object Routes {
     const val ADD_SOURCE_EDIT = "add_source/edit/{sourceId}"
     const val EXTERNAL_PLAYERS = "external_players"
 
-    // ✅ شاشات جديدة
+    // ✅ شاشات إضافية
     const val LIVE = "live"
     const val MOVIES = "movies"
     const val SERIES_LIST = "series_list"
     const val MOVIE_DETAILS = "movie/{movieId}"
     const val SEARCH = "search"
+    const val FAVORITES = "favorites"
 
     fun seriesDetails(id: String) = "series/$id"
     fun player(url: String, title: String) =
@@ -60,12 +62,13 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
         composable(Routes.DASHBOARD) { DashboardScreen(navController) }
 
         // ═══════════════════════════════════════════════════════════
-        //  القنوات + الأفلام + المسلسلات + البحث
+        //  القنوات + الأفلام + المسلسلات + البحث + المفضلة
         // ═══════════════════════════════════════════════════════════
         composable(Routes.LIVE) { LiveScreen(navController) }
         composable(Routes.MOVIES) { MoviesScreen(navController) }
         composable(Routes.SERIES_LIST) { SeriesListScreen(navController) }
         composable(Routes.SEARCH) { SearchScreen(navController) }
+        composable(Routes.FAVORITES) { FavoritesScreen(navController) }
 
         composable(
             Routes.MOVIE_DETAILS,
