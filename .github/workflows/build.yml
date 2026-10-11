@@ -3,6 +3,11 @@ name: Build STTITEN IP TV for Android TV
 on:
   push:
     branches: [ "main", "master" ]
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+      - '.gitignore'
+      - 'docs/**'
   pull_request:
     branches: [ "main", "master" ]
   workflow_dispatch:
@@ -10,36 +15,105 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
+    # ─────────────────────────────────────────────────
+    #  1) جلب الكود
+    # ─────────────────────────────────────────────────
     - name: Checkout Repository
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 1
 
+    # ─────────────────────────────────────────────────
+    #  2) معلومات البناء
+    # ─────────────────────────────────────────────────
+    - name: Build Info
+      id: info
+      run: |
+        SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+        DATE=$(date +'%Y%m%d')
+        BUILD_NUM=${{ github.run_number }}
+        VERSION="v1.0.${BUILD_NUM}-${DATE}-${SHORT_SHA}"
+        echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+        echo "SHORT_SHA=$SHORT_SHA" >> $GITHUB_OUTPUT
+        echo "📦 البناء: $VERSION"
+
+    # ─────────────────────────────────────────────────
+    #  3) تنصيب JDK 17
+    # ─────────────────────────────────────────────────
     - name: Set up JDK 17
       uses: actions/setup-java@v4
       with:
         java-version: '17'
         distribution: 'temurin'
 
+    # ─────────────────────────────────────────────────
+    #  4) إعداد Gradle + Cache
+    # ─────────────────────────────────────────────────
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v4
       with:
         gradle-version: 8.9
+        cache-read-only: false
 
+    # ─────────────────────────────────────────────────
+    #  5) إعادة الصلاحيات (إن وُجد gradlew)
+    # ─────────────────────────────────────────────────
     - name: Grant execute permission for gradlew
-      run: chmod +x gradlew
+      run: |
+        if [ -f gradlew ]; then
+          chmod +x gradlew
+          echo "USE_WRAPPER=true" >> $GITHUB_ENV
+        else
+          echo "USE_WRAPPER=false" >> $GITHUB_ENV
+        fi
 
+    # ─────────────────────────────────────────────────
+    #  6) بناء Debug APK
+    # ─────────────────────────────────────────────────
     - name: Build Debug APK
-      run: ./gradlew assembleDebug --stacktrace
+      run: |
+        if [ "$USE_WRAPPER" = "true" ]; then
+          ./gradlew assembleDebug --stacktrace --no-daemon
+        else
+          gradle assembleDebug --stacktrace --no-daemon
+        fi
 
-    - name: Rename APK
+    # ─────────────────────────────────────────────────
+    #  7) تجهيز مجلد الإخراج
+    # ─────────────────────────────────────────────────
+    - name: Prepare Output
       run: |
         mkdir -p output
-        cp app/build/outputs/apk/debug/app-debug.apk output/STTITEN-IP-TV-v1.0.0-tv.apk
+        VERSION="${{ steps.info.outputs.VERSION }}"
+        cp app/build/outputs/apk/debug/app-debug.apk \
+           "output/STTITEN-IP-TV-${VERSION}-debug.apk"
+        ls -lh output/
 
-    - name: Upload APK
+    # ─────────────────────────────────────────────────
+    #  8) رفع APK
+    # ─────────────────────────────────────────────────
+    - name: Upload Debug APK
       uses: actions/upload-artifact@v4
       with:
-        name: STTITEN-IP-TV-Android-TV
-        path: output/STTITEN-IP-TV-v1.0.0-tv.apk
+        name: STTITEN-IP-TV-${{ steps.info.outputs.VERSION }}
+        path: output/*.apk
         retention-days: 30
+        if-no-files-found: error
+
+    # ─────────────────────────────────────────────────
+    #  9) ملخص البناء
+    # ─────────────────────────────────────────────────
+    - name: Build Summary
+      if: always()
+      run: |
+        echo "### 📦 نتيجة البناء" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- **النسخة:** \`${{ steps.info.outputs.VERSION }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- **Commit:** \`${{ steps.info.outputs.SHORT_SHA }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- **الفرع:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- **الحالة:** ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "APK في قسم **Artifacts** أسفل الصفحة ⬇️" >> $GITHUB_STEP_SUMMARY
