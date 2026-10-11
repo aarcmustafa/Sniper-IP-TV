@@ -384,3 +384,254 @@ private fun EmptyEpisodesView(onBack: () -> Unit) {
         }
     }
 }
+
+@Composable
+private fun SeriesContent(
+    series: SeriesEntity?,
+    episodes: List<Episode>,
+    selectedSeason: Int?,
+    isFavorite: Boolean,
+    onSeasonSelected: (Int) -> Unit,
+    onEpisodeClick: (Episode) -> Unit,
+    onToggleFavorite: () -> Unit,
+    onBack: () -> Unit,
+) {
+    val seasons = episodes.map { it.season }.distinct().sorted()
+    val visibleEpisodes = if (selectedSeason == null) episodes
+    else episodes.filter { it.season == selectedSeason }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(bottom = 32.dp),
+    ) {
+        item(key = "hero") {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(380.dp)
+            ) {
+                AsyncImage(
+                    model = series?.backdrop ?: series?.poster,
+                    contentDescription = series?.name,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    Color.Black.copy(alpha = 0.3f),
+                                    Color.Black.copy(alpha = 0.5f),
+                                    Color(0xFF0D1117).copy(alpha = 1f),
+                                )
+                            )
+                        )
+                )
+
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(20.dp)
+                        .tvFocusable(onClick = onBack)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color.Black.copy(alpha = 0.6f))
+                        .padding(horizontal = 16.dp, vertical = 10.dp)
+                ) {
+                    Text("← رجوع", color = Color.White, fontSize = 14.sp)
+                }
+
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .fillMaxWidth()
+                        .padding(horizontal = 32.dp, vertical = 24.dp)
+                ) {
+                    Text(
+                        text = series?.name ?: "المسلسل",
+                        color = Color.White,
+                        fontSize = 34.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+
+                    val infoLine = buildList {
+                        if (!series?.year.isNullOrBlank()) add(series!!.year!!)
+                        if (!series?.rating.isNullOrBlank()) add("⭐ ${series!!.rating}")
+                        if (!series?.genre.isNullOrBlank()) add(series!!.genre!!)
+                        add("${episodes.size} حلقة")
+                    }.joinToString("  ·  ")
+
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = infoLine,
+                        color = Color(0xFFD0D7DE),
+                        fontSize = 15.sp,
+                    )
+
+                    if (!series?.plot.isNullOrBlank()) {
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            text = series!!.plot!!,
+                            color = Color(0xFFA8B3C1),
+                            fontSize = 14.sp,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+
+                    Spacer(Modifier.height(16.dp))
+
+                    FavoriteSeriesButton(
+                        isFavorite = isFavorite,
+                        onClick = onToggleFavorite,
+                    )
+                }
+            }
+        }
+
+        if (seasons.size > 1) {
+            item(key = "seasons") {
+                Spacer(Modifier.height(8.dp))
+                LazyRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 12.dp),
+                    contentPadding = PaddingValues(horizontal = 32.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    items(seasons) { season ->
+                        val isSelected = season == selectedSeason
+                        val bg = if (isSelected) Color(0xFF1F6FEB) else Color(0xFF21262D)
+                        Text(
+                            text = "الموسم $season",
+                            color = Color.White,
+                            fontSize = 15.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            modifier = Modifier
+                                .tvFocusable { onSeasonSelected(season) }
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(bg)
+                                .padding(horizontal = 20.dp, vertical = 10.dp),
+                        )
+                    }
+                }
+            }
+        }
+
+        item(key = "episodes_header") {
+            Text(
+                text = "الحلقات",
+                color = Color.White,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 32.dp, vertical = 8.dp),
+            )
+        }
+
+        items(visibleEpisodes, key = { it.id }) { ep ->
+            EpisodeRow(
+                episode = ep,
+                onClick = { onEpisodeClick(ep) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun FavoriteSeriesButton(
+    isFavorite: Boolean,
+    onClick: () -> Unit,
+) {
+    val text = if (isFavorite) "★  في المفضلة" else "☆  أضف للمفضلة"
+    val bg = if (isFavorite) Color(0xFFF85149).copy(alpha = 0.25f) else Color(0xFF30363D)
+    val textColor = if (isFavorite) Color(0xFFF85149) else Color.White
+
+    Text(
+        text = text,
+        color = textColor,
+        fontSize = 15.sp,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier
+            .tvFocusable(onClick = onClick)
+            .clip(RoundedCornerShape(10.dp))
+            .background(bg)
+            .padding(horizontal = 20.dp, vertical = 10.dp)
+    )
+}
+
+@Composable
+private fun EpisodeRow(
+    episode: Episode,
+    onClick: () -> Unit,
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 32.dp, vertical = 6.dp)
+            .tvFocusable(onClick = onClick),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFF161B22),
+        ),
+        shape = RoundedCornerShape(12.dp),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(56.dp)
+                    .height(56.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color(0xFF1F6FEB).copy(alpha = 0.2f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "${episode.episode}",
+                    color = Color(0xFF1F6FEB),
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+
+            Spacer(Modifier.width(16.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = episode.title.ifBlank { "الحلقة ${episode.episode}" },
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+
+                val meta = buildList {
+                    if (!episode.duration.isNullOrBlank()) add(episode.duration!!)
+                    if (!episode.rating.isNullOrBlank()) add("⭐ ${episode.rating}")
+                }.joinToString("  ·  ")
+
+                if (meta.isNotBlank()) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = meta,
+                        color = Color(0xFF8B949E),
+                        fontSize = 13.sp,
+                    )
+                }
+            }
+
+            Text(
+                text = "▶",
+                color = Color(0xFF1F6FEB),
+                fontSize = 22.sp,
+            )
+        }
+    }
+}
