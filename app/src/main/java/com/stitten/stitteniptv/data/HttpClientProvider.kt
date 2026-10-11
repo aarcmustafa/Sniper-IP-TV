@@ -38,14 +38,7 @@ object HttpClientProvider {
             Log.d(TAG, message)
         } catch (_: Exception) { }
     }.apply {
-        // BASIC = method + URL + code + time
-        // HEADERS = + headers
-        // BODY = + body (بطيء جدًا)
-        level = if (BuildConfig.DEBUG) {
-            HttpLoggingInterceptor.Level.HEADERS
-        } else {
-            HttpLoggingInterceptor.Level.NONE
-        }
+        level = HttpLoggingInterceptor.Level.HEADERS
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -79,13 +72,24 @@ object HttpClientProvider {
         }
     }
 
+    // ═══════════════════════════════════════════════════════════
+    //  ✅ Interceptor موحّد — Referer + Origin + Accept-Language
+    //  يُطبَّق على كل الطلبات (API + Video)
+    // ═══════════════════════════════════════════════════════════
+
     private val uaInterceptor = Interceptor { chain ->
         val original = chain.request()
+        val host = original.url.host
+        val scheme = original.url.scheme
+
         val request: Request = original.newBuilder()
             .header("User-Agent", getUserAgent())
             .header("Accept", "*/*")
+            .header("Accept-Language", "ar,en-US;q=0.9,en;q=0.8")
             .header("Connection", "keep-alive")
             .header("Accept-Encoding", "identity")
+            .header("Referer", "$scheme://$host/")
+            .header("Origin", "$scheme://$host")
             .build()
         chain.proceed(request)
     }
@@ -268,7 +272,7 @@ object HttpClientProvider {
         val tm = buildTrustManager()
         OkHttpClient.Builder()
             .addInterceptor(uaInterceptor)
-            .addInterceptor(loggingInterceptor)          // ✅ تسجيل
+            .addInterceptor(loggingInterceptor)
             .cookieJar(cookieJar)
             .connectTimeout(60, TimeUnit.SECONDS)
             .readTimeout(180, TimeUnit.SECONDS)
@@ -291,7 +295,7 @@ object HttpClientProvider {
         val tm = buildTrustManager()
         OkHttpClient.Builder()
             .addInterceptor(uaInterceptor)
-            .addInterceptor(loggingInterceptor)          // ✅ تسجيل
+            .addInterceptor(loggingInterceptor)
             .cookieJar(cookieJar)
             .connectionPool(ConnectionPool(32, 15, TimeUnit.MINUTES))
             .connectTimeout(20, TimeUnit.SECONDS)
@@ -360,7 +364,7 @@ object HttpClientProvider {
     }
 
     // ═══════════════════════════════════════════════════════════
-    //  fetchText — مع تسجيل النتائج
+    //  fetchText
     // ═══════════════════════════════════════════════════════════
 
     suspend fun fetchText(url: String): Result<String> {
@@ -374,7 +378,6 @@ object HttpClientProvider {
                 response.close()
                 Result.success(body)
             } else {
-                // ✅ تسجيل كود الخطأ
                 try {
                     Log.w(TAG, "fetchText FAILED: HTTP ${response.code} for $url")
                 } catch (_: Exception) { }
