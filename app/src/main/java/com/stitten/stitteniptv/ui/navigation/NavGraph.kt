@@ -9,6 +9,8 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.stitten.stitteniptv.ui.live.LiveScreen
 import com.stitten.stitteniptv.ui.screens.*
+import com.stitten.stitteniptv.ui.vod.MovieDetailsScreen
+import com.stitten.stitteniptv.ui.vod.MoviesScreen
 import java.net.URLDecoder
 import java.net.URLEncoder
 
@@ -28,9 +30,7 @@ object Routes {
     const val ADD_SOURCE_EDIT = "add_source/edit/{sourceId}"
     const val EXTERNAL_PLAYERS = "external_players"
 
-    // ═══════════════════════════════════════════════════════════
-    //  ✅ جديد — مسارات إضافية
-    // ═══════════════════════════════════════════════════════════
+    // ✅ جديد
     const val LIVE = "live"
     const val MOVIES = "movies"
     const val SERIES_LIST = "series_list"
@@ -51,14 +51,25 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
     NavHost(navController = navController, startDestination = Routes.SPLASH) {
 
         // ═══════════════════════════════════════════════════════════
-        //  الشاشات الأساسية
+        //  الأساسية
         // ═══════════════════════════════════════════════════════════
         composable(Routes.SPLASH) { SplashScreen(navController) }
         composable(Routes.LOGIN) { LoginScreen(navController) }
         composable(Routes.DASHBOARD) { DashboardScreen(navController) }
 
-        // ✅ جديد — شاشة القنوات المباشرة
+        // ═══════════════════════════════════════════════════════════
+        //  ✅ جديد — القنوات + الأفلام
+        // ═══════════════════════════════════════════════════════════
         composable(Routes.LIVE) { LiveScreen(navController) }
+        composable(Routes.MOVIES) { MoviesScreen(navController) }
+
+        composable(
+            Routes.MOVIE_DETAILS,
+            arguments = listOf(navArgument("movieId") { type = NavType.StringType })
+        ) { entry ->
+            // MovieDetailsViewModel يقرأ movieId من SavedStateHandle تلقائيًا
+            MovieDetailsScreen(navController)
+        }
 
         // ═══════════════════════════════════════════════════════════
         //  الإعدادات
@@ -128,9 +139,7 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
         }
 
         // ═══════════════════════════════════════════════════════════
-        //  ⏸️ مسارات مستقبلية (غير مربوطة بعد)
-        //  Routes.MOVIES, Routes.SERIES_LIST, Routes.MOVIE_DETAILS, Routes.SEARCH
-        //  ستُربط عند إنشاء شاشاتها
+        //  ⏸️ مسارات مستقبلية: SERIES_LIST, SEARCH
         // ═══════════════════════════════════════════════════════════
     }
 }
