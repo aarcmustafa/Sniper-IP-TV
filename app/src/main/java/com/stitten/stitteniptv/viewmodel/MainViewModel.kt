@@ -105,7 +105,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ==========================================
-    //  تسجيل الدخول بـ M3U
+    //  ✅ تسجيل الدخول بـ M3U (بعد التحديث: قنوات + أفلام + مسلسلات)
     // ==========================================
     fun loginM3u(
         url: String,
@@ -115,43 +115,65 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             _uiState.value = DashboardUiState(
                 isLoading = true,
-                loadingMessage = "📥 جاري تحميل القائمة...",
+                loadingMessage = "📥 جاري تحليل قائمة M3U...",
                 loadingProgress = 10
             )
 
-            val list = if (content != null) {
-                M3uParser.loadFromContent(content)
+            val result: M3uParseResult = if (content != null) {
+                M3uParser.loadFromContentStructured(content)
             } else {
-                M3uParser.loadFromUrl(url)
+                M3uParser.loadFromUrlStructured(url)
             }
 
-            if (list.isEmpty()) {
-                _uiState.value = DashboardUiState(error = "❌ لا توجد قنوات")
+            val totalItems = result.channels.size + result.movies.size + result.series.size
+
+            if (totalItems == 0) {
+                _uiState.value = DashboardUiState(error = "❌ لا يوجد محتوى في القائمة")
                 onDone(false)
-            } else {
-                prefs.isLoggedIn = true
-                prefs.loginType = "M3U"
-                prefs.m3uUrl = url
-
-                val limited = list.take(getChannelLimit())
-                withContext(Dispatchers.IO) {
-                    channelRepo.clearAll()
-                    channelRepo.saveChannels(limited)
-                }
-                // ✅ حفظ في الذاكرة
-                ContentRepository.channels = limited
-
-                _uiState.value = DashboardUiState(
-                    channelsCount = limited.size,
-                    loadingProgress = 100
-                )
-                onDone(true)
+                return@launch
             }
+
+            prefs.isLoggedIn = true
+            prefs.loginType = "M3U"
+            prefs.m3uUrl = url
+
+            _uiState.value = _uiState.value.copy(
+                loadingMessage = "💾 جاري حفظ ${result.channels.size} قناة...",
+                loadingProgress = 40
+            )
+
+            withContext(Dispatchers.IO) {
+                channelRepo.clearAll()
+                val limitedChannels = result.channels.take(getChannelLimit())
+                if (limitedChannels.isNotEmpty()) channelRepo.saveChannels(limitedChannels)
+                if (result.movies.isNotEmpty()) channelRepo.saveMovies(result.movies)
+                if (result.series.isNotEmpty()) channelRepo.saveSeries(result.series)
+            }
+
+            _uiState.value = _uiState.value.copy(
+                loadingMessage = "📝 جاري تحديث الذاكرة...",
+                loadingProgress = 80
+            )
+
+            ContentRepository.channels = result.channels.take(getChannelLimit())
+            ContentRepository.movies = result.movies
+            ContentRepository.series = result.series
+            ContentRepository.episodes = ContentRepository.episodes + result.seriesEpisodes
+
+            _uiState.value = DashboardUiState(
+                channelsCount = result.channels.size,
+                moviesCount = result.movies.size,
+                seriesCount = result.series.size,
+                loadingProgress = 100,
+                loadingMessage = "✅ ${result.channels.size} قناة · ${result.movies.size} فيلم · ${result.series.size} مسلسل",
+                dataVersion = _uiState.value.dataVersion + 1
+            )
+            onDone(true)
         }
     }
 
     // ==========================================
-    //  تحميل كل المحتوى: قنوات + أفلام + مسلسلات
+    //  تحميل كل المحتوى: Xtream
     // ==========================================
     private suspend fun loadAllContent(
         server: String,
@@ -175,7 +197,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
         val liveLimited = live.take(getChannelLimit())
         withContext(Dispatchers.IO) { channelRepo.saveChannels(liveLimited) }
-        // ✅ حفظ في الذاكرة
         ContentRepository.channels = liveLimited
 
         // ─── 2) الأفلام ───
@@ -194,7 +215,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
         withContext(Dispatchers.IO) { channelRepo.saveMovies(movies) }
-        // ✅ حفظ في الذاكرة
         ContentRepository.movies = movies
 
         // ─── 3) المسلسلات ───
@@ -213,7 +233,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
         withContext(Dispatchers.IO) { channelRepo.saveSeries(series) }
-        // ✅ حفظ في الذاكرة
         ContentRepository.series = series
 
         // ─── 4) انتهى ───
@@ -276,7 +295,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ==========================================
-    //  تحميل مصدر M3U
+    //  ✅ تحميل مصدر M3U — بعد التحديث
     // ==========================================
     private suspend fun loadM3uSource(source: SourceEntity) {
         _uiState.value = _uiState.value.copy(
@@ -284,18 +303,23 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             loadingProgress = 20
         )
 
-        val channels = if (source.url.startsWith("content://")) {
-            emptyList()
+        val result: M3uParseResult = if (source.url.startsWith("content://")) {
+            // ملف محلي — لن نعيد تحليله هنا (نفترض أنه موجود بالذاكرة)
+            M3uParseResult(
+                channels = ContentRepository.channels,
+                movies = ContentRepository.movies,
+                series = ContentRepository.series,
+            )
         } else {
             withContext(Dispatchers.IO) {
-                M3uParser.loadFromUrlStreaming(
+                M3uParser.loadFromUrlStreamingStructured(
                     ctx = getApplication(),
                     url = source.url,
                     onProgress = { downloaded, total ->
                         val progress = if (total > 0) {
-                            ((downloaded * 100) / total).toInt().coerceIn(5, 95)
+                            ((downloaded * 100) / total).toInt().coerceIn(5, 60)
                         } else {
-                            (downloaded / 2).toInt().coerceIn(5, 95)
+                            (downloaded / 2).toInt().coerceIn(5, 60)
                         }
                         _uiState.value = _uiState.value.copy(
                             loadingProgress = progress,
@@ -309,7 +333,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
 
-        if (channels.isEmpty()) {
+        val totalItems = result.channels.size + result.movies.size + result.series.size
+
+        if (totalItems == 0) {
             _uiState.value = DashboardUiState(
                 error = "❌ فشل تحميل M3U: ${source.name}",
                 currentSourceName = source.name,
@@ -318,16 +344,30 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
 
-        val limited = channels.take(getChannelLimit())
-        withContext(Dispatchers.IO) { channelRepo.saveChannels(limited) }
-        // ✅ حفظ في الذاكرة
-        ContentRepository.channels = limited
+        _uiState.value = _uiState.value.copy(
+            loadingMessage = "💾 جاري حفظ المحتوى...",
+            loadingProgress = 70
+        )
+
+        val limitedChannels = result.channels.take(getChannelLimit())
+        withContext(Dispatchers.IO) {
+            if (limitedChannels.isNotEmpty()) channelRepo.saveChannels(limitedChannels)
+            if (result.movies.isNotEmpty()) channelRepo.saveMovies(result.movies)
+            if (result.series.isNotEmpty()) channelRepo.saveSeries(result.series)
+        }
+
+        ContentRepository.channels = limitedChannels
+        ContentRepository.movies = result.movies
+        ContentRepository.series = result.series
+        ContentRepository.episodes = ContentRepository.episodes + result.seriesEpisodes
 
         _uiState.value = _uiState.value.copy(
-            channelsCount = limited.size,
+            channelsCount = limitedChannels.size,
+            moviesCount = result.movies.size,
+            seriesCount = result.series.size,
             isLoading = false,
             loadingProgress = 100,
-            loadingMessage = "✅ ${limited.size} قناة",
+            loadingMessage = "✅ ${limitedChannels.size} قناة · ${result.movies.size} فيلم · ${result.series.size} مسلسل",
             dataVersion = _uiState.value.dataVersion + 1
         )
     }
@@ -356,16 +396,24 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         loadingProgress = 5
                     )
 
-                    val list = M3uParser.loadFromUrl(url)
-                    val limited = list.take(getChannelLimit())
+                    val result = M3uParser.loadFromUrlStructured(url)
 
+                    val limitedChannels = result.channels.take(getChannelLimit())
                     withContext(Dispatchers.IO) {
-                        channelRepo.saveChannels(limited)
+                        if (limitedChannels.isNotEmpty()) channelRepo.saveChannels(limitedChannels)
+                        if (result.movies.isNotEmpty()) channelRepo.saveMovies(result.movies)
+                        if (result.series.isNotEmpty()) channelRepo.saveSeries(result.series)
                     }
-                    ContentRepository.channels = limited
+
+                    ContentRepository.channels = limitedChannels
+                    ContentRepository.movies = result.movies
+                    ContentRepository.series = result.series
+                    ContentRepository.episodes = ContentRepository.episodes + result.seriesEpisodes
 
                     _uiState.value = DashboardUiState(
-                        channelsCount = limited.size,
+                        channelsCount = limitedChannels.size,
+                        moviesCount = result.movies.size,
+                        seriesCount = result.series.size,
                         loadingProgress = 100
                     )
                 }
@@ -398,15 +446,26 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             when (prefs.loginType) {
                 "M3U" -> {
                     if (prefs.m3uUrl.isBlank()) return@launch
-                    val list = M3uParser.loadFromUrl(prefs.m3uUrl)
-                    val limited = list.take(getChannelLimit())
+
+                    val result = M3uParser.loadFromUrlStructured(prefs.m3uUrl)
+
+                    val limitedChannels = result.channels.take(getChannelLimit())
                     withContext(Dispatchers.IO) {
                         channelRepo.clearAll()
-                        channelRepo.saveChannels(limited)
+                        if (limitedChannels.isNotEmpty()) channelRepo.saveChannels(limitedChannels)
+                        if (result.movies.isNotEmpty()) channelRepo.saveMovies(result.movies)
+                        if (result.series.isNotEmpty()) channelRepo.saveSeries(result.series)
                     }
-                    ContentRepository.channels = limited
+
+                    ContentRepository.channels = limitedChannels
+                    ContentRepository.movies = result.movies
+                    ContentRepository.series = result.series
+                    ContentRepository.episodes = ContentRepository.episodes + result.seriesEpisodes
+
                     _uiState.value = DashboardUiState(
-                        channelsCount = limited.size,
+                        channelsCount = limitedChannels.size,
+                        moviesCount = result.movies.size,
+                        seriesCount = result.series.size,
                         loadingProgress = 100
                     )
                 }
@@ -437,6 +496,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     // ==========================================
     fun loadEpisodes(seriesId: String, onDone: (List<Episode>) -> Unit) {
         viewModelScope.launch {
+            // ─── 1) من الذاكرة أولًا ───
+            val cached = ContentRepository.episodes[seriesId]
+            if (!cached.isNullOrEmpty()) {
+                onDone(cached)
+                return@launch
+            }
+
+            // ─── 2) من Xtream (فقط إذا كان المصدر Xtream) ───
+            if (prefs.loginType != "XTREAM") {
+                onDone(emptyList())
+                return@launch
+            }
+
             val eps = XtreamApi.loadEpisodes(
                 prefs.serverUrl,
                 prefs.username,
