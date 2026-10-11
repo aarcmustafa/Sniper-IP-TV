@@ -42,6 +42,7 @@ import coil.compose.AsyncImage
 import com.stitten.stitteniptv.data.ChannelRepository
 import com.stitten.stitteniptv.data.ContentRepository
 import com.stitten.stitteniptv.data.Episode
+import com.stitten.stitteniptv.data.FavoritesManager
 import com.stitten.stitteniptv.data.XtreamApi
 import com.stitten.stitteniptv.database.entity.SeriesEntity
 import com.stitten.stitteniptv.ui.components.tvFocusable
@@ -63,11 +64,13 @@ fun SeriesDetailsScreen(
     }
     val channelRepo: ChannelRepository = remember { entryPoint.channelRepository() }
     val sourceMgr = remember { entryPoint.sourceManager() }
+    val favorites = remember { FavoritesManager(ctx) }
 
     var episodes by remember { mutableStateOf<List<Episode>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
     var selectedSeason by remember { mutableStateOf<Int?>(null) }
     var series by remember { mutableStateOf<SeriesEntity?>(null) }
+    var isFavorite by remember { mutableStateOf(false) }
 
     LaunchedEffect(seriesId) {
         // ─── 1) جلب المسلسل من Room ───
@@ -103,14 +106,19 @@ fun SeriesDetailsScreen(
             } catch (_: Exception) { }
         }
 
-        // ─── 3) استخراج seriesId الرقمي ───
+        // ─── 3) حالة المفضلة ───
+        isFavorite = try {
+            favorites.getFavoriteSeriesIds().contains(seriesId)
+        } catch (_: Exception) { false }
+
+        // ─── 4) استخراج seriesId الرقمي ───
         val numericId = if (seriesId.contains("_")) {
             seriesId.substringAfterLast("_")
         } else {
             seriesId
         }
 
-        // ─── 4) جلب الحلقات من Xtream ───
+        // ─── 5) جلب الحلقات من Xtream ───
         try {
             val activeSource = sourceMgr.getActive()
             if (activeSource != null) {
@@ -146,9 +154,16 @@ fun SeriesDetailsScreen(
                 series = series,
                 episodes = episodes,
                 selectedSeason = selectedSeason,
+                isFavorite = isFavorite,
                 onSeasonSelected = { selectedSeason = it },
                 onEpisodeClick = { ep ->
                     navController.navigate(Routes.player(ep.url, ep.title))
+                },
+                onToggleFavorite = {
+                    val newState = try {
+                        favorites.toggleSeries(seriesId, series?.name ?: "")
+                    } catch (_: Exception) { false }
+                    isFavorite = newState
                 },
                 onBack = { navController.popBackStack() },
             )
@@ -193,8 +208,10 @@ private fun SeriesContent(
     series: SeriesEntity?,
     episodes: List<Episode>,
     selectedSeason: Int?,
+    isFavorite: Boolean,
     onSeasonSelected: (Int) -> Unit,
     onEpisodeClick: (Episode) -> Unit,
+    onToggleFavorite: () -> Unit,
     onBack: () -> Unit,
 ) {
     val seasons = episodes.map { it.season }.distinct().sorted()
@@ -209,7 +226,7 @@ private fun SeriesContent(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(360.dp)
+                    .height(380.dp)
             ) {
                 AsyncImage(
                     model = series?.backdrop ?: series?.poster,
@@ -279,10 +296,18 @@ private fun SeriesContent(
                             text = series!!.plot!!,
                             color = Color(0xFFA8B3C1),
                             fontSize = 14.sp,
-                            maxLines = 3,
+                            maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
+
+                    Spacer(Modifier.height(16.dp))
+
+                    // ─── زر المفضلة ───
+                    FavoriteSeriesButton(
+                        isFavorite = isFavorite,
+                        onClick = onToggleFavorite,
+                    )
                 }
             }
         }
@@ -333,6 +358,28 @@ private fun SeriesContent(
             )
         }
     }
+}
+
+@Composable
+private fun FavoriteSeriesButton(
+    isFavorite: Boolean,
+    onClick: () -> Unit,
+) {
+    val text = if (isFavorite) "★  في المفضلة" else "☆  أضف للمفضلة"
+    val bg = if (isFavorite) Color(0xFFF85149).copy(alpha = 0.25f) else Color(0xFF30363D)
+    val textColor = if (isFavorite) Color(0xFFF85149) else Color.White
+
+    Text(
+        text = text,
+        color = textColor,
+        fontSize = 15.sp,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier
+            .tvFocusable(onClick = onClick)
+            .clip(RoundedCornerShape(10.dp))
+            .background(bg)
+            .padding(horizontal = 20.dp, vertical = 10.dp)
+    )
 }
 
 @Composable
