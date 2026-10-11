@@ -1,5 +1,6 @@
 package com.stitten.stitteniptv.ui.screens
 
+import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -145,6 +146,17 @@ fun AddSourceScreen(
         ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
         uri ?: return@rememberLauncherForActivityResult
+
+        // ✅ طلب صلاحية دائمة للملف — يمنع فقدانه بعد إعادة التشغيل
+        try {
+            ctx.contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION
+            )
+        } catch (e: Exception) {
+            // بعض المزودين لا يدعمون الصلاحيات الدائمة — لا مشكلة
+        }
+
         scope.launch {
             localLoading = true
             message = ""
