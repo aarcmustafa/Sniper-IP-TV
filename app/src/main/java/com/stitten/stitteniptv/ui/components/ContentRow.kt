@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -20,14 +21,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/**
- * صف أفقي (نمط Netflix) يعرض قائمة عناصر قابلة للتمرير أفقيًا.
- *
- * @param title  عنوان القسم (اختياري).
- * @param items  قائمة العناصر.
- * @param key    دالة تُعيد مفتاحًا فريدًا لكل عنصر (لتحسين الأداء).
- * @param card   دالة Composable لرسم كل بطاقة (استخدم [PosterCard] مثلًا).
- */
 @Composable
 fun <T> ContentRow(
     title: String?,
@@ -43,14 +36,12 @@ fun <T> ContentRow(
 
     Column(modifier = modifier.fillMaxWidth()) {
 
-        // ===== عنوان القسم =====
         if (!title.isNullOrBlank()) {
             SectionHeader(title = title, count = items.size)
         }
 
         Spacer(Modifier.height(8.dp))
 
-        // ===== الصف الأفقي =====
         LazyRow(
             state = listState,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -67,9 +58,6 @@ fun <T> ContentRow(
     }
 }
 
-/**
- * عنوان قسم موحّد لكل الصفوف.
- */
 @Composable
 fun SectionHeader(
     title: String,
