@@ -21,7 +21,8 @@ object PlayerFactory {
         startPositionMs: Long = 0L,
     ): ExoPlayer {
 
-        val dataSource = RetryHttpDataSource(context, candidates)
+        // ✅ RetryHttpDataSource لم يعد يستقبل context
+        val dataSource = RetryHttpDataSource(candidates)
         val mediaSourceFactory = DefaultMediaSourceFactory { dataSource }
 
         val loadControl = DefaultLoadControl.Builder()
