@@ -5,6 +5,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Home
@@ -15,6 +16,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -72,4 +74,23 @@ object AppIcons {
     val Person: ImageVector = Icons.Filled.Person
     val Storage: ImageVector = Icons.Filled.Storage
     val Wifi: ImageVector = Icons.Filled.Wifi
+
+    // ═══════════════════════════════════════════════════════════
+    //  أنواع المصادر
+    // ═══════════════════════════════════════════════════════════
+
+    /** Xtream Codes API */
+    val XtreamSource: ImageVector = Icons.Filled.Cloud
+
+    /** M3U Playlist */
+    val M3uSource: ImageVector = Icons.Filled.PlaylistPlay
+
+    /** M3U8 (HLS) */
+    val M3u8Source: ImageVector = Icons.Filled.LiveTv
+
+    /** ملف محلي من الجهاز */
+    val LocalFile: ImageVector = Icons.Filled.FolderOpen
+
+    /** مصدر نشط */
+    val ActiveSource: ImageVector = Icons.Filled.CheckCircle
 }
