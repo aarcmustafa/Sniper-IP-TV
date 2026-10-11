@@ -26,7 +26,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -35,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.stitten.stitteniptv.database.entity.ChannelEntity
 import com.stitten.stitteniptv.database.entity.MovieEntity
@@ -47,13 +52,27 @@ import com.stitten.stitteniptv.ui.components.LoadingProgress
 import com.stitten.stitteniptv.ui.components.PosterCard
 import com.stitten.stitteniptv.ui.components.tvFocusable
 import com.stitten.stitteniptv.ui.navigation.Routes
+import com.stitten.stitteniptv.viewmodel.MainViewModel
 
 @Composable
 fun DashboardScreen(
     navController: NavHostController,
     viewModel: DashboardViewModel = hiltViewModel(),
+    mainViewModel: MainViewModel = viewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val mainState by mainViewModel.uiState.collectAsStateWithLifecycle()
+
+    // ─── بعد انتهاء التحديث من المصدر → أعد قراءة الرئيسية ───
+    var isRefreshing by remember { mutableStateOf(false) }
+
+    LaunchedEffect(mainState.isLoading, isRefreshing) {
+        if (isRefreshing && !mainState.isLoading) {
+            // انتهى التحديث → أعد قراءة المحتوى من Room
+            viewModel.retry()
+            isRefreshing = false
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -61,13 +80,15 @@ fun DashboardScreen(
             .background(Color(0xFF0D1117))
     ) {
         when {
-            state.isLoading -> Box(
+            state.isLoading || isRefreshing -> Box(
                 Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center,
             ) {
                 LoadingProgress(
-                    progress = state.progress,
-                    label = state.progressLabel,
+                    progress = if (isRefreshing) mainState.loadingProgress / 100f
+                    else state.progress,
+                    label = if (isRefreshing) mainState.loadingMessage
+                    else state.progressLabel,
                 )
             }
 
@@ -97,7 +118,11 @@ fun DashboardScreen(
                 onMoviesClick = { navController.navigate(Routes.MOVIES) },
                 onSeriesListClick = { navController.navigate(Routes.SERIES_LIST) },
                 onFavoritesClick = { navController.navigate(Routes.FAVORITES) },
-                onRefreshClick = { viewModel.retry() },
+                onRefreshClick = {
+                    // ✅ استدعاء refresh من المصدر الأصلي
+                    isRefreshing = true
+                    mainViewModel.refreshM3uSource()
+                },
             )
         }
     }
@@ -262,43 +287,36 @@ private fun DashboardTopBar(
 
         Spacer(Modifier.weight(1f))
 
-        // 🎬 أفلام
         IconButton(onClick = onMoviesClick) {
             Icon(Icons.Default.Movie, "أفلام", tint = Color.White)
         }
         Spacer(Modifier.width(4.dp))
 
-        // 📺 مسلسلات
         IconButton(onClick = onSeriesListClick) {
             Icon(Icons.Default.Tv, "مسلسلات", tint = Color.White)
         }
         Spacer(Modifier.width(4.dp))
 
-        // 📡 قنوات مباشرة
         IconButton(onClick = onLiveClick) {
             Icon(Icons.Default.LiveTv, "قنوات مباشرة", tint = Color.White)
         }
         Spacer(Modifier.width(4.dp))
 
-        // ⭐ المفضلة
         IconButton(onClick = onFavoritesClick) {
             Icon(Icons.Default.Favorite, "المفضلة", tint = Color(0xFFF85149))
         }
         Spacer(Modifier.width(4.dp))
 
-        // 🔍 بحث
         IconButton(onClick = onSearchClick) {
             Icon(Icons.Default.Search, "بحث", tint = Color.White)
         }
         Spacer(Modifier.width(4.dp))
 
-        // 🔄 تحديث
         IconButton(onClick = onRefreshClick) {
-            Icon(Icons.Default.Refresh, "تحديث المحتوى", tint = Color(0xFF66BB6A))
+            Icon(Icons.Default.Refresh, "تحديث من المصدر", tint = Color(0xFF66BB6A))
         }
         Spacer(Modifier.width(4.dp))
 
-        // ⚙️ إعدادات
         IconButton(onClick = onSettingsClick) {
             Icon(Icons.Default.Settings, "إعدادات", tint = Color.White)
         }
