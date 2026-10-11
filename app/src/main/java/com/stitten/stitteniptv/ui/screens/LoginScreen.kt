@@ -5,26 +5,45 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -35,10 +54,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -47,6 +62,7 @@ import androidx.navigation.NavHostController
 import com.stitten.stitteniptv.R
 import com.stitten.stitteniptv.database.entity.SourceEntity
 import com.stitten.stitteniptv.ui.navigation.Routes
+import com.stitten.stitteniptv.ui.theme.AppIcons
 import com.stitten.stitteniptv.viewmodel.MainViewModel
 import dagger.hilt.android.EntryPointAccessors
 
@@ -81,8 +97,7 @@ fun LoginScreen(
                 .background(Color.Black.copy(alpha = 0.75f))
         )
 
-        // ✅ استخدام key لضمان إعادة بناء الواجهة عند تغيير المصادر
-        key(sources.size) {
+        androidx.compose.runtime.key(sources.size) {
             if (sources.isEmpty()) {
                 WelcomeScreen(
                     onAddXtream = { navController.navigate("add_source?type=XTREAM") },
@@ -104,7 +119,6 @@ fun LoginScreen(
             }
         }
 
-        // ✅ دائرة النسبة المئوية
         if (uiState.isLoading) {
             CircularProgressOverlay(
                 progress = uiState.loadingProgress,
@@ -136,7 +150,10 @@ fun LoginScreen(
     }
 }
 
-// ============== 🎯 دائرة النسبة المئوية ==============
+// ═══════════════════════════════════════════════════════════════
+//  دائرة النسبة المئوية
+// ═══════════════════════════════════════════════════════════════
+
 @Composable
 fun CircularProgressOverlay(
     progress: Int,
@@ -158,12 +175,11 @@ fun CircularProgressOverlay(
                     .width(400.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // الدائرة مع النسبة
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier.size(200.dp)
                 ) {
-                    CircularProgressIndicator(
+                    androidx.compose.material3.CircularProgressIndicator(
                         progress = { progress / 100f },
                         modifier = Modifier.size(200.dp),
                         color = MaterialTheme.colorScheme.primary,
@@ -187,20 +203,17 @@ fun CircularProgressOverlay(
 
                 Spacer(Modifier.height(28.dp))
 
-                // الرسالة
                 Text(
                     message.ifBlank { "جاري التحميل..." },
                     color = Color.White,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Medium,
-                    textAlign = TextAlign.Center,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
 
                 Spacer(Modifier.height(20.dp))
 
-                // شريط خطي
                 LinearProgressIndicator(
                     progress = { progress / 100f },
                     modifier = Modifier.fillMaxWidth().height(8.dp),
@@ -212,7 +225,10 @@ fun CircularProgressOverlay(
     }
 }
 
-// ============== شاشة الترحيب ==============
+// ═══════════════════════════════════════════════════════════════
+//  شاشة الترحيب (عند عدم وجود مصادر)
+// ═══════════════════════════════════════════════════════════════
+
 @Composable
 private fun WelcomeScreen(
     onAddXtream: () -> Unit,
@@ -240,7 +256,7 @@ private fun WelcomeScreen(
         Spacer(Modifier.height(48.dp))
 
         WelcomeCard(
-            icon = "🎬",
+            icon = AppIcons.XtreamSource,
             title = "حساب Xtream",
             subtitle = "استخدم بيانات Xtream API",
             color = Color(0xFF1F6FEB),
@@ -250,7 +266,7 @@ private fun WelcomeScreen(
         Spacer(Modifier.height(16.dp))
 
         WelcomeCard(
-            icon = "📥",
+            icon = AppIcons.M3uSource,
             title = "قائمة M3U / M3U8",
             subtitle = "رابط أو ملف من الجهاز",
             color = Color(0xFF238636),
@@ -261,7 +277,7 @@ private fun WelcomeScreen(
 
 @Composable
 private fun WelcomeCard(
-    icon: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
     title: String,
     subtitle: String,
     color: Color,
@@ -298,7 +314,12 @@ private fun WelcomeCard(
             modifier = Modifier.fillMaxSize().padding(20.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(icon, fontSize = 40.sp)
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(40.dp)
+            )
             Spacer(Modifier.width(20.dp))
             Column {
                 Text(
@@ -317,7 +338,10 @@ private fun WelcomeCard(
     }
 }
 
-// ============== قائمة الحسابات ==============
+// ═══════════════════════════════════════════════════════════════
+//  قائمة الحسابات
+// ═══════════════════════════════════════════════════════════════
+
 @Composable
 private fun AccountsListScreen(
     sources: List<SourceEntity>,
@@ -358,14 +382,13 @@ private fun AccountsListScreen(
 
         Spacer(Modifier.height(24.dp))
 
-        // ✅ LazyColumn مع مفاتيح فريدة
         LazyColumn(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             items(
                 items = sources,
-                key = { "account_${it.id}_${it.type}" } // ✅ مفتاح فريد
+                key = { "account_${it.id}_${it.type}" }
             ) { source ->
                 AccountCard(
                     source = source,
@@ -388,14 +411,25 @@ private fun AccountsListScreen(
             ),
             shape = RoundedCornerShape(12.dp)
         ) {
-            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(28.dp))
+            Icon(
+                Icons.Default.Add,
+                contentDescription = null,
+                modifier = Modifier.size(28.dp)
+            )
             Spacer(Modifier.width(8.dp))
-            Text("إضافة حساب جديد", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text(
+                "إضافة حساب جديد",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold
+            )
         }
     }
 }
 
-// ============== بطاقة حساب ==============
+// ═══════════════════════════════════════════════════════════════
+//  بطاقة حساب — مع أيقونة ولون حسب النوع
+// ═══════════════════════════════════════════════════════════════
+
 @Composable
 private fun AccountCard(
     source: SourceEntity,
@@ -405,10 +439,24 @@ private fun AccountCard(
 ) {
     var isFocused by remember { mutableStateOf(false) }
 
-    val isXtream = source.type == "XTREAM"
-    val icon = if (isXtream) "🎬" else "📥"
-    val typeName = if (isXtream) "Xtream API" else "قائمة M3U"
-    val accentColor = if (isXtream) Color(0xFF1F6FEB) else Color(0xFF238636)
+    // ✅ تحديد اللون والأيقونة والاسم حسب النوع
+    val accentColor = when (source.type) {
+        "XTREAM" -> Color(0xFF1F6FEB)   // أزرق
+        "M3U8" -> Color(0xFF8B5CF6)     // بنفسجي
+        else -> Color(0xFF238636)       // أخضر (M3U)
+    }
+
+    val typeName = when (source.type) {
+        "XTREAM" -> "Xtream Codes API"
+        "M3U8" -> "قائمة M3U8 (HLS)"
+        else -> "قائمة M3U"
+    }
+
+    val iconVector = when (source.type) {
+        "XTREAM" -> AppIcons.XtreamSource
+        "M3U8" -> AppIcons.M3u8Source
+        else -> AppIcons.M3uSource
+    }
 
     Card(
         modifier = Modifier
@@ -431,6 +479,7 @@ private fun AccountCard(
                 .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // ─── أيقونة النوع ───
             Box(
                 modifier = Modifier
                     .size(64.dp)
@@ -448,20 +497,36 @@ private fun AccountCard(
                     .clickable(onClick = onPick),
                 contentAlignment = Alignment.Center
             ) {
+                Icon(
+                    imageVector = iconVector,
+                    contentDescription = typeName,
+                    tint = Color.White,
+                    modifier = Modifier.size(32.dp)
+                )
+
+                // ✅ علامة النشط (دائرة خضراء صغيرة في الزاوية)
                 if (source.isActive) {
-                    Icon(
-                        Icons.Default.Check,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(32.dp)
-                    )
-                } else {
-                    Text(icon, fontSize = 32.sp)
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(4.dp)
+                            .size(18.dp)
+                            .background(Color(0xFF66BB6A), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.Check,
+                            contentDescription = "نشط",
+                            tint = Color.White,
+                            modifier = Modifier.size(12.dp)
+                        )
+                    }
                 }
             }
 
             Spacer(Modifier.width(16.dp))
 
+            // ─── المعلومات ───
             Column(
                 modifier = Modifier
                     .weight(1f)
@@ -496,7 +561,12 @@ private fun AccountCard(
                     }
                 }
                 Spacer(Modifier.height(2.dp))
-                Text(typeName, color = accentColor, fontSize = 13.sp)
+                Text(
+                    typeName,
+                    color = accentColor,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium
+                )
                 if (source.url.isNotBlank()) {
                     Text(
                         source.url.take(50),
@@ -508,6 +578,7 @@ private fun AccountCard(
                 }
             }
 
+            // ─── أزرار التحكم ───
             IconButton(
                 onClick = onEdit,
                 modifier = Modifier.size(48.dp)
@@ -533,63 +604,4 @@ private fun AccountCard(
             }
         }
     }
-}
-
-// ============== حقل كلمة السر مع زر الإظهار المُصلَّح ==============
-@Composable
-fun PasswordField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    showPassword: Boolean,
-    onToggleShow: () -> Unit
-) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        label = { Text("Password") },
-        visualTransformation = if (showPassword)
-            VisualTransformation.None
-        else
-            PasswordVisualTransformation(),
-        keyboardOptions = KeyboardOptions(
-            keyboardType = KeyboardType.Password
-        ),
-        trailingIcon = {
-            // ✅ الحل: focusable + onKeyEvent + clickable
-            var isFocused by remember { mutableStateOf(false) }
-            val interaction = remember { MutableInteractionSource() }
-
-            Box(
-                modifier = Modifier
-                    .size(56.dp)
-                    .focusable(interactionSource = interaction)
-                    .onFocusChanged { isFocused = it.isFocused }
-                    .onKeyEvent { event ->
-                        if (event.type == KeyEventType.KeyUp &&
-                            (event.key == Key.DirectionCenter || event.key == Key.Enter)
-                        ) {
-                            onToggleShow()
-                            true
-                        } else false
-                    }
-                    .clickable(
-                        interactionSource = interaction,
-                        indication = null
-                    ) { onToggleShow() },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = if (showPassword)
-                        Icons.Default.VisibilityOff
-                    else
-                        Icons.Default.Visibility,
-                    contentDescription = if (showPassword) "إخفاء" else "إظهار",
-                    tint = if (isFocused) Color(0xFF58A6FF) else Color.White,
-                    modifier = Modifier.size(26.dp)
-                )
-            }
-        },
-        modifier = Modifier.fillMaxWidth(),
-        singleLine = true
-    )
 }
