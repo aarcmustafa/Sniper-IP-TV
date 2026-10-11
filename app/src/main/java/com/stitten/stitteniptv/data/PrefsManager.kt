@@ -89,6 +89,42 @@ class PrefsManager(context: Context) {
         get() = prefs.getBoolean("user_disabled_lite", false)
         set(value) = prefs.edit().putBoolean("user_disabled_lite", value).apply()
 
+    // ═══════════════════════════════════════════════════════════
+    //  ✅ مضاف: User-Agent
+    // ═══════════════════════════════════════════════════════════
+
+    var userAgent: String
+        get() = prefs.getString("user_agent", HttpClientProvider.DEFAULT_USER_AGENT)
+            ?: HttpClientProvider.DEFAULT_USER_AGENT
+        set(value) = prefs.edit().putString("user_agent", value).apply()
+
+    fun getUserAgent(): String = userAgent
+    fun setUserAgent(value: String) { userAgent = value }
+
+    // ═══════════════════════════════════════════════════════════
+    //  ✅ مضاف: إعدادات الامتدادات والمهلات
+    // ═══════════════════════════════════════════════════════════
+
+    /** آخر امتداد نجح مع المزود (يُستخدم كأولوية أولى) */
+    var lastSuccessfulExtension: String
+        get() = prefs.getString("last_ext", "") ?: ""
+        set(value) = prefs.edit().putString("last_ext", value).apply()
+
+    /** هل نجرب الامتدادات البديلة تلقائيًا؟ */
+    var autoTryAlternateExtensions: Boolean
+        get() = prefs.getBoolean("auto_ext", true)
+        set(value) = prefs.edit().putBoolean("auto_ext", value).apply()
+
+    /** مهلة الاتصال بالثواني */
+    var connectionTimeoutSeconds: Int
+        get() = prefs.getInt("conn_timeout", 20)
+        set(value) = prefs.edit().putInt("conn_timeout", value).apply()
+
+    /** مهلة القراءة بالثواني */
+    var readTimeoutSeconds: Int
+        get() = prefs.getInt("read_timeout", 90)
+        set(value) = prefs.edit().putInt("read_timeout", value).apply()
+
     fun clear() {
         prefs.edit().clear().apply()
     }
