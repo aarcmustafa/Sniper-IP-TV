@@ -1,22 +1,18 @@
 package com.stitten.stitteniptv.ui.screens
 
-import android.view.ViewGroup
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.ui.PlayerView
 import androidx.navigation.NavHostController
-import com.stitten.stitteniptv.player.PlayerFactory
 import com.stitten.stitteniptv.player.StreamKind
-import com.stitten.stitteniptv.data.PrefsManager
+import com.stitten.stitteniptv.ui.player.CorePlayerScreen
+import dagger.hilt.android.EntryPointAccessors
 
 @UnstableApi
 @Composable
@@ -27,63 +23,63 @@ fun PlayerScreen(
 ) {
     val context = LocalContext.current
 
-    // ── بناء قائمة المرشحين من الرابط الواحد ──
+    val entryPoint = remember {
+        EntryPointAccessors.fromApplication(
+            context.applicationContext,
+            PlayerEntryPoint::class.java
+        )
+    }
+    val historyMgr = remember { entryPoint.watchHistoryManager() }
+
+    val kind = remember(url) { detectKind(url) }
     val candidates = remember(url) { buildCandidates(url) }
 
-    // ── تحديد نوع البث من الرابط ──
-    val kind = remember(url) { detectKind(url) }
+    var startPos by remember { mutableLongStateOf(0L) }
+    var resolved by remember { mutableStateOf(false) }
 
-    // ── إنشاء المشغل ──
-    val exoPlayer = remember(candidates, kind) {
-        PlayerFactory.create(context, candidates, kind)
+    LaunchedEffect(url) {
+        try {
+            val h = historyMgr.getById(url)
+            if (h != null && h.positionMs > 5_000) {
+                startPos = h.positionMs
+            }
+        } catch (_: Exception) { }
+        resolved = true
     }
 
-    DisposableEffect(Unit) {
-        onDispose { exoPlayer.release() }
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black)
-    ) {
-        AndroidView(
-            factory = { ctx ->
-                PlayerView(ctx).apply {
-                    player = exoPlayer
-                    useController = true
-                    setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
-                    layoutParams = ViewGroup.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                    )
-                }
-            },
-            modifier = Modifier.fillMaxSize()
+    if (resolved) {
+        CorePlayerScreen(
+            candidates = candidates,
+            kind = kind,
+            title = title,
+            startPositionMs = startPos,
+            contentId = url,
+            contentType = kind.name,
+            posterUrl = "",
+            onClose = { navController.popBackStack() },
         )
     }
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  أدوات مساعدة
-// ═══════════════════════════════════════════════════════════════
-
-/** يبني قائمة الروابط بامتدادات مختلفة لتجربتها تباعًا */
 private fun buildCandidates(url: String): List<String> {
     if (url.isBlank()) return listOf(url)
 
-    // لا نبدّل الامتداد لروابط HLS أو M3U
-    val lower = url.substringBefore("?").lowercase()
+    val cleanUrl = url.substringBefore("?")
+    val lower = cleanUrl.lowercase()
+
     if (lower.endsWith(".m3u8") || lower.endsWith(".m3u")) {
         return listOf(url)
     }
+    if (!cleanUrl.contains(".")) return listOf(url)
+
+    val base = url.substringBeforeLast(".")
+    val query = url.substringAfterLast(".").substringAfter("?", "")
 
     val alternatives = listOf("mp4", "mkv", "avi", "ts", "m3u8")
-    val base = url.substringBeforeLast(".")
-
     val candidates = mutableListOf(url)
+
     alternatives.forEach { ext ->
-        val candidate = "$base.$ext"
+        val candidate = if (query.isBlank()) "$base.$ext" else "$base.$ext?$query"
         if (candidate != url && candidate !in candidates) {
             candidates.add(candidate)
         }
@@ -91,13 +87,11 @@ private fun buildCandidates(url: String): List<String> {
     return candidates
 }
 
-/** يحدّد نوع البث من الرابط */
 private fun detectKind(url: String): StreamKind {
     val lower = url.lowercase()
     return when {
         lower.contains("/live/") -> StreamKind.LIVE
         lower.contains("/series/") -> StreamKind.EPISODE
-        lower.contains("/movie/") -> StreamKind.MOVIE
         else -> StreamKind.MOVIE
     }
 }
