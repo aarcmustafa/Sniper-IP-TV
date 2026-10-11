@@ -13,10 +13,10 @@ data class Channel(
     val group: String = "",
     val isFavorite: Boolean = false,
 
-    // ✅ حقول اختيارية جديدة (لن تؤثر على الكود القديم)
+    // ✅ جديد — حقول اختيارية
     val streamId: Int? = null,
     val streamIcon: String? = null,
-    val epgChannelId: String? = null,   // لربط دليل البرامج
+    val epgChannelId: String? = null,
     val containerExtension: String? = null,
 )
 
@@ -30,7 +30,7 @@ data class Movie(
     val url: String,
     val category: String = "",
 
-    // ✅ حقول اختيارية جديدة
+    // ✅ جديد — حقول اختيارية
     val backdrop: String? = null,
     val plot: String? = null,
     val rating: String? = null,
@@ -54,7 +54,7 @@ data class Series(
     val poster: String = "",
     val category: String = "",
 
-    // ✅ حقول اختيارية جديدة
+    // ✅ جديد — حقول اختيارية
     val backdrop: String? = null,
     val plot: String? = null,
     val rating: String? = null,
@@ -80,7 +80,7 @@ data class Episode(
     val url: String,
     val poster: String = "",
 
-    // ✅ حقول اختيارية جديدة
+    // ✅ جديد — حقول اختيارية
     val plot: String? = null,
     val duration: String? = null,
     val rating: String? = null,
