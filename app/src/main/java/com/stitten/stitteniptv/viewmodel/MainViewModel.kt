@@ -147,6 +147,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
     }
+
+    
 // ==========================================
 //  تحميل كل المحتوى: قنوات + أفلام + مسلسلات
 // ==========================================
@@ -321,6 +323,8 @@ private suspend fun loadM3uSource(source: SourceEntity) {
         dataVersion = _uiState.value.dataVersion + 1
     )
 }
+
+
     // ==========================================
     //  تحديث المصدر الحالي يدوياً
     // ==========================================
