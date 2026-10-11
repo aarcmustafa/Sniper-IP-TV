@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -42,15 +43,15 @@ import kotlinx.coroutines.delay
 @Composable
 fun SplashScreen(navController: NavHostController) {
 
-    var logoVisible by remember { mutableStateOf(false) }
+    // ── حالة الحركات ──
     var logoScale by remember { mutableStateOf(0.3f) }
     var logoAlpha by remember { mutableStateOf(0f) }
     var visibleLetters by remember { mutableStateOf(0) }
     var ipTvVisible by remember { mutableStateOf(false) }
     var dotsVisible by remember { mutableStateOf(false) }
 
+    // ── تسلسل الحركات + الانتقال ──
     LaunchedEffect(Unit) {
-        logoVisible = true
         delay(100)
         logoScale = 1f
         logoAlpha = 1f
@@ -67,12 +68,13 @@ fun SplashScreen(navController: NavHostController) {
         delay(300)
         dotsVisible = true
 
-        delay(1200)
-        navController.navigate(Routes.DASHBOARD) {
+        delay(1400)
+        navController.navigate(Routes.LOGIN) {
             popUpTo(Routes.SPLASH) { inclusive = true }
         }
     }
 
+    // ── نبض التوهج ──
     val infiniteTransition = rememberInfiniteTransition(label = "glow")
     val glowAlpha by infiniteTransition.animateFloat(
         initialValue = 0.4f,
@@ -84,6 +86,7 @@ fun SplashScreen(navController: NavHostController) {
         label = "glowAlpha",
     )
 
+    // ── الواجهة ──
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -102,7 +105,8 @@ fun SplashScreen(navController: NavHostController) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            // الشعار
+
+            // ─── 🎬 الشعار ───
             Text(
                 text = "🎬",
                 fontSize = 80.sp,
@@ -113,7 +117,7 @@ fun SplashScreen(navController: NavHostController) {
 
             Spacer(Modifier.height(32.dp))
 
-            // STTITEN حرفًا حرفًا
+            // ─── S T T I T E N حرفًا حرفًا ───
             Row {
                 val letters = "STTITEN"
                 letters.forEachIndexed { index, char ->
@@ -127,35 +131,35 @@ fun SplashScreen(navController: NavHostController) {
                             .alpha(if (isVisible) 1f else 0f)
                             .scale(if (isVisible) 1f else 0.5f),
                     )
-                    Spacer(Modifier.size(4.dp))
+                    Spacer(Modifier.width(4.dp))
                 }
             }
 
             Spacer(Modifier.height(8.dp))
 
-            // خط فاصل متوهج
+            // ─── خط متوهج ───
             Box(
                 modifier = Modifier
-                    .size(width = 120.dp, height = 2.dp)
+                    .size(width = 140.dp, height = 2.dp)
                     .clip(RoundedCornerShape(2.dp))
                     .background(Color(0xFF1F6FEB).copy(alpha = glowAlpha)),
             )
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(16.dp))
 
-            // IP TV
+            // ─── IP TV ───
             Text(
                 text = "I P   T V",
                 color = Color(0xFF1F6FEB),
-                fontSize = 32.sp,
+                fontSize = 30.sp,
                 fontWeight = FontWeight.Bold,
-                letterSpacing = 8.sp,
-                modifier = Modifier.alpha(if (ipTvVisible) 1f else 0f),
+                modifier = Modifier
+                    .alpha(if (ipTvVisible) 1f else 0f),
             )
 
-            Spacer(Modifier.height(64.dp))
+            Spacer(Modifier.height(72.dp))
 
-            // نقاط التحميل
+            // ─── نقاط التحميل ───
             if (dotsVisible) {
                 LoadingDots()
             }
@@ -182,13 +186,13 @@ private fun LoadingDots() {
         )
     }
 
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        alphas.forEach { alpha ->
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        alphas.forEach { a ->
             Box(
                 modifier = Modifier
-                    .size(10.dp)
+                    .size(12.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF1F6FEB).copy(alpha = alpha.value)),
+                    .background(Color(0xFF1F6FEB).copy(alpha = a.value)),
             )
         }
     }
