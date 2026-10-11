@@ -162,10 +162,17 @@ fun AddSourceScreen(
                 val finalName = name.ifBlank {
                     "M3U محلي: ${uri.lastPathSegment?.takeLast(20) ?: "مصدر"}"
                 }
+
+                // ✅ تمييز M3U8 عن M3U للملفات
+                val detectedType = if (
+                    uri.toString().lowercase().contains(".m3u8") ||
+                    finalName.lowercase().contains(".m3u8")
+                ) "M3U8" else "M3U"
+
                 val newId = sourceMgr.add(
                     SourceEntity(
                         name = finalName,
-                        type = "M3U",
+                        type = detectedType,
                         url = uri.toString(),
                         isActive = false
                     )
@@ -275,10 +282,16 @@ fun AddSourceScreen(
                                     }
                                     ContentRepository.channels = channels
 
+                                    // ✅ تمييز M3U8 عن M3U
+                                    val detectedType = if (m3uUrl.lowercase().contains(".m3u8"))
+                                        "M3U8" else "M3U"
+
                                     val newId = sourceMgr.add(
                                         SourceEntity(
-                                            name = name.ifBlank { "M3U: ${m3uUrl.takeLast(30)}" },
-                                            type = "M3U",
+                                            name = name.ifBlank {
+                                                "$detectedType: ${m3uUrl.takeLast(30)}"
+                                            },
+                                            type = detectedType,
                                             url = m3uUrl,
                                             epgUrl = epgUrl,
                                             isActive = false
