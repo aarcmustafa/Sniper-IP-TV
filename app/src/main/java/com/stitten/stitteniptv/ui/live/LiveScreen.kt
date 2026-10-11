@@ -5,18 +5,25 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.LiveTv
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -41,6 +48,7 @@ import com.stitten.stitteniptv.data.FavoritesManager
 import com.stitten.stitteniptv.database.entity.ChannelEntity
 import com.stitten.stitteniptv.ui.components.tvFocusable
 import com.stitten.stitteniptv.ui.navigation.Routes
+import com.stitten.stitteniptv.ui.theme.AppIcons
 
 @Composable
 fun LiveScreen(
@@ -63,10 +71,11 @@ fun LiveScreen(
             .fillMaxSize()
             .background(Color(0xFF0D1117))
     ) {
-        // ── شريط علوي ──
-        LiveTopBar(channelCount = state.totalCount)
+        LiveTopBar(
+            channelCount = state.totalCount,
+            onRefresh = { channels.refresh() },
+        )
 
-        // ── قائمة التصنيفات ──
         if (state.categories.isNotEmpty()) {
             LazyRow(
                 modifier = Modifier
@@ -92,7 +101,6 @@ fun LiveScreen(
             }
         }
 
-        // ── شبكة القنوات ──
         when {
             state.isLoading && channels.itemCount == 0 -> {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -103,8 +111,13 @@ fun LiveScreen(
             channels.itemCount == 0 -> {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("📡", fontSize = 64.sp)
-                        Spacer(Modifier.height(12.dp))
+                        Icon(
+                            imageVector = AppIcons.LiveTv,
+                            contentDescription = null,
+                            tint = Color(0xFF30363D),
+                            modifier = Modifier.size(80.dp),
+                        )
+                        Spacer(Modifier.height(16.dp))
                         Text("لا توجد قنوات", color = Color.White, fontSize = 18.sp)
                     }
                 }
@@ -151,32 +164,47 @@ fun LiveScreen(
     }
 }
 
-/**
- * يستخرج المعرّف الرقمي من صيغة "sourceId_channelId".
- * مثال: "1_12345" → "12345"
- */
 private fun extractRawId(fullId: String): String {
     return if (fullId.contains("_")) fullId.substringAfter("_")
     else fullId
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  مكونات مساعدة
+//  الشريط العلوي — مع أيقونة LiveTv
 // ═══════════════════════════════════════════════════════════════
 
 @Composable
-private fun LiveTopBar(channelCount: Int) {
-    Box(
+private fun LiveTopBar(
+    channelCount: Int,
+    onRefresh: () -> Unit,
+) {
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 16.dp)
+            .padding(horizontal = 20.dp, vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
+        Icon(
+            imageVector = AppIcons.LiveTv,
+            contentDescription = null,
+            tint = Color(0xFF1F6FEB),
+            modifier = Modifier.size(28.dp),
+        )
+        Spacer(Modifier.width(12.dp))
         Text(
-            text = "📡 القنوات المباشرة ($channelCount)",
+            text = "القنوات المباشرة ($channelCount)",
             color = Color.White,
             fontSize = 24.sp,
             fontWeight = FontWeight.Bold,
         )
+        Spacer(Modifier.weight(1f))
+        IconButton(onClick = onRefresh) {
+            Icon(
+                Icons.Default.Refresh,
+                contentDescription = "تحديث",
+                tint = Color.White,
+            )
+        }
     }
 }
 
@@ -216,7 +244,6 @@ private fun ChannelGridCard(
                 .fillMaxWidth()
                 .height(120.dp)
         ) {
-            // ── بطاقة القناة (قابلة للنقر لبدء التشغيل) ──
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -235,7 +262,6 @@ private fun ChannelGridCard(
                 )
             }
 
-            // ── زر المفضلة (طبقة علوية مستقلة) ──
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
