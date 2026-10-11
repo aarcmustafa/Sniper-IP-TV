@@ -30,6 +30,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -37,14 +38,16 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -97,26 +100,24 @@ fun LoginScreen(
                 .background(Color.Black.copy(alpha = 0.75f))
         )
 
-        androidx.compose.runtime.key(sources.size) {
-            if (sources.isEmpty()) {
-                WelcomeScreen(
-                    onAddXtream = { navController.navigate("add_source?type=XTREAM") },
-                    onAddM3u = { navController.navigate("add_source?type=M3U") }
-                )
-            } else {
-                AccountsListScreen(
-                    sources = sources,
-                    onPickSource = { source ->
-                        viewModel.switchSource(source)
-                        navController.navigate(Routes.DASHBOARD)
-                    },
-                    onAddNew = { navController.navigate(Routes.ADD_SOURCE) },
-                    onEdit = { source ->
-                        navController.navigate(Routes.addSourceEdit(source.id))
-                    },
-                    onDelete = { source -> confirmDelete = source }
-                )
-            }
+        if (sources.isEmpty()) {
+            WelcomeScreen(
+                onAddXtream = { navController.navigate("add_source?type=XTREAM") },
+                onAddM3u = { navController.navigate("add_source?type=M3U") }
+            )
+        } else {
+            AccountsListScreen(
+                sources = sources,
+                onPickSource = { source ->
+                    viewModel.switchSource(source)
+                    navController.navigate(Routes.DASHBOARD)
+                },
+                onAddNew = { navController.navigate(Routes.ADD_SOURCE) },
+                onEdit = { source ->
+                    navController.navigate(Routes.addSourceEdit(source.id))
+                },
+                onDelete = { source -> confirmDelete = source }
+            )
         }
 
         if (uiState.isLoading) {
@@ -179,7 +180,7 @@ fun CircularProgressOverlay(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier.size(200.dp)
                 ) {
-                    androidx.compose.material3.CircularProgressIndicator(
+                    CircularProgressIndicator(
                         progress = { progress / 100f },
                         modifier = Modifier.size(200.dp),
                         color = MaterialTheme.colorScheme.primary,
@@ -226,7 +227,7 @@ fun CircularProgressOverlay(
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  شاشة الترحيب (عند عدم وجود مصادر)
+//  شاشة الترحيب
 // ═══════════════════════════════════════════════════════════════
 
 @Composable
@@ -277,7 +278,7 @@ private fun WelcomeScreen(
 
 @Composable
 private fun WelcomeCard(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     title: String,
     subtitle: String,
     color: Color,
@@ -427,7 +428,7 @@ private fun AccountsListScreen(
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  بطاقة حساب — مع أيقونة ولون حسب النوع
+//  بطاقة حساب
 // ═══════════════════════════════════════════════════════════════
 
 @Composable
@@ -439,11 +440,10 @@ private fun AccountCard(
 ) {
     var isFocused by remember { mutableStateOf(false) }
 
-    // ✅ تحديد اللون والأيقونة والاسم حسب النوع
     val accentColor = when (source.type) {
-        "XTREAM" -> Color(0xFF1F6FEB)   // أزرق
-        "M3U8" -> Color(0xFF8B5CF6)     // بنفسجي
-        else -> Color(0xFF238636)       // أخضر (M3U)
+        "XTREAM" -> Color(0xFF1F6FEB)
+        "M3U8" -> Color(0xFF8B5CF6)
+        else -> Color(0xFF238636)
     }
 
     val typeName = when (source.type) {
@@ -479,7 +479,6 @@ private fun AccountCard(
                 .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // ─── أيقونة النوع ───
             Box(
                 modifier = Modifier
                     .size(64.dp)
@@ -504,7 +503,6 @@ private fun AccountCard(
                     modifier = Modifier.size(32.dp)
                 )
 
-                // ✅ علامة النشط (دائرة خضراء صغيرة في الزاوية)
                 if (source.isActive) {
                     Box(
                         modifier = Modifier
@@ -526,7 +524,6 @@ private fun AccountCard(
 
             Spacer(Modifier.width(16.dp))
 
-            // ─── المعلومات ───
             Column(
                 modifier = Modifier
                     .weight(1f)
@@ -578,7 +575,6 @@ private fun AccountCard(
                 }
             }
 
-            // ─── أزرار التحكم ───
             IconButton(
                 onClick = onEdit,
                 modifier = Modifier.size(48.dp)
