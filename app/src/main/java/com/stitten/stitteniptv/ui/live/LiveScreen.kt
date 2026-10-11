@@ -10,19 +10,25 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -31,6 +37,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import androidx.paging.compose.collectAsLazyPagingItems
 import coil.compose.AsyncImage
+import com.stitten.stitteniptv.data.FavoritesManager
 import com.stitten.stitteniptv.database.entity.ChannelEntity
 import com.stitten.stitteniptv.ui.components.tvFocusable
 import com.stitten.stitteniptv.ui.navigation.Routes
@@ -42,6 +49,14 @@ fun LiveScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val channels = viewModel.channelsPaged.collectAsLazyPagingItems()
+
+    val ctx = LocalContext.current
+    val favorites = remember { FavoritesManager(ctx) }
+    var favoritesVersion by remember { mutableIntStateOf(0) }
+
+    val favoriteIds = remember(favoritesVersion) {
+        try { favorites.getFavoriteChannelIds() } catch (_: Exception) { emptySet<String>() }
+    }
 
     Column(
         modifier = Modifier
@@ -109,12 +124,23 @@ fun LiveScreen(
                     ) { index ->
                         val channel = channels[index]
                         if (channel != null) {
+                            val rawId = extractRawId(channel.id)
+                            val isFavorite = favoriteIds.contains(rawId) ||
+                                favoriteIds.contains(channel.id)
+
                             ChannelGridCard(
                                 channel = channel,
+                                isFavorite = isFavorite,
                                 onClick = {
                                     navController.navigate(
                                         Routes.player(channel.url, channel.name)
                                     )
+                                },
+                                onToggleFavorite = {
+                                    try {
+                                        favorites.toggleChannel(rawId, channel.name)
+                                    } catch (_: Exception) { }
+                                    favoritesVersion++
                                 },
                             )
                         }
@@ -123,6 +149,15 @@ fun LiveScreen(
             }
         }
     }
+}
+
+/**
+ * يستخرج المعرّف الرقمي من صيغة "sourceId_channelId".
+ * مثال: "1_12345" → "12345"
+ */
+private fun extractRawId(fullId: String): String {
+    return if (fullId.contains("_")) fullId.substringAfter("_")
+    else fullId
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -161,38 +196,67 @@ private fun CategoryChip(
             .tvFocusable(onClick = onClick)
             .clip(RoundedCornerShape(20.dp))
             .background(bg)
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
     )
 }
 
 @Composable
 private fun ChannelGridCard(
     channel: ChannelEntity,
+    isFavorite: Boolean,
     onClick: () -> Unit,
+    onToggleFavorite: () -> Unit,
 ) {
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .tvFocusable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(120.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(Color(0xFF161B22)),
         ) {
-            AsyncImage(
-                model = channel.logo,
-                contentDescription = channel.name,
-                contentScale = ContentScale.Fit,
+            // ── بطاقة القناة (قابلة للنقر لبدء التشغيل) ──
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(8.dp),
-            )
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFF161B22))
+                    .tvFocusable(onClick = onClick),
+                contentAlignment = Alignment.Center,
+            ) {
+                AsyncImage(
+                    model = channel.logo,
+                    contentDescription = channel.name,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(8.dp),
+                )
+            }
+
+            // ── زر المفضلة (طبقة علوية مستقلة) ──
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(6.dp)
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.7f))
+                    .tvFocusable(onClick = onToggleFavorite),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = if (isFavorite) "★" else "☆",
+                    color = if (isFavorite) Color(0xFFF85149) else Color.White,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
         }
+
         Spacer(Modifier.height(6.dp))
+
         Text(
             text = channel.name,
             color = Color.White,
