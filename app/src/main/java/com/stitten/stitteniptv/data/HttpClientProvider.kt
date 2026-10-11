@@ -1,10 +1,12 @@
 package com.stitten.stitteniptv.data
 
+import android.content.Context
 import okhttp3.ConnectionPool
 import okhttp3.Cookie
 import okhttp3.CookieJar
 import okhttp3.Dns
 import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -18,11 +20,16 @@ import javax.net.ssl.X509TrustManager
 
 object HttpClientProvider {
 
+    private const val PREFS_NAME = "http_client_cookies"
+    private const val KEY_COOKIES = "cookies"
+
+    @Volatile
+    private var appContext: Context? = null
+
     // ═══════════════════════════════════════════════════════════
     //  User-Agent
     // ═══════════════════════════════════════════════════════════
 
-    /** قائمة User-Agents الجاهزة */
     val USER_AGENT_PRESETS = listOf(
         "IPTVSmartersPro/1.1.1",
         "VLC/3.0.18 LibVLC/3.0.18",
@@ -33,16 +40,16 @@ object HttpClientProvider {
 
     const val DEFAULT_USER_AGENT = "IPTVSmartersPro/1.1.1"
 
-    /** مرجع PrefsManager — يُمرَّر من Application */
     @Volatile
     private var prefsRef: PrefsManager? = null
 
-    /** تهيئة المزوّد — استدعِها في Application.onCreate() */
-    fun init(prefs: PrefsManager) {
+    /** ✅ تعديل: يستقبل Context + PrefsManager */
+    fun init(context: Context, prefs: PrefsManager) {
+        appContext = context.applicationContext
         prefsRef = prefs
+        loadCookies()
     }
 
-    /** جلب UA الحالي أو الافتراضي */
     fun getUserAgent(): String {
         return try {
             prefsRef?.getUserAgent()?.takeIf { it.isNotBlank() } ?: DEFAULT_USER_AGENT
@@ -51,9 +58,6 @@ object HttpClientProvider {
         }
     }
 
-    /**
-     * Interceptor يضيف User-Agent + رؤوس موحّدة لكل الطلبات تلقائيًا.
-     */
     private val uaInterceptor = Interceptor { chain ->
         val original = chain.request()
         val request: Request = original.newBuilder()
@@ -66,7 +70,7 @@ object HttpClientProvider {
     }
 
     // ═══════════════════════════════════════════════════════════
-    //  ✅ CookieJar — لحفظ الكوكيز تلقائيًا
+    //  CookieJar — حفظ دائم على القرص
     // ═══════════════════════════════════════════════════════════
 
     private val cookieStore = ConcurrentHashMap<String, MutableList<Cookie>>()
@@ -78,12 +82,18 @@ object HttpClientProvider {
                 val key = url.host
                 val list = cookieStore.getOrPut(key) { mutableListOf() }
                 cookies.forEach { newCookie ->
-                    // استبدل الكوكي القديمة بنفس الاسم والمسار
                     list.removeAll {
                         it.name == newCookie.name && it.path == newCookie.path
                     }
-                    list.add(newCookie)
+                    // ✅ لا نحفظ الكوكي المنتهية
+                    if (newCookie.expiresAt > System.currentTimeMillis() ||
+                        newCookie.expiresAt == Long.MAX_VALUE
+                    ) {
+                        list.add(newCookie)
+                    }
                 }
+                // ✅ حفظ على القرص
+                saveCookies()
             } catch (_: Exception) { }
         }
 
@@ -92,7 +102,6 @@ object HttpClientProvider {
                 val key = url.host
                 val list = cookieStore[key] ?: return emptyList()
                 val now = System.currentTimeMillis()
-                // أعد فقط الكوكيز التي لم تنتهِ صلاحيتها
                 list.filter { it.expiresAt > now || it.expiresAt == Long.MAX_VALUE }
             } catch (_: Exception) {
                 emptyList()
@@ -100,9 +109,86 @@ object HttpClientProvider {
         }
     }
 
-    /** مسح كل الكوكيز المحفوظة */
+    /** حفظ كل الكوكيز في SharedPreferences */
+    private fun saveCookies() {
+        try {
+            val ctx = appContext ?: return
+            val prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val all = mutableSetOf<String>()
+
+            cookieStore.forEach { (_, list) ->
+                list.forEach { cookie ->
+                    val scheme = if (cookie.secure) "https" else "http"
+                    val domain = cookie.domain.removePrefix(".")
+                    val path = cookie.path.ifBlank { "/" }
+                    val url = "$scheme://$domain$path"
+                    all.add("$url|${cookie.toString()}")
+                }
+            }
+            prefs.edit().putStringSet(KEY_COOKIES, all).apply()
+        } catch (_: Exception) { }
+    }
+
+    /** تحميل الكوكيز من SharedPreferences */
+    private fun loadCookies() {
+        try {
+            val ctx = appContext ?: return
+            val prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val set = prefs.getStringSet(KEY_COOKIES, emptySet()) ?: return
+            val now = System.currentTimeMillis()
+
+            cookieStore.clear()
+
+            set.forEach { entry ->
+                try {
+                    val idx = entry.indexOf('|')
+                    if (idx < 0) return@forEach
+                    val url = entry.substring(0, idx)
+                    val cookieStr = entry.substring(idx + 1)
+                    val httpUrl = url.toHttpUrlOrNull() ?: return@forEach
+                    val cookie = Cookie.parse(httpUrl, cookieStr) ?: return@forEach
+
+                    // تجاهل الكوكي المنتهية
+                    if (cookie.expiresAt < now && cookie.expiresAt != Long.MAX_VALUE) {
+                        return@forEach
+                    }
+
+                    val key = httpUrl.host
+                    val list = cookieStore.getOrPut(key) { mutableListOf() }
+                    list.removeAll { it.name == cookie.name && it.path == cookie.path }
+                    list.add(cookie)
+                } catch (_: Exception) { }
+            }
+        } catch (_: Exception) { }
+    }
+
+    /** مسح كل الكوكيز من الذاكرة + القرص */
     fun clearCookies() {
-        cookieStore.clear()
+        try {
+            cookieStore.clear()
+            val ctx = appContext ?: return
+            val prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            prefs.edit().clear().apply()
+        } catch (_: Exception) { }
+    }
+
+    /** إعادة تحميل الكوكيز من القرص */
+    fun reloadCookies() {
+        loadCookies()
+    }
+
+    /**
+     * يجمع كل الكوكيز الخاصة برابط معين في نص واحد.
+     */
+    fun getCookiesHeader(url: String): String? {
+        return try {
+            val httpUrl = url.toHttpUrlOrNull() ?: return null
+            val cookies = cookieJar.loadForRequest(httpUrl)
+            if (cookies.isEmpty()) null
+            else cookies.joinToString("; ") { "${it.name}=${it.value}" }
+        } catch (_: Exception) {
+            null
+        }
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -111,7 +197,7 @@ object HttpClientProvider {
 
     private val dnsCache = ConcurrentHashMap<String, List<InetAddress>>()
     private val dnsTimestamps = ConcurrentHashMap<String, Long>()
-    private const val DNS_CACHE_MS = 60 * 60 * 1000L // ساعة
+    private const val DNS_CACHE_MS = 60 * 60 * 1000L
 
     private object CachedDns : Dns {
         override fun lookup(hostname: String): List<InetAddress> {
@@ -140,7 +226,7 @@ object HttpClientProvider {
     }
 
     // ═══════════════════════════════════════════════════════════
-    //  Trust Manager (لقبول شهادات IPTV)
+    //  Trust Manager
     // ═══════════════════════════════════════════════════════════
 
     private fun buildTrustManager(): X509TrustManager {
@@ -171,7 +257,7 @@ object HttpClientProvider {
         val tm = buildTrustManager()
         OkHttpClient.Builder()
             .addInterceptor(uaInterceptor)
-            .cookieJar(cookieJar)                    // ✅ جديد
+            .cookieJar(cookieJar)
             .connectTimeout(60, TimeUnit.SECONDS)
             .readTimeout(180, TimeUnit.SECONDS)
             .callTimeout(300, TimeUnit.SECONDS)
@@ -193,7 +279,7 @@ object HttpClientProvider {
         val tm = buildTrustManager()
         OkHttpClient.Builder()
             .addInterceptor(uaInterceptor)
-            .cookieJar(cookieJar)                    // ✅ جديد
+            .cookieJar(cookieJar)
             .connectionPool(ConnectionPool(32, 15, TimeUnit.MINUTES))
             .connectTimeout(20, TimeUnit.SECONDS)
             .readTimeout(90, TimeUnit.SECONDS)
@@ -245,7 +331,7 @@ object HttpClientProvider {
     }
 
     // ═══════════════════════════════════════════════════════════
-    //  Pre-warm (تسريع بدء البث)
+    //  Pre-warm
     // ═══════════════════════════════════════════════════════════
 
     suspend fun prewarmConnection(url: String) {
