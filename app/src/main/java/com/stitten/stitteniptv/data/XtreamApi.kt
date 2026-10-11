@@ -287,8 +287,7 @@ object XtreamApi {
                     genre = raw.genre,
                     year = yearStr,
                     rating = raw.rating,
-                    backdrop = raw.backdrop,
-                    duration = raw.episodeRunTime?.let { "$it د" }
+                    backdrop = raw.backdrop
                 ))
             }
         } catch (e: Exception) { }
