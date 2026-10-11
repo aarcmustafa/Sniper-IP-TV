@@ -64,21 +64,18 @@ class ChannelRepository @Inject constructor(
     }
 
     // ═══════════════════════════════════════════════════════════
-    //  ✅ حفظ الأفلام — يملأ الحقول الجديدة
+    //  حفظ الأفلام
     // ═══════════════════════════════════════════════════════════
     suspend fun saveMovies(movies: List<Movie>, sourceId: Long = 0) {
         val now = System.currentTimeMillis()
         val entities = movies.map {
             MovieEntity(
-                // ─── الأساسية ───
                 id = "${sourceId}_${it.id}",
                 name = it.name,
                 poster = it.poster,
                 url = it.url,
                 category = it.category,
                 sourceId = sourceId,
-
-                // ─── الجديدة ───
                 backdrop = it.backdrop,
                 plot = it.plot,
                 rating = it.rating,
@@ -97,20 +94,17 @@ class ChannelRepository @Inject constructor(
     }
 
     // ═══════════════════════════════════════════════════════════
-    //  ✅ حفظ المسلسلات — يملأ الحقول الجديدة + إصلاح sourceId
+    //  حفظ المسلسلات
     // ═══════════════════════════════════════════════════════════
     suspend fun saveSeries(series: List<Series>, sourceId: Long = 0) {
         val now = System.currentTimeMillis()
         val entities = series.map {
             SeriesEntity(
-                // ─── الأساسية ───
                 id = "${sourceId}_${it.id}",
                 name = it.name,
                 poster = it.poster,
                 category = it.category,
-                sourceId = sourceId,   // ← ✅ إصلاح (كان it.id خطأ)
-
-                // ─── الجديدة ───
+                sourceId = sourceId,
                 backdrop = it.backdrop,
                 plot = it.plot,
                 rating = it.rating,
@@ -181,13 +175,15 @@ class ChannelRepository @Inject constructor(
     suspend fun getSeriesById(id: String): SeriesEntity? = dao.getSeriesById(id)
 
     // ═══════════════════════════════════════════════════════════
-    //  ✅ جديد — دفعات للشاشة الرئيسية (بدون Paging)
+    //  دفعات للشاشة الرئيسية
     // ═══════════════════════════════════════════════════════════
     suspend fun getFirstSeriesPage(limit: Int = 30): List<SeriesEntity> =
         dao.getSeriesBatch(limit)
 
     suspend fun getFirstChannelsPage(limit: Int = 30): List<ChannelEntity> =
         dao.getChannelsBatch(limit)
+
+    suspend fun getChannelById(id: String): ChannelEntity? = dao.getChannelById(id)
 
     // ═══════════════════════════════════════════════════════════
     //  التصنيفات
