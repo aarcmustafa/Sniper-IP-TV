@@ -1,18 +1,16 @@
 package com.stitten.stitteniptv.player
 
-import android.content.Context
+import android.net.Uri
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.BaseDataSource
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.TransferListener
-import com.stitten.stitteniptv.data.network.UserAgentProvider
-import kotlinx.coroutines.runBlocking
+import com.stitten.stitteniptv.data.HttpClientProvider
 import java.io.IOException
 
 @UnstableApi
 class RetryHttpDataSource(
-    private val context: Context,
     private val candidates: List<String>,
     listener: TransferListener? = null,
 ) : BaseDataSource(true) {
@@ -23,7 +21,8 @@ class RetryHttpDataSource(
     private var bytesRemaining = 0L
 
     override fun open(dataSpec: DataSpec): Long {
-        val ua = runBlocking { UserAgentProvider.get(context) }
+        // ✅ User-Agent من المصدر الموحّد (بدون context ولا runBlocking)
+        val ua = HttpClientProvider.getUserAgent()
         var lastError: IOException? = null
 
         val requested = dataSpec.uri.toString()
@@ -34,7 +33,7 @@ class RetryHttpDataSource(
             val url = candidates[i]
             try {
                 val source = buildSource(ua)
-                val newSpec = dataSpec.withUri(android.net.Uri.parse(url))
+                val newSpec = dataSpec.withUri(Uri.parse(url))
                 val len = source.open(newSpec)
                 current = source
                 currentIndex = i
@@ -71,8 +70,7 @@ class RetryHttpDataSource(
         return read
     }
 
-    override fun getUri(): android.net.Uri? =
-        currentUri?.let { android.net.Uri.parse(it) }
+    override fun getUri(): Uri? = currentUri?.let { Uri.parse(it) }
 
     override fun close() {
         try { current?.close() } finally {
