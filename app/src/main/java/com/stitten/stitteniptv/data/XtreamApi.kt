@@ -139,9 +139,6 @@ object XtreamApi {
         return result
     }
 
-    // ═══════════════════════════════════════════════════════════
-    //  القنوات المباشرة
-    // ═══════════════════════════════════════════════════════════
     suspend fun loadLiveStreams(
         server: String, user: String, pass: String,
         onProgress: (loaded: Int) -> Unit = {}
@@ -185,9 +182,6 @@ object XtreamApi {
         channels
     }
 
-    // ═══════════════════════════════════════════════════════════
-    //  الأفلام
-    // ═══════════════════════════════════════════════════════════
     suspend fun loadVodStreams(
         server: String, user: String, pass: String,
         onProgress: (loaded: Int) -> Unit = {}
@@ -241,9 +235,6 @@ object XtreamApi {
         movies
     }
 
-    // ═══════════════════════════════════════════════════════════
-    //  المسلسلات
-    // ═══════════════════════════════════════════════════════════
     suspend fun loadSeries(
         server: String, user: String, pass: String,
         onProgress: (loaded: Int) -> Unit = {}
@@ -316,9 +307,6 @@ object XtreamApi {
         }
     }
 
-    // ═══════════════════════════════════════════════════════════
-    //  الحلقات — بدون duration
-    // ═══════════════════════════════════════════════════════════
     suspend fun loadEpisodes(
         server: String, user: String, pass: String, seriesId: String
     ): List<Episode> = withContext(Dispatchers.IO) {
