@@ -1,5 +1,11 @@
 package com.stitten.stitteniptv.ui.navigation
 
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -33,7 +39,6 @@ object Routes {
     const val ADD_SOURCE_EDIT = "add_source/edit/{sourceId}"
     const val EXTERNAL_PLAYERS = "external_players"
 
-    // ✅ شاشات إضافية
     const val LIVE = "live"
     const val MOVIES = "movies"
     const val SERIES_LIST = "series_list"
@@ -50,9 +55,65 @@ object Routes {
     fun movieDetails(id: String) = "movie/$id"
 }
 
+// ═══════════════════════════════════════════════════════════════
+//  إعدادات الانتقالات
+// ═══════════════════════════════════════════════════════════════
+
+private const val TRANSITION_MS = 350
+
+private val enterSlide: AnimatedContentTransitionScope<*>.() -> androidx.compose.animation.EnterTransition = {
+    slideIntoContainer(
+        towards = AnimatedContentTransitionScope.SlideDirection.Left,
+        animationSpec = tween(TRANSITION_MS),
+    ) + fadeIn(animationSpec = tween(TRANSITION_MS))
+}
+
+private val exitSlide: AnimatedContentTransitionScope<*>.() -> androidx.compose.animation.ExitTransition = {
+    slideOutOfContainer(
+        towards = AnimatedContentTransitionScope.SlideDirection.Left,
+        animationSpec = tween(TRANSITION_MS),
+    ) + fadeOut(animationSpec = tween(TRANSITION_MS))
+}
+
+private val popEnterSlide: AnimatedContentTransitionScope<*>.() -> androidx.compose.animation.EnterTransition = {
+    slideIntoContainer(
+        towards = AnimatedContentTransitionScope.SlideDirection.Right,
+        animationSpec = tween(TRANSITION_MS),
+    ) + fadeIn(animationSpec = tween(TRANSITION_MS))
+}
+
+private val popExitSlide: AnimatedContentTransitionScope<*>.() -> androidx.compose.animation.ExitTransition = {
+    slideOutOfContainer(
+        towards = AnimatedContentTransitionScope.SlideDirection.Right,
+        animationSpec = tween(TRANSITION_MS),
+    ) + fadeOut(animationSpec = tween(TRANSITION_MS))
+}
+
+private val fadeOnlyEnter: AnimatedContentTransitionScope<*>.() -> androidx.compose.animation.EnterTransition = {
+    fadeIn(animationSpec = tween(300)) +
+            scaleIn(initialScale = 0.96f, animationSpec = tween(300))
+}
+
+private val fadeOnlyExit: AnimatedContentTransitionScope<*>.() -> androidx.compose.animation.ExitTransition = {
+    fadeOut(animationSpec = tween(250)) +
+            scaleOut(targetScale = 0.98f, animationSpec = tween(250))
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  AppNavGraph
+// ═══════════════════════════════════════════════════════════════
+
 @Composable
 fun AppNavGraph(navController: NavHostController = rememberNavController()) {
-    NavHost(navController = navController, startDestination = Routes.SPLASH) {
+    NavHost(
+        navController = navController,
+        startDestination = Routes.SPLASH,
+
+        enterTransition = enterSlide,
+        exitTransition = exitSlide,
+        popEnterTransition = popEnterSlide,
+        popExitTransition = popExitSlide,
+    ) {
 
         // ═══════════════════════════════════════════════════════════
         //  الأساسية
@@ -74,7 +135,6 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
             Routes.MOVIE_DETAILS,
             arguments = listOf(navArgument("movieId") { type = NavType.StringType })
         ) { entry ->
-            // MovieDetailsViewModel يقرأ movieId من SavedStateHandle تلقائيًا
             MovieDetailsScreen(navController)
         }
 
@@ -84,7 +144,7 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
         composable(Routes.SETTINGS) { SettingsScreen(navController) }
         composable(Routes.ADVANCED_SETTINGS) { AdvancedSettingsScreen(navController) }
         composable(Routes.PARENTAL) { ParentalControlScreen(navController) }
-        composable(Routes.ERRORS) { ErrorLogScreen() }
+        composable(Routes.ERRORS) { ErrorLogScreen(navController) }   // ✅ معدَّل
 
         // ═══════════════════════════════════════════════════════════
         //  المصادر
@@ -114,14 +174,18 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
         }
 
         // ═══════════════════════════════════════════════════════════
-        //  المشغل
+        //  المشغل — انتقال مختلف
         // ═══════════════════════════════════════════════════════════
         composable(
             Routes.PLAYER,
             arguments = listOf(
                 navArgument("url") { type = NavType.StringType },
                 navArgument("title") { type = NavType.StringType }
-            )
+            ),
+            enterTransition = fadeOnlyEnter,
+            exitTransition = fadeOnlyExit,
+            popEnterTransition = fadeOnlyEnter,
+            popExitTransition = fadeOnlyExit,
         ) { entry ->
             val url = URLDecoder.decode(entry.arguments?.getString("url") ?: "", "UTF-8")
             val title = URLDecoder.decode(entry.arguments?.getString("title") ?: "", "UTF-8")
