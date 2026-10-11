@@ -7,6 +7,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -33,10 +34,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
+import com.stitten.stitteniptv.R
 import com.stitten.stitteniptv.ui.navigation.Routes
 import kotlinx.coroutines.delay
 
@@ -44,13 +47,13 @@ import kotlinx.coroutines.delay
 fun SplashScreen(navController: NavHostController) {
 
     // ── حالة الحركات ──
-    var logoScale by remember { mutableStateOf(0.3f) }
+    var logoScale by remember { mutableStateOf(0.4f) }
     var logoAlpha by remember { mutableStateOf(0f) }
     var visibleLetters by remember { mutableStateOf(0) }
     var ipTvVisible by remember { mutableStateOf(false) }
     var dotsVisible by remember { mutableStateOf(false) }
 
-    // ── تسلسل الحركات + الانتقال ──
+    // ── تسلسل الحركات ──
     LaunchedEffect(Unit) {
         delay(100)
         logoScale = 1f
@@ -96,7 +99,7 @@ fun SplashScreen(navController: NavHostController) {
                         Color(0xFF1F6FEB).copy(alpha = 0.25f),
                         Color(0xFF0D1117),
                         Color(0xFF05070D),
-                    ),
+                    )
                 )
             ),
         contentAlignment = Alignment.Center,
@@ -106,16 +109,17 @@ fun SplashScreen(navController: NavHostController) {
             verticalArrangement = Arrangement.Center,
         ) {
 
-            // ─── 🎬 الشعار ───
-            Text(
-                text = "🎬",
-                fontSize = 80.sp,
+            // ─── ✅ الشعار المخصص (SVG) ───
+            Image(
+                painter = painterResource(id = R.drawable.ic_splash_logo),
+                contentDescription = "STTITEN IP TV Logo",
                 modifier = Modifier
+                    .size(240.dp)
                     .scale(logoScale)
                     .alpha(logoAlpha),
             )
 
-            Spacer(Modifier.height(32.dp))
+            Spacer(Modifier.height(24.dp))
 
             // ─── S T T I T E N حرفًا حرفًا ───
             Row {
