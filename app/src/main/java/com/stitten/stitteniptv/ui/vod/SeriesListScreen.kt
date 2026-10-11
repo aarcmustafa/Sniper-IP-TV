@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -39,6 +40,7 @@ import com.stitten.stitteniptv.database.entity.SeriesEntity
 import com.stitten.stitteniptv.ui.components.PosterCard
 import com.stitten.stitteniptv.ui.components.tvFocusable
 import com.stitten.stitteniptv.ui.navigation.Routes
+import com.stitten.stitteniptv.ui.theme.AppIcons
 
 @Composable
 fun SeriesListScreen(
@@ -93,8 +95,13 @@ fun SeriesListScreen(
             series.itemCount == 0 -> {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("📺", fontSize = 64.sp)
-                        Spacer(Modifier.height(12.dp))
+                        Icon(
+                            imageVector = AppIcons.Series,
+                            contentDescription = null,
+                            tint = Color(0xFF30363D),
+                            modifier = Modifier.size(80.dp),
+                        )
+                        Spacer(Modifier.height(16.dp))
                         Text("لا توجد مسلسلات", color = Color.White, fontSize = 18.sp)
                     }
                 }
@@ -128,6 +135,10 @@ fun SeriesListScreen(
     }
 }
 
+// ═══════════════════════════════════════════════════════════════
+//  الشريط العلوي — مع أيقونة Tv
+// ═══════════════════════════════════════════════════════════════
+
 @Composable
 private fun SeriesTopBar(
     seriesCount: Int,
@@ -139,8 +150,15 @@ private fun SeriesTopBar(
             .padding(horizontal = 20.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        Icon(
+            imageVector = AppIcons.Series,
+            contentDescription = null,
+            tint = Color(0xFF1F6FEB),
+            modifier = Modifier.size(28.dp),
+        )
+        Spacer(Modifier.width(12.dp))
         Text(
-            text = "📺 المسلسلات ($seriesCount)",
+            text = "المسلسلات ($seriesCount)",
             color = Color.White,
             fontSize = 24.sp,
             fontWeight = FontWeight.Bold,
@@ -189,9 +207,6 @@ private fun SeriesGridCard(
     )
 }
 
-/**
- * نص فرعي: يبدأ بعدد الحلقات (إن وُجد)، ثم التقييم، ثم السنة.
- */
 private fun buildSeriesSubtitle(series: SeriesEntity): String? {
     val parts = buildList {
         if (series.episodeCount > 0) {
