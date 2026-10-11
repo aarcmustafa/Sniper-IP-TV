@@ -1,8 +1,10 @@
 package com.stitten.stitteniptv.ui.screens
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.stitten.stitteniptv.data.ChannelRepository
+import com.stitten.stitteniptv.data.PrefsManager
 import com.stitten.stitteniptv.database.dao.WatchHistoryDao
 import com.stitten.stitteniptv.database.entity.ChannelEntity
 import com.stitten.stitteniptv.database.entity.MovieEntity
@@ -18,6 +20,8 @@ import javax.inject.Inject
 
 data class DashboardUiState(
     val isLoading: Boolean = true,
+    val progress: Float = 0f,
+    val progressLabel: String = "",
     val errorMessage: String? = null,
     val featuredMovie: MovieEntity? = null,
     val continueWatching: List<WatchHistoryEntity> = emptyList(),
@@ -30,10 +34,14 @@ data class DashboardUiState(
 class DashboardViewModel @Inject constructor(
     private val channelRepository: ChannelRepository,
     private val watchHistoryDao: WatchHistoryDao,
-) : ViewModel() {
+    application: Application,
+) : AndroidViewModel(application) {
 
     private val _uiState = MutableStateFlow(DashboardUiState())
     val uiState: StateFlow<DashboardUiState> = _uiState.asStateFlow()
+
+    private val prefs = PrefsManager(application)
+    private val liteMode: Boolean get() = prefs.liteModeEnabled
 
     init {
         loadDashboard()
@@ -41,17 +49,44 @@ class DashboardViewModel @Inject constructor(
 
     private fun loadDashboard() {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
+            _uiState.value = _uiState.value.copy(
+                isLoading = true,
+                progress = 0f,
+                progressLabel = "تحضير المحتوى...",
+                errorMessage = null,
+            )
+
             try {
-                // جلب متوازٍ للبيانات
-                val latestMovies = channelRepository.getLatestMovies(limit = 30).first()
-                val topRated = channelRepository.getTopRatedMovies(limit = 10).first()
-                val history = watchHistoryDao.getRecent(limit = 20).first()
-                val seriesList = channelRepository.getFirstSeriesPage(limit = 30)
-                val channelsList = channelRepository.getFirstChannelsPage(limit = 30)
+                val movieLimit = if (liteMode) 12 else 30
+                val seriesLimit = if (liteMode) 12 else 30
+                val channelsLimit = if (liteMode) 15 else 30
+                val historyLimit = if (liteMode) 10 else 20
+
+                setProgress(0.15f, "تحميل سجل المشاهدة...")
+                val history = watchHistoryDao.getRecent(limit = historyLimit).first()
+
+                setProgress(0.35f, "تحميل الأفلام...")
+                val latestMovies = channelRepository.getLatestMovies(limit = movieLimit).first()
+
+                setProgress(0.55f, "تحميل المسلسلات...")
+                val seriesList = channelRepository.getFirstSeriesPage(limit = seriesLimit)
+
+                setProgress(0.75f, "تحميل القنوات...")
+                val channelsList = channelRepository.getFirstChannelsPage(limit = channelsLimit)
+
+                val topRated = if (!liteMode) {
+                    setProgress(0.90f, "تجديد البانر...")
+                    channelRepository.getTopRatedMovies(limit = 5).first()
+                } else {
+                    emptyList()
+                }
+
+                setProgress(1f, "جاهز")
 
                 _uiState.value = DashboardUiState(
                     isLoading = false,
+                    progress = 1f,
+                    progressLabel = "",
                     errorMessage = null,
                     featuredMovie = latestMovies.firstOrNull() ?: topRated.firstOrNull(),
                     continueWatching = history,
@@ -66,6 +101,10 @@ class DashboardViewModel @Inject constructor(
                 )
             }
         }
+    }
+
+    private fun setProgress(value: Float, label: String) {
+        _uiState.value = _uiState.value.copy(progress = value, progressLabel = label)
     }
 
     fun retry() = loadDashboard()
