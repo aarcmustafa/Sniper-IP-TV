@@ -293,7 +293,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     }
                     loadAllContent(source.url, source.username, source.password)
                 }
-                "M3U" -> loadM3uSource(source)
+                "M3U", "M3U8" -> loadM3uSource(source)
             }
         }
     }
@@ -395,7 +395,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
 
             when (prefs.loginType) {
-                "M3U" -> {
+                "M3U", "M3U8" -> {
                     val url = prefs.m3uUrl
                     if (url.isBlank()) return@launch
 
@@ -461,7 +461,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
 
             when (prefs.loginType) {
-                "M3U" -> {
+                "M3U", "M3U8" -> {
                     if (prefs.m3uUrl.isBlank()) return@launch
 
                     val result = M3uParser.loadFromUrlStructured(prefs.m3uUrl)
@@ -515,39 +515,70 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ==========================================
-    //  تحميل حلقات مسلسل
+    //  ✅ تحميل حلقات مسلسل — مع دعم متعدد للـ ID
     // ==========================================
     fun loadEpisodes(seriesId: String, onDone: (List<Episode>) -> Unit) {
         viewModelScope.launch {
-            val cached = ContentRepository.episodes[seriesId]
-            if (!cached.isNullOrEmpty()) {
-                onDone(cached)
-                return@launch
-            }
 
-            try {
-                val fromDb = withContext(Dispatchers.IO) {
-                    channelRepo.getEpisodesBySeries(seriesId)
+            // ─── 1) بناء قائمة الاحتمالات ───
+            val candidates = buildList {
+                add(seriesId)   // "1_m3u_series_breakingbad"
+
+                // بدون بادئة sourceId
+                val withoutPrefix = seriesId.substringAfter("_", "")
+                if (withoutPrefix.isNotBlank() && withoutPrefix != seriesId) {
+                    add(withoutPrefix)
                 }
-                if (fromDb.isNotEmpty()) {
-                    ContentRepository.episodes =
-                        ContentRepository.episodes + (seriesId to fromDb)
-                    onDone(fromDb)
+
+                // آخر جزء بعد آخر _
+                val lastPart = seriesId.substringAfterLast("_")
+                if (lastPart.isNotBlank() && lastPart != seriesId) {
+                    add(lastPart)
+                }
+
+                // نسخة M3U
+                if (lastPart.isNotBlank() && !seriesId.startsWith("m3u_series_")) {
+                    add("m3u_series_$lastPart")
+                }
+            }.distinct().filter { it.isNotBlank() }
+
+            // ─── 2) من الذاكرة (كل الاحتمالات) ───
+            for (key in candidates) {
+                val cached = ContentRepository.episodes[key]
+                if (!cached.isNullOrEmpty()) {
+                    onDone(cached)
                     return@launch
                 }
-            } catch (_: Exception) { }
+            }
 
+            // ─── 3) من Room (كل الاحتمالات) ───
+            for (key in candidates) {
+                try {
+                    val fromDb = withContext(Dispatchers.IO) {
+                        channelRepo.getEpisodesBySeries(key)
+                    }
+                    if (fromDb.isNotEmpty()) {
+                        ContentRepository.episodes =
+                            ContentRepository.episodes + (seriesId to fromDb)
+                        onDone(fromDb)
+                        return@launch
+                    }
+                } catch (_: Exception) { }
+            }
+
+            // ─── 4) من Xtream ───
             if (prefs.loginType != "XTREAM") {
                 onDone(emptyList())
                 return@launch
             }
 
             try {
+                val numericId = seriesId.substringAfterLast("_")
                 val eps = XtreamApi.loadEpisodes(
                     prefs.serverUrl,
                     prefs.username,
                     prefs.password,
-                    seriesId
+                    numericId
                 )
                 ContentRepository.episodes =
                     ContentRepository.episodes + (seriesId to eps)
@@ -636,20 +667,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ==========================================
-    //  ✅ تسجيل الخروج — مع مسح الكوكيز + DNS
+    //  تسجيل الخروج
     // ==========================================
     fun logout() {
         viewModelScope.launch {
             withContext(Dispatchers.IO) { channelRepo.clearAll() }
             prefs.clear()
             ContentRepository.clear()
-
-            // ✅ مسح الكوكيز + DNS عند تسجيل الخروج
             try {
                 HttpClientProvider.clearCookies()
                 HttpClientProvider.clearDnsCache()
             } catch (_: Exception) { }
-
             _uiState.value = DashboardUiState()
         }
     }
