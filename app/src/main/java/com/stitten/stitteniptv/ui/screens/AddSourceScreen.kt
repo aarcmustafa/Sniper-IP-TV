@@ -26,6 +26,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.stitten.stitteniptv.R
 import com.stitten.stitteniptv.data.ContentRepository
@@ -33,6 +34,7 @@ import com.stitten.stitteniptv.data.M3uParser
 import com.stitten.stitteniptv.data.XtreamApi
 import com.stitten.stitteniptv.database.entity.SourceEntity
 import com.stitten.stitteniptv.ui.navigation.Routes
+import com.stitten.stitteniptv.viewmodel.MainViewModel
 import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.launch
 
@@ -52,6 +54,10 @@ fun AddSourceScreen(
     }
     val sourceMgr = entryPoint.sourceManager()
 
+    // ✅ الوصول إلى MainViewModel لتحميل المحتوى
+    val mainViewModel: MainViewModel = viewModel()
+    val uiState by mainViewModel.uiState.collectAsState()
+
     var mode by remember { mutableStateOf(0) }
     var name by remember { mutableStateOf("") }
     var m3uUrl by remember { mutableStateOf("") }
@@ -62,6 +68,9 @@ fun AddSourceScreen(
     var message by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(false) }
     var showPassword by remember { mutableStateOf(false) }
+
+    // ✅ حالة الانتظار قبل الانتقال للرئيسية
+    var pendingNavigate by remember { mutableStateOf(false) }
 
     LaunchedEffect(editSourceId) {
         if (editSourceId > 0) {
@@ -74,6 +83,15 @@ fun AddSourceScreen(
                 user = existing.username
                 pass = existing.password
                 epgUrl = existing.epgUrl
+            }
+        }
+    }
+
+    // ✅ الانتقال للرئيسية بعد انتهاء تحميل المحتوى
+    LaunchedEffect(pendingNavigate, uiState.isLoading) {
+        if (pendingNavigate && !uiState.isLoading) {
+            navController.navigate(Routes.DASHBOARD) {
+                popUpTo(Routes.ADD_SOURCE) { inclusive = true }
             }
         }
     }
@@ -171,6 +189,10 @@ Box(modifier = Modifier.fillMaxSize()) {
         Spacer(Modifier.height(24.dp))
 
         when (mode) {
+
+            // ═══════════════════════════════════════════════════
+            //  M3U من رابط
+            // ═══════════════════════════════════════════════════
             0 -> {
                 OutlinedTextField(
                     value = m3uUrl,
@@ -193,7 +215,8 @@ Box(modifier = Modifier.fillMaxSize()) {
                 Button(
                     onClick = {
                         if (m3uUrl.isBlank()) {
-                            message = "أدخل الرابط"; return@Button
+                            message = "أدخل الرابط"
+                            return@Button
                         }
                         scope.launch {
                             loading = true
@@ -205,6 +228,7 @@ Box(modifier = Modifier.fillMaxSize()) {
                                     return@launch
                                 }
                                 ContentRepository.channels = channels
+
                                 val newId = sourceMgr.add(
                                     SourceEntity(
                                         name = name.ifBlank { "M3U: ${m3uUrl.takeLast(30)}" },
@@ -216,8 +240,16 @@ Box(modifier = Modifier.fillMaxSize()) {
                                 )
                                 sourceMgr.setActive(newId)
                                 loading = false
-                                navController.navigate(Routes.DASHBOARD) {
-                                    popUpTo(Routes.ADD_SOURCE) { inclusive = true }
+
+                                // ✅ الآن: تحميل المحتوى عبر MainViewModel
+                                val newSource = sourceMgr.getById(newId)
+                                if (newSource != null) {
+                                    mainViewModel.switchSource(newSource)
+                                    pendingNavigate = true
+                                } else {
+                                    navController.navigate(Routes.DASHBOARD) {
+                                        popUpTo(Routes.ADD_SOURCE) { inclusive = true }
+                                    }
                                 }
                             } catch (e: Exception) {
                                 message = "خطأ: ${e.message}"
@@ -228,6 +260,10 @@ Box(modifier = Modifier.fillMaxSize()) {
                     modifier = Modifier.width(300.dp)
                 ) { Text("حفظ وتحميل", fontSize = 18.sp) }
             }
+
+            // ═══════════════════════════════════════════════════
+            //  ملف من الجهاز
+            // ═══════════════════════════════════════════════════
             1 -> {
                 Text(
                     "اختر ملف M3U من ذاكرة التلفاز الداخلية أو USB",
@@ -241,6 +277,9 @@ Box(modifier = Modifier.fillMaxSize()) {
                 ) { Text("📂 فتح منتقي الملفات", fontSize = 18.sp) }
             }
             
+                // ═══════════════════════════════════════════════════
+                //  Xtream API
+                // ═══════════════════════════════════════════════════
                 2 -> {
                     OutlinedTextField(
                         value = server,
@@ -299,7 +338,8 @@ Box(modifier = Modifier.fillMaxSize()) {
                     Button(
                         onClick = {
                             if (server.isBlank() || user.isBlank() || pass.isBlank()) {
-                                message = "املأ كل الحقول"; return@Button
+                                message = "املأ كل الحقول"
+                                return@Button
                             }
                             if (!server.contains(".")) {
                                 message = "أدخل اسم سيرفر صحيح"
@@ -325,8 +365,16 @@ Box(modifier = Modifier.fillMaxSize()) {
                                 )
                                 sourceMgr.setActive(newId)
                                 loading = false
-                                navController.navigate(Routes.DASHBOARD) {
-                                    popUpTo(Routes.ADD_SOURCE) { inclusive = true }
+
+                                // ✅ الآن: تحميل المحتوى عبر MainViewModel
+                                val newSource = sourceMgr.getById(newId)
+                                if (newSource != null) {
+                                    mainViewModel.switchSource(newSource)
+                                    pendingNavigate = true
+                                } else {
+                                    navController.navigate(Routes.DASHBOARD) {
+                                        popUpTo(Routes.ADD_SOURCE) { inclusive = true }
+                                    }
                                 }
                             }
                         },
@@ -339,10 +387,19 @@ Box(modifier = Modifier.fillMaxSize()) {
                 Spacer(Modifier.height(16.dp))
                 Text(message, color = MaterialTheme.colorScheme.error, fontSize = 16.sp)
             }
+
             if (loading) {
                 Spacer(Modifier.height(20.dp))
                 CircularProgressIndicator()
             }
+        }
+
+        // ✅ Overlay مع نسبة التحميل
+        if (uiState.isLoading) {
+            CircularProgressOverlay(
+                progress = uiState.loadingProgress,
+                message = uiState.loadingMessage
+            )
         }
     }
 }
