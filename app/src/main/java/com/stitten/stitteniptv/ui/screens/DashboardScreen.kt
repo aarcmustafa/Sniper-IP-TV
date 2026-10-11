@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -53,6 +54,7 @@ import com.stitten.stitteniptv.ui.components.PosterCard
 import com.stitten.stitteniptv.ui.components.SkeletonHomeScreen
 import com.stitten.stitteniptv.ui.components.tvFocusable
 import com.stitten.stitteniptv.ui.navigation.Routes
+import com.stitten.stitteniptv.ui.theme.AppIcons
 import com.stitten.stitteniptv.viewmodel.MainViewModel
 
 @Composable
@@ -79,7 +81,6 @@ fun DashboardScreen(
             .background(Color(0xFF0D1117))
     ) {
         when {
-            // ✅ التحديث اليدوي من المصدر — Overlay مع نسبة
             isRefreshing -> Box(
                 Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center,
@@ -90,7 +91,6 @@ fun DashboardScreen(
                 )
             }
 
-            // ✅ التحميل الأول — Skeleton
             state.isLoading -> SkeletonHomeScreen()
 
             state.errorMessage != null -> ErrorView(
@@ -189,9 +189,10 @@ private fun DashboardContent(
 
         if (state.latestMovies.isNotEmpty()) {
             item(key = "movies") {
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(20.dp))
                 ContentRow(
-                    title = "🎬 أحدث الأفلام",
+                    title = "أحدث الأفلام",
+                    icon = AppIcons.Movies,
                     items = state.latestMovies,
                     key = { it.id },
                 ) { movie ->
@@ -207,9 +208,10 @@ private fun DashboardContent(
 
         if (state.topRatedMovies.isNotEmpty()) {
             item(key = "top_rated") {
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(20.dp))
                 ContentRow(
-                    title = "🏆 الأعلى تقييمًا",
+                    title = "الأعلى تقييمًا",
+                    icon = AppIcons.Trending,
                     items = state.topRatedMovies,
                     key = { "top_${it.id}" },
                 ) { movie ->
@@ -225,9 +227,10 @@ private fun DashboardContent(
 
         if (state.allSeries.isNotEmpty()) {
             item(key = "series") {
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(20.dp))
                 ContentRow(
-                    title = "📺 المسلسلات",
+                    title = "المسلسلات",
+                    icon = AppIcons.Series,
                     items = state.allSeries,
                     key = { it.id },
                 ) { series ->
@@ -243,9 +246,10 @@ private fun DashboardContent(
 
         if (state.liveChannels.isNotEmpty()) {
             item(key = "channels") {
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(20.dp))
                 ContentRow(
-                    title = "📡 قنوات مباشرة",
+                    title = "قنوات مباشرة",
+                    icon = AppIcons.LiveTv,
                     items = state.liveChannels,
                     key = { it.id },
                 ) { channel ->
@@ -297,12 +301,22 @@ private fun DashboardTopBar(
             .padding(horizontal = 32.dp, vertical = 20.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = "🎬 SNIPER IPTV",
-            color = Color(0xFF1F6FEB),
-            fontSize = 22.sp,
-            fontWeight = FontWeight.ExtraBold,
-        )
+        // ─── الشعار (أيقونة + نص) ───
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = AppIcons.Movies,
+                contentDescription = null,
+                tint = Color(0xFF1F6FEB),
+                modifier = Modifier.size(26.dp),
+            )
+            Spacer(Modifier.width(10.dp))
+            Text(
+                text = "SNIPER IPTV",
+                color = Color(0xFF1F6FEB),
+                fontSize = 22.sp,
+                fontWeight = FontWeight.ExtraBold,
+            )
+        }
 
         Spacer(Modifier.weight(1f))
 
