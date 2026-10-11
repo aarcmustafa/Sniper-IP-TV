@@ -89,7 +89,7 @@ fun DashboardScreen(
                     navController.navigate(Routes.player(history.url, history.title))
                 },
                 onRemoveHistory = viewModel::removeFromHistory,
-                onSearchClick = { },
+                onSearchClick = { navController.navigate(Routes.SEARCH) },
                 onSettingsClick = { navController.navigate(Routes.SETTINGS) },
                 onLiveClick = { navController.navigate(Routes.LIVE) },
                 onMoviesClick = { navController.navigate(Routes.MOVIES) },
