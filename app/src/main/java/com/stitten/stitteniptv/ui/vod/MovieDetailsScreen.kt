@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -59,11 +58,13 @@ fun MovieDetailsScreen(
 
             state.movie != null -> MovieDetailsContent(
                 movie = state.movie!!,
+                isFavorite = state.isFavorite,
                 onPlay = {
                     navController.navigate(
                         Routes.player(state.movie!!.url, state.movie!!.name)
                     )
                 },
+                onToggleFavorite = viewModel::toggleFavorite,
                 onBack = { navController.popBackStack() },
             )
         }
@@ -73,7 +74,9 @@ fun MovieDetailsScreen(
 @Composable
 private fun MovieDetailsContent(
     movie: MovieEntity,
+    isFavorite: Boolean,
     onPlay: () -> Unit,
+    onToggleFavorite: () -> Unit,
     onBack: () -> Unit,
 ) {
     Column(
@@ -81,13 +84,11 @@ private fun MovieDetailsContent(
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
     ) {
-        // ── Hero section ──
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(500.dp)
         ) {
-            // صورة الخلفية (backdrop أو poster)
             AsyncImage(
                 model = movie.backdrop ?: movie.poster,
                 contentDescription = movie.name,
@@ -95,7 +96,6 @@ private fun MovieDetailsContent(
                 modifier = Modifier.fillMaxSize(),
             )
 
-            // تدرج داكن
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -110,7 +110,6 @@ private fun MovieDetailsContent(
                     )
             )
 
-            // المحتوى أسفل البانر
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
@@ -144,15 +143,18 @@ private fun MovieDetailsContent(
 
                 Spacer(Modifier.height(20.dp))
 
-                // أزرار
+                // ─── الأزرار ───
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     PlayButton(onClick = onPlay)
+                    FavoriteButton(
+                        isFavorite = isFavorite,
+                        onClick = onToggleFavorite,
+                    )
                     BackButton(onClick = onBack)
                 }
             }
         }
 
-        // ── القصة ──
         if (!movie.plot.isNullOrBlank()) {
             Section(title = "القصة") {
                 Text(
@@ -164,7 +166,6 @@ private fun MovieDetailsContent(
             }
         }
 
-        // ── التفاصيل ──
         val details = buildList {
             if (!movie.director.isNullOrBlank()) add("المخرج" to movie.director)
             if (!movie.cast.isNullOrBlank()) add("الممثلون" to movie.cast)
@@ -239,6 +240,28 @@ private fun PlayButton(onClick: () -> Unit) {
 }
 
 @Composable
+private fun FavoriteButton(
+    isFavorite: Boolean,
+    onClick: () -> Unit,
+) {
+    val text = if (isFavorite) "★  في المفضلة" else "☆  أضف للمفضلة"
+    val bg = if (isFavorite) Color(0xFFF85149).copy(alpha = 0.2f) else Color(0xFF30363D)
+    val textColor = if (isFavorite) Color(0xFFF85149) else Color.White
+
+    Text(
+        text = text,
+        color = textColor,
+        fontSize = 16.sp,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier
+            .tvFocusable(onClick = onClick)
+            .clip(RoundedCornerShape(10.dp))
+            .background(bg)
+            .padding(horizontal = 24.dp, vertical = 12.dp)
+    )
+}
+
+@Composable
 private fun BackButton(onClick: () -> Unit) {
     Text(
         text = "← رجوع",
@@ -249,7 +272,7 @@ private fun BackButton(onClick: () -> Unit) {
             .tvFocusable(onClick = onClick)
             .clip(RoundedCornerShape(10.dp))
             .background(Color(0xFF30363D))
-            .padding(horizontal = 28.dp, vertical = 12.dp)
+            .padding(horizontal = 24.dp, vertical = 12.dp)
     )
 }
 
