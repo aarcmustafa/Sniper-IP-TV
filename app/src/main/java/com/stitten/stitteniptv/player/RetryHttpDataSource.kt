@@ -21,7 +21,6 @@ class RetryHttpDataSource(
     private var bytesRemaining = 0L
 
     override fun open(dataSpec: DataSpec): Long {
-        // ✅ User-Agent من المصدر الموحّد (بدون context ولا runBlocking)
         val ua = HttpClientProvider.getUserAgent()
         var lastError: IOException? = null
 
@@ -32,7 +31,7 @@ class RetryHttpDataSource(
         for (i in startIndex until candidates.size) {
             val url = candidates[i]
             try {
-                val source = buildSource(ua)
+                val source = buildSource(ua, url)
                 val newSpec = dataSpec.withUri(Uri.parse(url))
                 val len = source.open(newSpec)
                 current = source
@@ -50,13 +49,41 @@ class RetryHttpDataSource(
         throw lastError ?: IOException("All stream candidates failed")
     }
 
-    private fun buildSource(ua: String): DefaultHttpDataSource =
-        DefaultHttpDataSource.Factory()
+    /**
+     * يبني DefaultHttpDataSource مع:
+     *  - User-Agent
+     *  - Cookie header (من CookieJar)
+     *  - Referer header (لتجاوز حجب بعض السيرفرات)
+     *  - AllowCrossProtocolRedirects
+     */
+    private fun buildSource(ua: String, url: String): DefaultHttpDataSource {
+        val headers = mutableMapOf<String, String>()
+
+        // 🍪 Cookie header
+        try {
+            val cookieHeader = HttpClientProvider.getCookiesHeader(url)
+            if (!cookieHeader.isNullOrBlank()) {
+                headers["Cookie"] = cookieHeader
+            }
+        } catch (_: Exception) { }
+
+        // 🔗 Referer header (بعض السيرفرات تطلبه)
+        try {
+            val host = Uri.parse(url).host
+            if (!host.isNullOrBlank()) {
+                headers["Referer"] = "http://$host/"
+                headers["Origin"] = "http://$host"
+            }
+        } catch (_: Exception) { }
+
+        return DefaultHttpDataSource.Factory()
             .setUserAgent(ua)
+            .setDefaultRequestProperties(headers)
             .setConnectTimeoutMs(30_000)
             .setReadTimeoutMs(30_000)
             .setAllowCrossProtocolRedirects(true)
             .createDataSource()
+    }
 
     override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
         if (length == 0) return 0
@@ -73,7 +100,9 @@ class RetryHttpDataSource(
     override fun getUri(): Uri? = currentUri?.let { Uri.parse(it) }
 
     override fun close() {
-        try { current?.close() } finally {
+        try {
+            current?.close()
+        } finally {
             current = null
             currentUri = null
             bytesRemaining = 0L
