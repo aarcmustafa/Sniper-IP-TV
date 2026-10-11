@@ -15,8 +15,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.LiveTv
 import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tv
@@ -94,6 +96,8 @@ fun DashboardScreen(
                 onLiveClick = { navController.navigate(Routes.LIVE) },
                 onMoviesClick = { navController.navigate(Routes.MOVIES) },
                 onSeriesListClick = { navController.navigate(Routes.SERIES_LIST) },
+                onFavoritesClick = { navController.navigate(Routes.FAVORITES) },
+                onRefreshClick = { viewModel.retry() },
             )
         }
     }
@@ -112,6 +116,8 @@ private fun DashboardContent(
     onLiveClick: () -> Unit,
     onMoviesClick: () -> Unit,
     onSeriesListClick: () -> Unit,
+    onFavoritesClick: () -> Unit,
+    onRefreshClick: () -> Unit,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -124,6 +130,8 @@ private fun DashboardContent(
                 onLiveClick = onLiveClick,
                 onMoviesClick = onMoviesClick,
                 onSeriesListClick = onSeriesListClick,
+                onFavoritesClick = onFavoritesClick,
+                onRefreshClick = onRefreshClick,
             )
         }
 
@@ -236,6 +244,8 @@ private fun DashboardTopBar(
     onLiveClick: () -> Unit,
     onMoviesClick: () -> Unit,
     onSeriesListClick: () -> Unit,
+    onFavoritesClick: () -> Unit,
+    onRefreshClick: () -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -252,26 +262,43 @@ private fun DashboardTopBar(
 
         Spacer(Modifier.weight(1f))
 
-        IconButton(onClick = onLiveClick) {
-            Icon(Icons.Default.LiveTv, "قنوات مباشرة", tint = Color.White)
-        }
-        Spacer(Modifier.width(4.dp))
-
+        // 🎬 أفلام
         IconButton(onClick = onMoviesClick) {
             Icon(Icons.Default.Movie, "أفلام", tint = Color.White)
         }
         Spacer(Modifier.width(4.dp))
 
+        // 📺 مسلسلات
         IconButton(onClick = onSeriesListClick) {
             Icon(Icons.Default.Tv, "مسلسلات", tint = Color.White)
         }
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(4.dp))
 
+        // 📡 قنوات مباشرة
+        IconButton(onClick = onLiveClick) {
+            Icon(Icons.Default.LiveTv, "قنوات مباشرة", tint = Color.White)
+        }
+        Spacer(Modifier.width(4.dp))
+
+        // ⭐ المفضلة
+        IconButton(onClick = onFavoritesClick) {
+            Icon(Icons.Default.Favorite, "المفضلة", tint = Color(0xFFF85149))
+        }
+        Spacer(Modifier.width(4.dp))
+
+        // 🔍 بحث
         IconButton(onClick = onSearchClick) {
             Icon(Icons.Default.Search, "بحث", tint = Color.White)
         }
         Spacer(Modifier.width(4.dp))
 
+        // 🔄 تحديث
+        IconButton(onClick = onRefreshClick) {
+            Icon(Icons.Default.Refresh, "تحديث المحتوى", tint = Color(0xFF66BB6A))
+        }
+        Spacer(Modifier.width(4.dp))
+
+        // ⚙️ إعدادات
         IconButton(onClick = onSettingsClick) {
             Icon(Icons.Default.Settings, "إعدادات", tint = Color.White)
         }
