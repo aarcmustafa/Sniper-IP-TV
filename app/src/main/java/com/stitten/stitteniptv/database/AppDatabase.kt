@@ -10,6 +10,7 @@ import com.stitten.stitteniptv.database.dao.ParentalBlockDao
 import com.stitten.stitteniptv.database.dao.SourceDao
 import com.stitten.stitteniptv.database.dao.WatchHistoryDao
 import com.stitten.stitteniptv.database.entity.ChannelEntity
+import com.stitten.stitteniptv.database.entity.EpisodeEntity
 import com.stitten.stitteniptv.database.entity.ErrorLogEntity
 import com.stitten.stitteniptv.database.entity.MovieEntity
 import com.stitten.stitteniptv.database.entity.ParentalBlockEntity
@@ -25,9 +26,10 @@ import com.stitten.stitteniptv.database.entity.WatchHistoryEntity
         SourceEntity::class,
         ChannelEntity::class,
         MovieEntity::class,
-        SeriesEntity::class
+        SeriesEntity::class,
+        EpisodeEntity::class,      // ✅ جديد
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -85,9 +87,48 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // ═══════════════════════════════════════════════════════════
+        //  Migration 5 → 6: إضافة جدول episodes
+        // ═══════════════════════════════════════════════════════════
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+
+                // ───────────── جدول episodes ─────────────
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS episodes (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        seriesId TEXT NOT NULL,
+                        title TEXT NOT NULL,
+                        season INTEGER NOT NULL,
+                        episode INTEGER NOT NULL,
+                        url TEXT NOT NULL,
+                        poster TEXT NOT NULL,
+                        plot TEXT,
+                        duration TEXT,
+                        rating TEXT,
+                        containerExtension TEXT,
+                        episodeId INTEGER,
+                        addedAt INTEGER NOT NULL DEFAULT 0
+                    )
+                """.trimIndent())
+
+                // ───────────── فهارس ─────────────
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_episodes_seriesId ON episodes(seriesId)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_episodes_season ON episodes(season)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_episodes_episode ON episodes(episode)"
+                )
+            }
+        }
+
         /** كل الـ Migrations مرتبة */
         val ALL_MIGRATIONS = arrayOf(
-            MIGRATION_4_5
+            MIGRATION_4_5,
+            MIGRATION_5_6,
         )
     }
 }
