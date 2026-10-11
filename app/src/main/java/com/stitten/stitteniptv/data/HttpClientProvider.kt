@@ -1,12 +1,10 @@
 package com.stitten.stitteniptv.data
 
-import android.content.Context
 import okhttp3.ConnectionPool
 import okhttp3.Dns
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.Response
 import java.net.InetAddress
 import java.security.cert.X509Certificate
 import java.util.concurrent.ConcurrentHashMap
@@ -18,10 +16,10 @@ import javax.net.ssl.X509TrustManager
 object HttpClientProvider {
 
     // ═══════════════════════════════════════════════════════════
-    //  User-Agent ديناميكي (يُقرأ من PrefsManager)
+    //  User-Agent
     // ═══════════════════════════════════════════════════════════
 
-    /** قائمة User-Agents الجاهزة (يمكن للمستخدم اختيار واحدة) */
+    /** قائمة User-Agents الجاهزة */
     val USER_AGENT_PRESETS = listOf(
         "IPTVSmartersPro/1.1.1",
         "VLC/3.0.18 LibVLC/3.0.18",
@@ -32,27 +30,22 @@ object HttpClientProvider {
 
     const val DEFAULT_USER_AGENT = "IPTVSmartersPro/1.1.1"
 
-    /** مرجع PrefsManager — يُمرَّر مرة واحدة من Application */
+    /** مرجع PrefsManager — يُمرَّر من Application */
     @Volatile
     private var prefsRef: PrefsManager? = null
 
-    /** تهيئة مزوّد الـ UA — استدعِها في Application.onCreate() */
+    /** تهيئة المزوّد — استدعِها في Application.onCreate() */
     fun init(prefs: PrefsManager) {
         prefsRef = prefs
     }
 
-    /** جلب الـ UA الحالي من الإعدادات أو الافتراضي */
+    /** جلب UA الحالي أو الافتراضي */
     fun getUserAgent(): String {
         return try {
             prefsRef?.getUserAgent()?.takeIf { it.isNotBlank() } ?: DEFAULT_USER_AGENT
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             DEFAULT_USER_AGENT
         }
-    }
-
-    /** حفظ الـ UA الجديد من الإعدادات */
-    fun setUserAgent(ua: String) {
-        prefsRef?.setUserAgent(ua)
     }
 
     /**
@@ -60,16 +53,11 @@ object HttpClientProvider {
      */
     private val uaInterceptor = Interceptor { chain ->
         val original = chain.request()
-        val request = original.newBuilder()
+        val request: Request = original.newBuilder()
             .header("User-Agent", getUserAgent())
             .header("Accept", "*/*")
             .header("Connection", "keep-alive")
-            .apply {
-                // لا نضيف Accept-Encoding إذا كان الطلب لبث فيديو (لتجنّب الفك)
-                if (original.header("Accept-Encoding") == null) {
-                    header("Accept-Encoding", "identity")
-                }
-            }
+            .header("Accept-Encoding", "identity")
             .build()
         chain.proceed(request)
     }
@@ -80,7 +68,7 @@ object HttpClientProvider {
 
     private val dnsCache = ConcurrentHashMap<String, List<InetAddress>>()
     private val dnsTimestamps = ConcurrentHashMap<String, Long>()
-    private const val DNS_CACHE_MS = 60 * 60 * 1000L
+    private const val DNS_CACHE_MS = 60 * 60 * 1000L // ساعة
 
     private object CachedDns : Dns {
         override fun lookup(hostname: String): List<InetAddress> {
@@ -114,14 +102,8 @@ object HttpClientProvider {
 
     private fun buildTrustManager(): X509TrustManager {
         return object : X509TrustManager {
-            override fun checkClientTrusted(
-                chain: Array<X509Certificate>, authType: String
-            ) {}
-
-            override fun checkServerTrusted(
-                chain: Array<X509Certificate>, authType: String
-            ) {}
-
+            override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {}
+            override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {}
             override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
         }
     }
@@ -132,20 +114,20 @@ object HttpClientProvider {
             val ctx = SSLContext.getInstance("SSL")
             ctx.init(null, arrayOf<TrustManager>(tm), java.security.SecureRandom())
             ctx
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             null
         }
     }
 
     // ═══════════════════════════════════════════════════════════
-    //  عميل API (trustAllClient)
+    //  عميل API
     // ═══════════════════════════════════════════════════════════
 
     val trustAllClient: OkHttpClient by lazy {
         val sslContext = buildSslContext()
         val tm = buildTrustManager()
         OkHttpClient.Builder()
-            .addInterceptor(uaInterceptor)   // ✅ يضيف UA تلقائيًا
+            .addInterceptor(uaInterceptor)   // ← ✅
             .connectTimeout(60, TimeUnit.SECONDS)
             .readTimeout(180, TimeUnit.SECONDS)
             .callTimeout(300, TimeUnit.SECONDS)
@@ -159,14 +141,14 @@ object HttpClientProvider {
     }
 
     // ═══════════════════════════════════════════════════════════
-    //  عميل البث (streamingClient)
+    //  عميل البث
     // ═══════════════════════════════════════════════════════════
 
     val streamingClient: OkHttpClient by lazy {
         val sslContext = buildSslContext()
         val tm = buildTrustManager()
         OkHttpClient.Builder()
-            .addInterceptor(uaInterceptor)   // ✅ يضيف UA تلقائيًا
+            .addInterceptor(uaInterceptor)   // ← ✅
             .connectionPool(ConnectionPool(32, 15, TimeUnit.MINUTES))
             .connectTimeout(20, TimeUnit.SECONDS)
             .readTimeout(90, TimeUnit.SECONDS)
@@ -218,7 +200,7 @@ object HttpClientProvider {
     }
 
     // ═══════════════════════════════════════════════════════════
-    //  Pre-warm
+    //  Pre-warm (تسريع بدء البث)
     // ═══════════════════════════════════════════════════════════
 
     suspend fun prewarmConnection(url: String) {
@@ -229,7 +211,7 @@ object HttpClientProvider {
                     .head()
                     .build()
                 streamingClient.newCall(request).execute().close()
-            } catch (e: Exception) { }
+            } catch (_: Exception) { }
         }
     }
 
@@ -241,7 +223,7 @@ object HttpClientProvider {
         return try {
             val request = Request.Builder()
                 .url(url)
-                .build()   // ← الـ interceptor يضيف كل الرؤوس
+                .build()   // الرؤوس تُضاف تلقائيًا من الـ interceptor
             val response = trustAllClient.newCall(request).execute()
             if (response.isSuccessful) {
                 val body = response.body?.string() ?: ""
