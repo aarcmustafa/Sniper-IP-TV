@@ -15,8 +15,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.LiveTv
+import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -65,8 +68,9 @@ fun DashboardScreen(
 
             else -> DashboardContent(
                 state = state,
+                navController = navController,
                 onMovieClick = { movie ->
-                    navController.navigate(Routes.player(movie.url, movie.name))
+                    navController.navigate(Routes.movieDetails(movie.id))
                 },
                 onSeriesClick = { series ->
                     navController.navigate(Routes.seriesDetails(series.id))
@@ -79,9 +83,10 @@ fun DashboardScreen(
                 },
                 onRemoveHistory = viewModel::removeFromHistory,
                 onSearchClick = { /* TODO: Search screen */ },
-                onSettingsClick = {
-                    navController.navigate(Routes.SETTINGS)
-                },
+                onSettingsClick = { navController.navigate(Routes.SETTINGS) },
+                onLiveClick = { navController.navigate(Routes.LIVE) },
+                onMoviesClick = { navController.navigate(Routes.MOVIES) },
+                onSeriesListClick = { /* TODO */ },
             )
         }
     }
@@ -90,6 +95,7 @@ fun DashboardScreen(
 @Composable
 private fun DashboardContent(
     state: DashboardUiState,
+    navController: NavHostController,
     onMovieClick: (MovieEntity) -> Unit,
     onSeriesClick: (SeriesEntity) -> Unit,
     onChannelClick: (ChannelEntity) -> Unit,
@@ -97,20 +103,24 @@ private fun DashboardContent(
     onRemoveHistory: (WatchHistoryEntity) -> Unit,
     onSearchClick: () -> Unit,
     onSettingsClick: () -> Unit,
+    onLiveClick: () -> Unit,
+    onMoviesClick: () -> Unit,
+    onSeriesListClick: () -> Unit,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 32.dp),
     ) {
-        // ── شريط علوي ──
         item(key = "topbar") {
             DashboardTopBar(
                 onSearchClick = onSearchClick,
                 onSettingsClick = onSettingsClick,
+                onLiveClick = onLiveClick,
+                onMoviesClick = onMoviesClick,
+                onSeriesListClick = onSeriesListClick,
             )
         }
 
-        // ── Hero ──
         state.featuredMovie?.let { movie ->
             item(key = "hero") {
                 HeroBanner(
@@ -127,7 +137,6 @@ private fun DashboardContent(
             }
         }
 
-        // ── متابعة المشاهدة ──
         if (state.continueWatching.isNotEmpty()) {
             item(key = "continue") {
                 Spacer(Modifier.height(16.dp))
@@ -139,7 +148,6 @@ private fun DashboardContent(
             }
         }
 
-        // ── أحدث الأفلام ──
         if (state.latestMovies.isNotEmpty()) {
             item(key = "movies") {
                 Spacer(Modifier.height(16.dp))
@@ -158,7 +166,6 @@ private fun DashboardContent(
             }
         }
 
-        // ── المسلسلات ──
         if (state.allSeries.isNotEmpty()) {
             item(key = "series") {
                 Spacer(Modifier.height(16.dp))
@@ -177,7 +184,6 @@ private fun DashboardContent(
             }
         }
 
-        // ── القنوات ──
         if (state.liveChannels.isNotEmpty()) {
             item(key = "channels") {
                 Spacer(Modifier.height(16.dp))
@@ -197,7 +203,6 @@ private fun DashboardContent(
             }
         }
 
-        // ── فارغ ──
         if (
             state.featuredMovie == null &&
             state.latestMovies.isEmpty() &&
@@ -218,10 +223,17 @@ private fun buildSubtitle(rating: String?, year: String?): String? {
     return parts.takeIf { it.isNotEmpty() }?.joinToString("  ·  ")
 }
 
+// ═══════════════════════════════════════════════════════════════
+//  الشريط العلوي — مع أزرار التنقل
+// ═══════════════════════════════════════════════════════════════
+
 @Composable
 private fun DashboardTopBar(
     onSearchClick: () -> Unit,
     onSettingsClick: () -> Unit,
+    onLiveClick: () -> Unit,
+    onMoviesClick: () -> Unit,
+    onSeriesListClick: () -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -238,15 +250,40 @@ private fun DashboardTopBar(
 
         Spacer(Modifier.weight(1f))
 
+        // ✅ زر القنوات المباشرة
+        IconButton(onClick = onLiveClick) {
+            Icon(Icons.Default.LiveTv, "قنوات مباشرة", tint = Color.White)
+        }
+        Spacer(Modifier.width(4.dp))
+
+        // ✅ زر الأفلام
+        IconButton(onClick = onMoviesClick) {
+            Icon(Icons.Default.Movie, "أفلام", tint = Color.White)
+        }
+        Spacer(Modifier.width(4.dp))
+
+        // ✅ زر المسلسلات
+        IconButton(onClick = onSeriesListClick) {
+            Icon(Icons.Default.Tv, "مسلسلات", tint = Color.White)
+        }
+        Spacer(Modifier.width(8.dp))
+
+        // زر البحث
         IconButton(onClick = onSearchClick) {
             Icon(Icons.Default.Search, "بحث", tint = Color.White)
         }
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(4.dp))
+
+        // زر الإعدادات
         IconButton(onClick = onSettingsClick) {
             Icon(Icons.Default.Settings, "إعدادات", tint = Color.White)
         }
     }
 }
+
+// ═══════════════════════════════════════════════════════════════
+//  حالات خاصة
+// ═══════════════════════════════════════════════════════════════
 
 @Composable
 private fun LoadingView() {
