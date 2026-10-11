@@ -6,6 +6,7 @@ import coil.ImageLoaderFactory
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
 import com.stitten.stitteniptv.data.DeviceCapabilityDetector
+import com.stitten.stitteniptv.data.HttpClientProvider
 import com.stitten.stitteniptv.data.PrefsManager
 import com.stitten.stitteniptv.data.WatchHistoryManager
 import dagger.hilt.android.HiltAndroidApp
@@ -25,6 +26,12 @@ class StittenApp : Application(), ImageLoaderFactory {
 
     override fun onCreate() {
         super.onCreate()
+
+        // ═══════════════════════════════════════════════════════════
+        //  ✅ جديد — تهيئة HttpClientProvider (قبل أي استخدام للشبكة)
+        // ═══════════════════════════════════════════════════════════
+        HttpClientProvider.init(PrefsManager(this))
+
         performAutoDetection()
         performStartupCleanup()
     }
