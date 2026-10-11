@@ -1,7 +1,10 @@
 package com.stitten.stitteniptv.data
 
 import okhttp3.ConnectionPool
+import okhttp3.Cookie
+import okhttp3.CookieJar
 import okhttp3.Dns
+import okhttp3.HttpUrl
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -63,6 +66,46 @@ object HttpClientProvider {
     }
 
     // ═══════════════════════════════════════════════════════════
+    //  ✅ CookieJar — لحفظ الكوكيز تلقائيًا
+    // ═══════════════════════════════════════════════════════════
+
+    private val cookieStore = ConcurrentHashMap<String, MutableList<Cookie>>()
+
+    private val cookieJar = object : CookieJar {
+        override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
+            if (cookies.isEmpty()) return
+            try {
+                val key = url.host
+                val list = cookieStore.getOrPut(key) { mutableListOf() }
+                cookies.forEach { newCookie ->
+                    // استبدل الكوكي القديمة بنفس الاسم والمسار
+                    list.removeAll {
+                        it.name == newCookie.name && it.path == newCookie.path
+                    }
+                    list.add(newCookie)
+                }
+            } catch (_: Exception) { }
+        }
+
+        override fun loadForRequest(url: HttpUrl): List<Cookie> {
+            return try {
+                val key = url.host
+                val list = cookieStore[key] ?: return emptyList()
+                val now = System.currentTimeMillis()
+                // أعد فقط الكوكيز التي لم تنتهِ صلاحيتها
+                list.filter { it.expiresAt > now || it.expiresAt == Long.MAX_VALUE }
+            } catch (_: Exception) {
+                emptyList()
+            }
+        }
+    }
+
+    /** مسح كل الكوكيز المحفوظة */
+    fun clearCookies() {
+        cookieStore.clear()
+    }
+
+    // ═══════════════════════════════════════════════════════════
     //  DNS Cache مخصص
     // ═══════════════════════════════════════════════════════════
 
@@ -118,7 +161,7 @@ object HttpClientProvider {
             null
         }
     }
-
+    
     // ═══════════════════════════════════════════════════════════
     //  عميل API
     // ═══════════════════════════════════════════════════════════
@@ -127,7 +170,8 @@ object HttpClientProvider {
         val sslContext = buildSslContext()
         val tm = buildTrustManager()
         OkHttpClient.Builder()
-            .addInterceptor(uaInterceptor)   // ← ✅
+            .addInterceptor(uaInterceptor)
+            .cookieJar(cookieJar)                    // ✅ جديد
             .connectTimeout(60, TimeUnit.SECONDS)
             .readTimeout(180, TimeUnit.SECONDS)
             .callTimeout(300, TimeUnit.SECONDS)
@@ -148,7 +192,8 @@ object HttpClientProvider {
         val sslContext = buildSslContext()
         val tm = buildTrustManager()
         OkHttpClient.Builder()
-            .addInterceptor(uaInterceptor)   // ← ✅
+            .addInterceptor(uaInterceptor)
+            .cookieJar(cookieJar)                    // ✅ جديد
             .connectionPool(ConnectionPool(32, 15, TimeUnit.MINUTES))
             .connectTimeout(20, TimeUnit.SECONDS)
             .readTimeout(90, TimeUnit.SECONDS)
@@ -223,7 +268,7 @@ object HttpClientProvider {
         return try {
             val request = Request.Builder()
                 .url(url)
-                .build()   // الرؤوس تُضاف تلقائيًا من الـ interceptor
+                .build()
             val response = trustAllClient.newCall(request).execute()
             if (response.isSuccessful) {
                 val body = response.body?.string() ?: ""
