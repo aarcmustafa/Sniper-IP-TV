@@ -1,9 +1,11 @@
 package com.stitten.stitteniptv.ui.vod
 
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.stitten.stitteniptv.data.ChannelRepository
+import com.stitten.stitteniptv.data.FavoritesManager
 import com.stitten.stitteniptv.database.entity.MovieEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,21 +18,25 @@ data class MovieDetailsUiState(
     val isLoading: Boolean = true,
     val errorMessage: String? = null,
     val movie: MovieEntity? = null,
+    val isFavorite: Boolean = false,
 )
 
 @HiltViewModel
 class MovieDetailsViewModel @Inject constructor(
     private val repository: ChannelRepository,
+    private val application: Application,
     savedStateHandle: SavedStateHandle,
-) : ViewModel() {
+) : AndroidViewModel(application) {
 
     private val movieId: String = savedStateHandle.get<String>("movieId") ?: ""
+    private val favorites = FavoritesManager(application)
 
     private val _uiState = MutableStateFlow(MovieDetailsUiState())
     val uiState: StateFlow<MovieDetailsUiState> = _uiState.asStateFlow()
 
     init {
         loadMovie()
+        refreshFavoriteState()
     }
 
     fun loadMovie() {
@@ -52,10 +58,11 @@ class MovieDetailsViewModel @Inject constructor(
                         errorMessage = "الفيلم غير موجود",
                     )
                 } else {
-                    _uiState.value = MovieDetailsUiState(
+                    _uiState.value = _uiState.value.copy(
                         isLoading = false,
                         errorMessage = null,
                         movie = movie,
+                        isFavorite = isMovieFavorite(movieId),
                     )
                 }
             } catch (e: Exception) {
@@ -68,4 +75,24 @@ class MovieDetailsViewModel @Inject constructor(
     }
 
     fun retry() = loadMovie()
+
+    fun toggleFavorite() {
+        val movie = _uiState.value.movie ?: return
+        val newState = favorites.toggleMovie(movie.id, movie.name)
+        _uiState.value = _uiState.value.copy(isFavorite = newState)
+    }
+
+    private fun refreshFavoriteState() {
+        _uiState.value = _uiState.value.copy(
+            isFavorite = isMovieFavorite(movieId)
+        )
+    }
+
+    private fun isMovieFavorite(id: String): Boolean {
+        return try {
+            favorites.getFavoriteMovieIds().contains(id)
+        } catch (_: Exception) {
+            false
+        }
+    }
 }
