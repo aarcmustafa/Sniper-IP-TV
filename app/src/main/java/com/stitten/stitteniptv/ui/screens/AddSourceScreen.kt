@@ -71,7 +71,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun AddSourceScreen(
     navController: NavHostController,
-    editSourceId: Long = -1L
+    editSourceId: Long = -1L,
+    initialMode: Int = 0,
 ) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -87,7 +88,7 @@ fun AddSourceScreen(
     val mainViewModel: MainViewModel = viewModel()
     val uiState by mainViewModel.uiState.collectAsState()
 
-    var mode by remember { mutableIntStateOf(0) }
+    var mode by remember { mutableIntStateOf(initialMode) }
     var name by remember { mutableStateOf("") }
     var m3uUrl by remember { mutableStateOf("") }
     var server by remember { mutableStateOf("") }
@@ -119,7 +120,10 @@ fun AddSourceScreen(
             val existing = sourceMgr.getById(editSourceId)
             if (existing != null) {
                 name = existing.name
-                mode = if (existing.type == "XTREAM") 2 else 0
+                mode = when (existing.type) {
+                    "XTREAM" -> 2
+                    else -> 0
+                }
                 m3uUrl = existing.url
                 server = existing.url
                 user = existing.username
@@ -163,7 +167,6 @@ fun AddSourceScreen(
                     "M3U محلي: ${uri.lastPathSegment?.takeLast(20) ?: "مصدر"}"
                 }
 
-                // ✅ تمييز M3U8 عن M3U للملفات
                 val detectedType = if (
                     uri.toString().lowercase().contains(".m3u8") ||
                     finalName.lowercase().contains(".m3u8")
@@ -282,7 +285,6 @@ fun AddSourceScreen(
                                     }
                                     ContentRepository.channels = channels
 
-                                    // ✅ تمييز M3U8 عن M3U
                                     val detectedType = if (m3uUrl.lowercase().contains(".m3u8"))
                                         "M3U8" else "M3U"
 
@@ -380,7 +382,6 @@ fun AddSourceScreen(
                             keyboardType = KeyboardType.Password
                         ),
                         trailingIcon = {
-                            // ✅ Box + tvFocusable بدل IconButton
                             Box(
                                 modifier = Modifier
                                     .size(48.dp)
