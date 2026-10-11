@@ -1,9 +1,12 @@
 package com.stitten.stitteniptv.data
 
+import android.content.Context
 import okhttp3.ConnectionPool
 import okhttp3.Dns
+import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Response
 import java.net.InetAddress
 import java.security.cert.X509Certificate
 import java.util.concurrent.ConcurrentHashMap
@@ -14,15 +17,70 @@ import javax.net.ssl.X509TrustManager
 
 object HttpClientProvider {
 
-    // ============== DNS Cache مخصص ==============
+    // ═══════════════════════════════════════════════════════════
+    //  User-Agent ديناميكي (يُقرأ من PrefsManager)
+    // ═══════════════════════════════════════════════════════════
+
+    /** قائمة User-Agents الجاهزة (يمكن للمستخدم اختيار واحدة) */
+    val USER_AGENT_PRESETS = listOf(
+        "IPTVSmartersPro/1.1.1",
+        "VLC/3.0.18 LibVLC/3.0.18",
+        "TiviMate/4.7.0",
+        "Kodi/20.0 (Linux; Android 12) ExoPlayerLib/2.19.1",
+        "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Mobile Safari/537.36"
+    )
+
+    const val DEFAULT_USER_AGENT = "IPTVSmartersPro/1.1.1"
+
+    /** مرجع PrefsManager — يُمرَّر مرة واحدة من Application */
+    @Volatile
+    private var prefsRef: PrefsManager? = null
+
+    /** تهيئة مزوّد الـ UA — استدعِها في Application.onCreate() */
+    fun init(prefs: PrefsManager) {
+        prefsRef = prefs
+    }
+
+    /** جلب الـ UA الحالي من الإعدادات أو الافتراضي */
+    fun getUserAgent(): String {
+        return try {
+            prefsRef?.getUserAgent()?.takeIf { it.isNotBlank() } ?: DEFAULT_USER_AGENT
+        } catch (e: Exception) {
+            DEFAULT_USER_AGENT
+        }
+    }
+
+    /** حفظ الـ UA الجديد من الإعدادات */
+    fun setUserAgent(ua: String) {
+        prefsRef?.setUserAgent(ua)
+    }
+
     /**
-     * ذاكرة DNS مؤقتة:
-     * - تحفظ عنوان IP لكل نطاق لمدة ساعة
-     * - تفادي DNS lookup المتكرر
+     * Interceptor يضيف User-Agent + رؤوس موحّدة لكل الطلبات تلقائيًا.
      */
+    private val uaInterceptor = Interceptor { chain ->
+        val original = chain.request()
+        val request = original.newBuilder()
+            .header("User-Agent", getUserAgent())
+            .header("Accept", "*/*")
+            .header("Connection", "keep-alive")
+            .apply {
+                // لا نضيف Accept-Encoding إذا كان الطلب لبث فيديو (لتجنّب الفك)
+                if (original.header("Accept-Encoding") == null) {
+                    header("Accept-Encoding", "identity")
+                }
+            }
+            .build()
+        chain.proceed(request)
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  DNS Cache مخصص
+    // ═══════════════════════════════════════════════════════════
+
     private val dnsCache = ConcurrentHashMap<String, List<InetAddress>>()
     private val dnsTimestamps = ConcurrentHashMap<String, Long>()
-    private const val DNS_CACHE_MS = 60 * 60 * 1000L // ساعة
+    private const val DNS_CACHE_MS = 60 * 60 * 1000L
 
     private object CachedDns : Dns {
         override fun lookup(hostname: String): List<InetAddress> {
@@ -50,7 +108,10 @@ object HttpClientProvider {
         dnsTimestamps.clear()
     }
 
-    // ============== Trust Manager ==============
+    // ═══════════════════════════════════════════════════════════
+    //  Trust Manager (لقبول شهادات IPTV)
+    // ═══════════════════════════════════════════════════════════
+
     private fun buildTrustManager(): X509TrustManager {
         return object : X509TrustManager {
             override fun checkClientTrusted(
@@ -76,11 +137,15 @@ object HttpClientProvider {
         }
     }
 
-    // ============== عميل API ==============
+    // ═══════════════════════════════════════════════════════════
+    //  عميل API (trustAllClient)
+    // ═══════════════════════════════════════════════════════════
+
     val trustAllClient: OkHttpClient by lazy {
         val sslContext = buildSslContext()
         val tm = buildTrustManager()
         OkHttpClient.Builder()
+            .addInterceptor(uaInterceptor)   // ✅ يضيف UA تلقائيًا
             .connectTimeout(60, TimeUnit.SECONDS)
             .readTimeout(180, TimeUnit.SECONDS)
             .callTimeout(300, TimeUnit.SECONDS)
@@ -93,43 +158,32 @@ object HttpClientProvider {
             .build()
     }
 
-    // ============== عميل البث (محسّن للـ IPTV) ==============
-    /**
-     * إعدادات مبنية على تحليل PCAPdroid:
-     * - ConnectionPool كبير (32 اتصال، 15 دقيقة)
-     * - Keep-Alive طويل
-     * - TCP NoDelay (بدون تأخير)
-     * - DNS Cache مخصص
-     * - Ping للحفاظ على الاتصال
-     */
+    // ═══════════════════════════════════════════════════════════
+    //  عميل البث (streamingClient)
+    // ═══════════════════════════════════════════════════════════
+
     val streamingClient: OkHttpClient by lazy {
         val sslContext = buildSslContext()
         val tm = buildTrustManager()
         OkHttpClient.Builder()
-            // Connection Pool ضخم
+            .addInterceptor(uaInterceptor)   // ✅ يضيف UA تلقائيًا
             .connectionPool(ConnectionPool(32, 15, TimeUnit.MINUTES))
-            // مهلات متوازنة
             .connectTimeout(20, TimeUnit.SECONDS)
             .readTimeout(90, TimeUnit.SECONDS)
             .writeTimeout(20, TimeUnit.SECONDS)
-            .callTimeout(0, TimeUnit.SECONDS) // بلا حد للبث المستمر
-            // SSL
+            .callTimeout(0, TimeUnit.SECONDS)
             .sslSocketFactory(sslContext!!.socketFactory, tm)
             .hostnameVerifier { _, _ -> true }
-            // إعادة التوجيه
             .followRedirects(true)
             .followSslRedirects(true)
             .retryOnConnectionFailure(true)
-            // Socket Factory محسّن (TCP_NODELAY)
             .socketFactory(object : javax.net.SocketFactory() {
                 override fun createSocket(): java.net.Socket {
                     val socket = java.net.Socket()
-                    socket.tcpNoDelay = true // مهم للبث
+                    socket.tcpNoDelay = true
                     return socket
                 }
-                override fun createSocket(
-                    host: String?, port: Int
-                ): java.net.Socket {
+                override fun createSocket(host: String?, port: Int): java.net.Socket {
                     val socket = java.net.Socket(host, port)
                     socket.tcpNoDelay = true
                     return socket
@@ -158,26 +212,20 @@ object HttpClientProvider {
                     return socket
                 }
             })
-            // DNS Cache
             .dns(CachedDns)
-            // Ping للحفاظ على الاتصال
             .pingInterval(25, TimeUnit.SECONDS)
             .build()
     }
 
-    fun getUserAgent(): String = "VLC/3.0.18 LibVLC/3.0.18"
+    // ═══════════════════════════════════════════════════════════
+    //  Pre-warm
+    // ═══════════════════════════════════════════════════════════
 
-    // ============== Pre-warm الاتصال ==============
-    /**
-     * يفتح اتصالاً مسبقاً بالسيرفر قبل بدء البث
-     * يقلل زمن بدء التشغيل من 2-3 ثوانٍ إلى 0.5 ثانية
-     */
     suspend fun prewarmConnection(url: String) {
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             try {
                 val request = Request.Builder()
                     .url(url)
-                    .header("User-Agent", getUserAgent())
                     .head()
                     .build()
                 streamingClient.newCall(request).execute().close()
@@ -185,17 +233,15 @@ object HttpClientProvider {
         }
     }
 
-    // ============== fetchText ==============
+    // ═══════════════════════════════════════════════════════════
+    //  fetchText
+    // ═══════════════════════════════════════════════════════════
+
     suspend fun fetchText(url: String): Result<String> {
         return try {
             val request = Request.Builder()
                 .url(url)
-                .header("User-Agent", getUserAgent())
-                .header("Accept", "*/*")
-                .header("Accept-Encoding", "identity")
-                .header("Connection", "keep-alive")
-                .build()
-
+                .build()   // ← الـ interceptor يضيف كل الرؤوس
             val response = trustAllClient.newCall(request).execute()
             if (response.isSuccessful) {
                 val body = response.body?.string() ?: ""
