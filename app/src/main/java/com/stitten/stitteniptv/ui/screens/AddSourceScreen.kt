@@ -5,15 +5,40 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -24,6 +49,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -54,11 +80,10 @@ fun AddSourceScreen(
     }
     val sourceMgr = entryPoint.sourceManager()
 
-    // ✅ الوصول إلى MainViewModel لتحميل المحتوى
     val mainViewModel: MainViewModel = viewModel()
     val uiState by mainViewModel.uiState.collectAsState()
 
-    var mode by remember { mutableStateOf(0) }
+    var mode by remember { mutableIntStateOf(0) }
     var name by remember { mutableStateOf("") }
     var m3uUrl by remember { mutableStateOf("") }
     var server by remember { mutableStateOf("") }
@@ -66,11 +91,28 @@ fun AddSourceScreen(
     var pass by remember { mutableStateOf("") }
     var epgUrl by remember { mutableStateOf("") }
     var message by remember { mutableStateOf("") }
-    var loading by remember { mutableStateOf(false) }
     var showPassword by remember { mutableStateOf(false) }
 
-    // ✅ حالة الانتظار قبل الانتقال للرئيسية
+    // ✅ حالة واحدة للتحميل المحلي + حالة الانتظار للانتقال
+    var localLoading by remember { mutableStateOf(false) }
     var pendingNavigate by remember { mutableStateOf(false) }
+
+    // ✅ isBusy = أي نوع من التحميل
+    val isBusy = localLoading || uiState.isLoading
+
+    // ✅ نسبة موحدة: من MainViewModel أو تقديرية محلية
+    val progressPercent = when {
+        uiState.isLoading -> uiState.loadingProgress
+        localLoading -> 15
+        else -> 0
+    }
+
+    // ✅ رسالة موحدة
+    val progressMessage = when {
+        uiState.isLoading -> uiState.loadingMessage
+        localLoading -> "⏳ جاري التحقق..."
+        else -> ""
+    }
 
     LaunchedEffect(editSourceId) {
         if (editSourceId > 0) {
@@ -87,7 +129,7 @@ fun AddSourceScreen(
         }
     }
 
-    // ✅ الانتقال للرئيسية بعد انتهاء تحميل المحتوى
+    // ✅ الانتقال بعد انتهاء تحميل المحتوى
     LaunchedEffect(pendingNavigate, uiState.isLoading) {
         if (pendingNavigate && !uiState.isLoading) {
             navController.navigate(Routes.DASHBOARD) {
@@ -95,51 +137,52 @@ fun AddSourceScreen(
             }
         }
     }
-
-    val filePicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri: Uri? ->
-        uri ?: return@rememberLauncherForActivityResult
-        scope.launch {
-            loading = true
-            try {
-                val content = ctx.contentResolver.openInputStream(uri)
-                    ?.bufferedReader()?.use { it.readText() } ?: ""
-                if (content.isBlank()) {
-                    message = "الملف فارغ أو غير قابل للقراءة"
-                    loading = false
-                    return@launch
-                }
-                val channels = M3uParser.loadFromContent(content)
-                if (channels.isEmpty()) {
-                    message = "لا توجد قنوات في هذا الملف"
-                    loading = false
-                    return@launch
-                }
-                ContentRepository.channels = channels
-                val finalName = name.ifBlank {
-                    "M3U محلي: ${uri.lastPathSegment?.takeLast(20) ?: "مصدر"}"
-                }
-                val newId = sourceMgr.add(
-                    SourceEntity(
-                        name = finalName,
-                        type = "M3U",
-                        url = uri.toString(),
-                        isActive = false
-                    )
-                )
-                sourceMgr.setActive(newId)
-                loading = false
-                navController.navigate(Routes.DASHBOARD) {
-                    popUpTo(Routes.ADD_SOURCE) { inclusive = true }
-                }
-            } catch (e: Exception) {
-                message = "خطأ: ${e.message}"
-                loading = false
+    
+val filePicker = rememberLauncherForActivityResult(
+    ActivityResultContracts.OpenDocument()
+) { uri: Uri? ->
+    uri ?: return@rememberLauncherForActivityResult
+    scope.launch {
+        localLoading = true
+        message = ""
+        try {
+            val content = ctx.contentResolver.openInputStream(uri)
+                ?.bufferedReader()?.use { it.readText() } ?: ""
+            if (content.isBlank()) {
+                message = "الملف فارغ أو غير قابل للقراءة"
+                localLoading = false
+                return@launch
             }
+            val channels = M3uParser.loadFromContent(content)
+            if (channels.isEmpty()) {
+                message = "لا توجد قنوات في هذا الملف"
+                localLoading = false
+                return@launch
+            }
+            ContentRepository.channels = channels
+            val finalName = name.ifBlank {
+                "M3U محلي: ${uri.lastPathSegment?.takeLast(20) ?: "مصدر"}"
+            }
+            val newId = sourceMgr.add(
+                SourceEntity(
+                    name = finalName,
+                    type = "M3U",
+                    url = uri.toString(),
+                    isActive = false
+                )
+            )
+            sourceMgr.setActive(newId)
+            localLoading = false
+            navController.navigate(Routes.DASHBOARD) {
+                popUpTo(Routes.ADD_SOURCE) { inclusive = true }
+            }
+        } catch (e: Exception) {
+            message = "خطأ: ${e.message}"
+            localLoading = false
         }
     }
-    
+}
+
 Box(modifier = Modifier.fillMaxSize()) {
 
     Image(
@@ -175,16 +218,17 @@ Box(modifier = Modifier.fillMaxSize()) {
             onValueChange = { name = it },
             label = { Text("اسم المصدر (اختياري)") },
             modifier = Modifier.width(600.dp),
-            singleLine = true
+            singleLine = true,
+            enabled = !isBusy
         )
         Spacer(Modifier.height(16.dp))
 
         Row(horizontalArrangement = Arrangement.Center) {
-            TabButton("M3U / M3U8", mode == 0) { mode = 0 }
+            TabButton("M3U / M3U8", mode == 0, !isBusy) { mode = 0 }
             Spacer(Modifier.width(8.dp))
-            TabButton("ملف من الجهاز / USB", mode == 1) { mode = 1 }
+            TabButton("ملف من الجهاز / USB", mode == 1, !isBusy) { mode = 1 }
             Spacer(Modifier.width(8.dp))
-            TabButton("Xtream API", mode == 2) { mode = 2 }
+            TabButton("Xtream API", mode == 2, !isBusy) { mode = 2 }
         }
         Spacer(Modifier.height(24.dp))
 
@@ -200,7 +244,8 @@ Box(modifier = Modifier.fillMaxSize()) {
                     label = { Text("رابط M3U / M3U8") },
                     placeholder = { Text("http://example.com/list.m3u") },
                     modifier = Modifier.width(600.dp),
-                    singleLine = true
+                    singleLine = true,
+                    enabled = !isBusy
                 )
                 Spacer(Modifier.height(12.dp))
                 OutlinedTextField(
@@ -209,7 +254,8 @@ Box(modifier = Modifier.fillMaxSize()) {
                     label = { Text("رابط EPG (اختياري)") },
                     placeholder = { Text("http://example.com/epg.xml") },
                     modifier = Modifier.width(600.dp),
-                    singleLine = true
+                    singleLine = true,
+                    enabled = !isBusy
                 )
                 Spacer(Modifier.height(20.dp))
                 Button(
@@ -218,13 +264,14 @@ Box(modifier = Modifier.fillMaxSize()) {
                             message = "أدخل الرابط"
                             return@Button
                         }
+                        message = ""
                         scope.launch {
-                            loading = true
+                            localLoading = true
                             try {
                                 val channels = M3uParser.loadFromUrl(m3uUrl)
                                 if (channels.isEmpty()) {
                                     message = "فشل تحميل القنوات — تحقق من الرابط"
-                                    loading = false
+                                    localLoading = false
                                     return@launch
                                 }
                                 ContentRepository.channels = channels
@@ -239,13 +286,13 @@ Box(modifier = Modifier.fillMaxSize()) {
                                     )
                                 )
                                 sourceMgr.setActive(newId)
-                                loading = false
+                                localLoading = false
 
-                                // ✅ الآن: تحميل المحتوى عبر MainViewModel
+                                // ✅ تشغيل switchSource + انتظار انتهاء MainViewModel
                                 val newSource = sourceMgr.getById(newId)
                                 if (newSource != null) {
-                                    mainViewModel.switchSource(newSource)
                                     pendingNavigate = true
+                                    mainViewModel.switchSource(newSource)
                                 } else {
                                     navController.navigate(Routes.DASHBOARD) {
                                         popUpTo(Routes.ADD_SOURCE) { inclusive = true }
@@ -253,11 +300,12 @@ Box(modifier = Modifier.fillMaxSize()) {
                                 }
                             } catch (e: Exception) {
                                 message = "خطأ: ${e.message}"
-                                loading = false
+                                localLoading = false
                             }
                         }
                     },
-                    modifier = Modifier.width(300.dp)
+                    modifier = Modifier.width(300.dp).height(56.dp),
+                    enabled = !isBusy
                 ) { Text("حفظ وتحميل", fontSize = 18.sp) }
             }
 
@@ -268,12 +316,14 @@ Box(modifier = Modifier.fillMaxSize()) {
                 Text(
                     "اختر ملف M3U من ذاكرة التلفاز الداخلية أو USB",
                     color = Color.White,
-                    fontSize = 18.sp
+                    fontSize = 18.sp,
+                    textAlign = TextAlign.Center
                 )
                 Spacer(Modifier.height(20.dp))
                 Button(
                     onClick = { filePicker.launch(arrayOf("*/*")) },
-                    modifier = Modifier.width(400.dp)
+                    modifier = Modifier.width(400.dp).height(56.dp),
+                    enabled = !isBusy
                 ) { Text("📂 فتح منتقي الملفات", fontSize = 18.sp) }
             }
             
@@ -287,7 +337,8 @@ Box(modifier = Modifier.fillMaxSize()) {
                         label = { Text("Server URL") },
                         placeholder = { Text("http://example.com:8080") },
                         modifier = Modifier.width(600.dp),
-                        singleLine = true
+                        singleLine = true,
+                        enabled = !isBusy
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
@@ -302,7 +353,8 @@ Box(modifier = Modifier.fillMaxSize()) {
                         onValueChange = { user = it },
                         label = { Text("Username") },
                         modifier = Modifier.width(600.dp),
-                        singleLine = true
+                        singleLine = true,
+                        enabled = !isBusy
                     )
                     Spacer(Modifier.height(12.dp))
                     OutlinedTextField(
@@ -332,7 +384,8 @@ Box(modifier = Modifier.fillMaxSize()) {
                             }
                         },
                         modifier = Modifier.width(600.dp),
-                        singleLine = true
+                        singleLine = true,
+                        enabled = !isBusy
                     )
                     Spacer(Modifier.height(20.dp))
                     Button(
@@ -345,12 +398,13 @@ Box(modifier = Modifier.fillMaxSize()) {
                                 message = "أدخل اسم سيرفر صحيح"
                                 return@Button
                             }
+                            message = ""
                             scope.launch {
-                                loading = true
+                                localLoading = true
                                 val valid = XtreamApi.validate(server, user, pass)
                                 if (!valid) {
                                     message = "بيانات Xtream غير صحيحة أو السيرفر غير متاح"
-                                    loading = false
+                                    localLoading = false
                                     return@launch
                                 }
                                 val newId = sourceMgr.add(
@@ -364,13 +418,13 @@ Box(modifier = Modifier.fillMaxSize()) {
                                     )
                                 )
                                 sourceMgr.setActive(newId)
-                                loading = false
+                                localLoading = false
 
-                                // ✅ الآن: تحميل المحتوى عبر MainViewModel
+                                // ✅ تشغيل switchSource + انتظار انتهاء MainViewModel
                                 val newSource = sourceMgr.getById(newId)
                                 if (newSource != null) {
-                                    mainViewModel.switchSource(newSource)
                                     pendingNavigate = true
+                                    mainViewModel.switchSource(newSource)
                                 } else {
                                     navController.navigate(Routes.DASHBOARD) {
                                         popUpTo(Routes.ADD_SOURCE) { inclusive = true }
@@ -378,36 +432,149 @@ Box(modifier = Modifier.fillMaxSize()) {
                                 }
                             }
                         },
-                        modifier = Modifier.width(300.dp)
+                        modifier = Modifier.width(300.dp).height(56.dp),
+                        enabled = !isBusy
                     ) { Text("اختبار وحفظ", fontSize = 18.sp) }
                 }
             }
 
-            if (message.isNotEmpty()) {
+            // ─── رسالة الخطأ (خارج Overlay) ───
+            if (message.isNotEmpty() && !isBusy) {
                 Spacer(Modifier.height(16.dp))
-                Text(message, color = MaterialTheme.colorScheme.error, fontSize = 16.sp)
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFFDA3633).copy(alpha = 0.2f)
+                    ),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
+                    modifier = Modifier.width(600.dp)
+                ) {
+                    Text(
+                        text = "⚠️ $message",
+                        color = Color(0xFFFF7B72),
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(14.dp)
+                    )
+                }
             }
 
-            if (loading) {
-                Spacer(Modifier.height(20.dp))
-                CircularProgressIndicator()
-            }
+            Spacer(Modifier.height(24.dp))
         }
 
-        // ✅ Overlay مع نسبة التحميل
-        if (uiState.isLoading) {
-            CircularProgressOverlay(
-                progress = uiState.loadingProgress,
-                message = uiState.loadingMessage
+        // ═══════════════════════════════════════════════════════════
+        //  ✅ Progress Overlay (يظهر دائمًا أثناء isBusy)
+        // ═══════════════════════════════════════════════════════════
+        if (isBusy) {
+            ProgressOverlay(
+                progress = progressPercent,
+                message = progressMessage,
             )
         }
     }
 }
 
+// ═══════════════════════════════════════════════════════════════
+//  Progress Overlay
+// ═══════════════════════════════════════════════════════════════
+
 @Composable
-private fun TabButton(text: String, selected: Boolean, onClick: () -> Unit) {
+private fun ProgressOverlay(
+    progress: Int,
+    message: String,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.92f)),
+        contentAlignment = Alignment.Center
+    ) {
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF161B22)),
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+            modifier = Modifier.width(420.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(40.dp)
+                    .fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier.size(200.dp)
+                ) {
+                    CircularProgressIndicator(
+                        progress = { (progress / 100f).coerceIn(0f, 1f) },
+                        modifier = Modifier.size(200.dp),
+                        color = MaterialTheme.colorScheme.primary,
+                        strokeWidth = 14.dp,
+                        trackColor = Color(0xFF21262D)
+                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            "$progress%",
+                            color = Color.White,
+                            fontSize = 48.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            "مكتمل",
+                            color = Color.LightGray,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(28.dp))
+
+                Text(
+                    message.ifBlank { "جاري التحميل..." },
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Medium,
+                    textAlign = TextAlign.Center,
+                    maxLines = 3,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(Modifier.height(20.dp))
+
+                androidx.compose.material3.LinearProgressIndicator(
+                    progress = { (progress / 100f).coerceIn(0f, 1f) },
+                    modifier = Modifier.fillMaxWidth().height(8.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = Color(0xFF21262D)
+                )
+
+                Spacer(Modifier.height(16.dp))
+
+                Text(
+                    "لا تغلق التطبيق",
+                    color = Color(0xFF8B949E),
+                    fontSize = 12.sp,
+                )
+            }
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  زر تبويب
+// ═══════════════════════════════════════════════════════════════
+
+@Composable
+private fun TabButton(
+    text: String,
+    selected: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
     Button(
         onClick = onClick,
+        enabled = enabled,
         colors = ButtonDefaults.buttonColors(
             containerColor = if (selected) MaterialTheme.colorScheme.primary
             else MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
