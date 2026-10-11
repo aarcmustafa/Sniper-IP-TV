@@ -20,6 +20,11 @@ android {
     }
 
     buildTypes {
+        debug {
+            // ✅ تفعيل BuildConfig + Logging في Debug
+            isMinifyEnabled = false
+            buildConfigField("boolean", "ENABLE_HTTP_LOGGING", "true")
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
@@ -27,6 +32,8 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // ✅ إيقاف Logging في Release
+            buildConfigField("boolean", "ENABLE_HTTP_LOGGING", "false")
         }
     }
 
@@ -35,7 +42,11 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
-    buildFeatures { compose = true }
+
+    buildFeatures {
+        compose = true
+        buildConfig = true        // ✅ مهم — لتفعيل BuildConfig.DEBUG
+    }
 
     packaging {
         resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" }
@@ -73,12 +84,12 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:$media3")
     implementation("androidx.media3:media3-exoplayer-hls:$media3")
     implementation("androidx.media3:media3-exoplayer-dash:$media3")
-    implementation("androidx.media3:media3-exoplayer-rtsp:$media3")       // ✅ مضاف — RTSP
-    implementation("androidx.media3:media3-exoplayer-smoothstreaming:$media3") // ✅ مضاف — SmoothStreaming
+    implementation("androidx.media3:media3-exoplayer-rtsp:$media3")
+    implementation("androidx.media3:media3-exoplayer-smoothstreaming:$media3")
     implementation("androidx.media3:media3-ui:$media3")
     implementation("androidx.media3:media3-session:$media3")
     implementation("androidx.media3:media3-datasource-okhttp:$media3")
-    implementation("androidx.media3:media3-datasource-rtmp:$media3")      // ✅ مضاف — RTMP
+    implementation("androidx.media3:media3-datasource-rtmp:$media3")
     implementation("androidx.media3:media3-database:$media3")
     implementation("androidx.media3:media3-decoder:$media3")
     implementation("androidx.media3:media3-extractor:$media3")
@@ -109,8 +120,8 @@ dependencies {
     //  الصور — Coil
     // ═══════════════════════════════════════════════════════════
     implementation("io.coil-kt:coil-compose:2.7.0")
-    implementation("io.coil-kt:coil-gif:2.7.0")              // ✅ مضاف — دعم GIF
-    implementation("io.coil-kt:coil-svg:2.7.0")              // ✅ مضاف — دعم SVG (لشعارات القنوات)
+    implementation("io.coil-kt:coil-gif:2.7.0")
+    implementation("io.coil-kt:coil-svg:2.7.0")
 
     // ═══════════════════════════════════════════════════════════
     //  Coroutines
@@ -118,10 +129,10 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
 
     // ═══════════════════════════════════════════════════════════
-    //  الشبكة — OkHttp
+    //  الشبكة — OkHttp + Logging
     // ═══════════════════════════════════════════════════════════
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")   // ✅ مضاف
 
     // ═══════════════════════════════════════════════════════════
     //  DataStore — لحفظ الإعدادات
