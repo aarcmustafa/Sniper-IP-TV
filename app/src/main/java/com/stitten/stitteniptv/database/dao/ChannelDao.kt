@@ -37,8 +37,12 @@ interface ChannelDao {
     @Query("DELETE FROM channels")
     suspend fun clearChannels()
 
+    /** ✅ جديد: دفعة واحدة من القنوات (بدون Paging) — للشاشة الرئيسية */
+    @Query("SELECT * FROM channels ORDER BY groupPriority ASC, name ASC LIMIT :limit")
+    suspend fun getChannelsBatch(limit: Int): List<ChannelEntity>
+
     // ═══════════════════════════════════════════════════════════
-    //  الأفلام — الأساسي (كما كان)
+    //  الأفلام
     // ═══════════════════════════════════════════════════════════
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMovies(movies: List<MovieEntity>)
@@ -55,11 +59,7 @@ interface ChannelDao {
     @Query("DELETE FROM movies")
     suspend fun clearMovies()
 
-    // ═══════════════════════════════════════════════════════════
-    //  ✅ جديد — استعلامات إضافية للأفلام
-    // ═══════════════════════════════════════════════════════════
-
-    /** أحدث الأفلام (الأكثر إضافةً) — للـ Hero + صف "أحدث الأفلام" */
+    /** أحدث الأفلام (للـ Hero + صف "أحدث الأفلام") */
     @Query("SELECT * FROM movies ORDER BY addedAt DESC, name ASC LIMIT :limit")
     fun getLatestMovies(limit: Int = 20): Flow<List<MovieEntity>>
 
@@ -67,11 +67,11 @@ interface ChannelDao {
     @Query("SELECT * FROM movies ORDER BY addedAt DESC, name ASC")
     fun getLatestMoviesPaged(): PagingSource<Int, MovieEntity>
 
-    /** فيلم واحد بواسطة ID — لشاشة التفاصيل */
+    /** فيلم واحد بواسطة ID */
     @Query("SELECT * FROM movies WHERE id = :id LIMIT 1")
     suspend fun getMovieById(id: String): MovieEntity?
 
-    /** فيلم واحد كـ Flow (للتحديث التلقائي) */
+    /** فيلم واحد كـ Flow */
     @Query("SELECT * FROM movies WHERE id = :id LIMIT 1")
     fun observeMovieById(id: String): Flow<MovieEntity?>
 
@@ -105,7 +105,7 @@ interface ChannelDao {
     suspend fun deleteMoviesBySource(sourceId: Long)
 
     // ═══════════════════════════════════════════════════════════
-    //  المسلسلات — الأساسي (كما كان)
+    //  المسلسلات
     // ═══════════════════════════════════════════════════════════
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSeries(series: List<SeriesEntity>)
@@ -121,10 +121,6 @@ interface ChannelDao {
 
     @Query("DELETE FROM series")
     suspend fun clearSeries()
-
-    // ═══════════════════════════════════════════════════════════
-    //  ✅ جديد — استعلامات إضافية للمسلسلات
-    // ═══════════════════════════════════════════════════════════
 
     /** مسلسل واحد بواسطة ID */
     @Query("SELECT * FROM series WHERE id = :id LIMIT 1")
@@ -145,4 +141,8 @@ interface ChannelDao {
     /** حذف مسلسل واحد */
     @Query("DELETE FROM series WHERE id = :id")
     suspend fun deleteSeriesById(id: String)
+
+    /** ✅ جديد: دفعة واحدة من المسلسلات (بدون Paging) — للشاشة الرئيسية */
+    @Query("SELECT * FROM series ORDER BY addedAt DESC, name ASC LIMIT :limit")
+    suspend fun getSeriesBatch(limit: Int): List<SeriesEntity>
 }
