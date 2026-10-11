@@ -50,6 +50,7 @@ import com.stitten.stitteniptv.ui.components.ContinueWatchingSection
 import com.stitten.stitteniptv.ui.components.HeroBanner
 import com.stitten.stitteniptv.ui.components.LoadingProgress
 import com.stitten.stitteniptv.ui.components.PosterCard
+import com.stitten.stitteniptv.ui.components.SkeletonHomeScreen
 import com.stitten.stitteniptv.ui.components.tvFocusable
 import com.stitten.stitteniptv.ui.navigation.Routes
 import com.stitten.stitteniptv.viewmodel.MainViewModel
@@ -63,12 +64,10 @@ fun DashboardScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val mainState by mainViewModel.uiState.collectAsStateWithLifecycle()
 
-    // ─── بعد انتهاء التحديث من المصدر → أعد قراءة الرئيسية ───
     var isRefreshing by remember { mutableStateOf(false) }
 
     LaunchedEffect(mainState.isLoading, isRefreshing) {
         if (isRefreshing && !mainState.isLoading) {
-            // انتهى التحديث → أعد قراءة المحتوى من Room
             viewModel.retry()
             isRefreshing = false
         }
@@ -80,17 +79,19 @@ fun DashboardScreen(
             .background(Color(0xFF0D1117))
     ) {
         when {
-            state.isLoading || isRefreshing -> Box(
+            // ✅ التحديث اليدوي من المصدر — Overlay مع نسبة
+            isRefreshing -> Box(
                 Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center,
             ) {
                 LoadingProgress(
-                    progress = if (isRefreshing) mainState.loadingProgress / 100f
-                    else state.progress,
-                    label = if (isRefreshing) mainState.loadingMessage
-                    else state.progressLabel,
+                    progress = mainState.loadingProgress / 100f,
+                    label = mainState.loadingMessage,
                 )
             }
+
+            // ✅ التحميل الأول — Skeleton
+            state.isLoading -> SkeletonHomeScreen()
 
             state.errorMessage != null -> ErrorView(
                 message = state.errorMessage!!,
@@ -119,7 +120,6 @@ fun DashboardScreen(
                 onSeriesListClick = { navController.navigate(Routes.SERIES_LIST) },
                 onFavoritesClick = { navController.navigate(Routes.FAVORITES) },
                 onRefreshClick = {
-                    // ✅ استدعاء refresh من المصدر الأصلي
                     isRefreshing = true
                     mainViewModel.refreshM3uSource()
                 },
@@ -205,6 +205,24 @@ private fun DashboardContent(
             }
         }
 
+        if (state.topRatedMovies.isNotEmpty()) {
+            item(key = "top_rated") {
+                Spacer(Modifier.height(16.dp))
+                ContentRow(
+                    title = "🏆 الأعلى تقييمًا",
+                    items = state.topRatedMovies,
+                    key = { "top_${it.id}" },
+                ) { movie ->
+                    PosterCard(
+                        title = movie.name,
+                        imageUrl = movie.poster,
+                        subtitle = buildSubtitle(movie.rating, movie.year),
+                        onClick = { onMovieClick(movie) },
+                    )
+                }
+            }
+        }
+
         if (state.allSeries.isNotEmpty()) {
             item(key = "series") {
                 Spacer(Modifier.height(16.dp))
@@ -245,6 +263,7 @@ private fun DashboardContent(
         if (
             state.featuredMovie == null &&
             state.latestMovies.isEmpty() &&
+            state.topRatedMovies.isEmpty() &&
             state.allSeries.isEmpty() &&
             state.liveChannels.isEmpty() &&
             state.continueWatching.isEmpty()
