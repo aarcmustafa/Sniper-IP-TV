@@ -60,7 +60,7 @@ fun CorePlayerScreen(
                 if (contentId.isNotBlank() && position > 5_000) {
                     saveScope.launch {
                         try {
-                            historyMgr.upsert(
+                            historyMgr.save(
                                 WatchHistoryEntity(
                                     contentId = contentId,
                                     contentType = contentType.ifBlank { kind.name },
