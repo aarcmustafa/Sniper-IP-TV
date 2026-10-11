@@ -24,8 +24,10 @@ data class DashboardUiState(
     val progressLabel: String = "",
     val errorMessage: String? = null,
     val featuredMovie: MovieEntity? = null,
+    val featuredMovies: List<MovieEntity> = emptyList(),
     val continueWatching: List<WatchHistoryEntity> = emptyList(),
     val latestMovies: List<MovieEntity> = emptyList(),
+    val topRatedMovies: List<MovieEntity> = emptyList(),
     val allSeries: List<SeriesEntity> = emptyList(),
     val liveChannels: List<ChannelEntity> = emptyList(),
 )
@@ -75,22 +77,31 @@ class DashboardViewModel @Inject constructor(
                 val channelsList = channelRepository.getFirstChannelsPage(limit = channelsLimit)
 
                 val topRated = if (!liteMode) {
-                    setProgress(0.90f, "تجديد البانر...")
-                    channelRepository.getTopRatedMovies(limit = 5).first()
+                    setProgress(0.90f, "تحميل الأعلى تقييمًا...")
+                    channelRepository.getTopRatedMovies(limit = 20).first()
                 } else {
                     emptyList()
                 }
 
                 setProgress(1f, "جاهز")
 
+                val featuredList = buildList {
+                    addAll(latestMovies.take(3))
+                    topRated.forEach { m ->
+                        if (size < 5 && none { it.id == m.id }) add(m)
+                    }
+                }
+
                 _uiState.value = DashboardUiState(
                     isLoading = false,
                     progress = 1f,
                     progressLabel = "",
                     errorMessage = null,
-                    featuredMovie = latestMovies.firstOrNull() ?: topRated.firstOrNull(),
+                    featuredMovie = featuredList.firstOrNull(),
+                    featuredMovies = featuredList,
                     continueWatching = history,
                     latestMovies = latestMovies,
+                    topRatedMovies = topRated,
                     allSeries = seriesList,
                     liveChannels = channelsList,
                 )
