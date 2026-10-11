@@ -186,7 +186,7 @@ object XtreamApi {
     }
 
     // ═══════════════════════════════════════════════════════════
-    //  الأفلام — مع الحقول الجديدة
+    //  الأفلام
     // ═══════════════════════════════════════════════════════════
     suspend fun loadVodStreams(
         server: String, user: String, pass: String,
@@ -242,7 +242,7 @@ object XtreamApi {
     }
 
     // ═══════════════════════════════════════════════════════════
-    //  المسلسلات — مع الحقول الجديدة
+    //  المسلسلات
     // ═══════════════════════════════════════════════════════════
     suspend fun loadSeries(
         server: String, user: String, pass: String,
@@ -305,7 +305,6 @@ object XtreamApi {
     }
 
     private fun extractBackdrop(obj: JSONObject): String? {
-        // backdrop_path قد يكون String أو JSONArray
         val backdropAny = obj.opt("backdrop_path") ?: return null
         return when (backdropAny) {
             is String -> backdropAny.takeIf { it.isNotBlank() && it != "null" }
@@ -318,7 +317,7 @@ object XtreamApi {
     }
 
     // ═══════════════════════════════════════════════════════════
-    //  الحلقات — مع الحقول الجديدة
+    //  الحلقات — بدون duration
     // ═══════════════════════════════════════════════════════════
     suspend fun loadEpisodes(
         server: String, user: String, pass: String, seriesId: String
@@ -344,7 +343,6 @@ object XtreamApi {
 
                     val info = ep.optJSONObject("info")
                     val plot = info?.optString("plot", "")?.takeIf { it.isNotBlank() }
-                    val duration = info?.optString("duration", "")?.takeIf { it.isNotBlank() }
                     val rating = info?.optString("rating", "")?.takeIf { it.isNotBlank() && it != "0" }
 
                     episodes.add(Episode(
@@ -355,7 +353,6 @@ object XtreamApi {
                         url = "$s/series/$user/$pass/$epId.$ext",
                         poster = "",
                         plot = plot,
-                        duration = duration,
                         rating = rating,
                         containerExtension = ext,
                         episodeId = epId.toIntOrNull()
