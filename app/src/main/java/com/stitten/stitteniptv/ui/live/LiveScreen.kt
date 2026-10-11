@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -23,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -30,6 +30,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import androidx.paging.compose.collectAsLazyPagingItems
+import coil.compose.AsyncImage
 import com.stitten.stitteniptv.database.entity.ChannelEntity
 import com.stitten.stitteniptv.ui.components.tvFocusable
 import com.stitten.stitteniptv.ui.navigation.Routes
@@ -48,10 +49,7 @@ fun LiveScreen(
             .background(Color(0xFF0D1117))
     ) {
         // ── شريط علوي ──
-        LiveTopBar(
-            onBack = { navController.popBackStack() },
-            channelCount = state.totalCount,
-        )
+        LiveTopBar(channelCount = state.totalCount)
 
         // ── قائمة التصنيفات ──
         if (state.categories.isNotEmpty()) {
@@ -80,40 +78,46 @@ fun LiveScreen(
         }
 
         // ── شبكة القنوات ──
-        if (state.isLoading && channels.itemCount == 0) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("جارٍ التحميل...", color = Color.White)
-            }
-        } else if (channels.itemCount == 0) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("📡", fontSize = 64.sp)
-                    Spacer(Modifier.height(12.dp))
-                    Text("لا توجد قنوات", color = Color.White, fontSize = 18.sp)
+        when {
+            state.isLoading && channels.itemCount == 0 -> {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("جارٍ التحميل...", color = Color.White, fontSize = 16.sp)
                 }
             }
-        } else {
-            LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 180.dp),
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                items(
-                    count = channels.itemCount,
-                    key = { index -> channels[index]?.id ?: index },
-                ) { index ->
-                    val channel = channels[index]
-                    if (channel != null) {
-                        ChannelGridCard(
-                            channel = channel,
-                            onClick = {
-                                navController.navigate(
-                                    Routes.player(channel.url, channel.name)
-                                )
-                            },
-                        )
+
+            channels.itemCount == 0 -> {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("📡", fontSize = 64.sp)
+                        Spacer(Modifier.height(12.dp))
+                        Text("لا توجد قنوات", color = Color.White, fontSize = 18.sp)
+                    }
+                }
+            }
+
+            else -> {
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(minSize = 180.dp),
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    items(
+                        count = channels.itemCount,
+                        key = { index -> channels[index]?.id ?: index },
+                    ) { index ->
+                        val channel = channels[index]
+                        if (channel != null) {
+                            ChannelGridCard(
+                                channel = channel,
+                                onClick = {
+                                    navController.navigate(
+                                        Routes.player(channel.url, channel.name)
+                                    )
+                                },
+                            )
+                        }
                     }
                 }
             }
@@ -126,10 +130,7 @@ fun LiveScreen(
 // ═══════════════════════════════════════════════════════════════
 
 @Composable
-private fun LiveTopBar(
-    onBack: () -> Unit,
-    channelCount: Int,
-) {
+private fun LiveTopBar(channelCount: Int) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -182,10 +183,10 @@ private fun ChannelGridCard(
                 .clip(RoundedCornerShape(12.dp))
                 .background(Color(0xFF161B22)),
         ) {
-            coil.compose.AsyncImage(
+            AsyncImage(
                 model = channel.logo,
                 contentDescription = channel.name,
-                contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                contentScale = ContentScale.Fit,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(8.dp),
