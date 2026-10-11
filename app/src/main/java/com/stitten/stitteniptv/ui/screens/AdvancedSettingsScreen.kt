@@ -21,10 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -33,7 +30,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -68,7 +64,6 @@ fun AdvancedSettingsScreen(navController: NavHostController) {
     var useHttpsState by remember { mutableStateOf(prefs.useHttps) }
     var streamFormatState by remember { mutableStateOf(prefs.streamFormat) }
 
-    // رسائل التأكيد
     var cacheClearedMsg by remember { mutableStateOf("") }
     var dnsClearedMsg by remember { mutableStateOf("") }
     var cookiesClearedMsg by remember { mutableStateOf("") }
@@ -102,9 +97,6 @@ fun AdvancedSettingsScreen(navController: NavHostController) {
                 .verticalScroll(rememberScrollState())
         ) {
 
-            // ═══════════════════════════════════════════════════════
-            //  الشريط العلوي
-            // ═══════════════════════════════════════════════════════
             AdvancedTopBar(
                 onBack = { navController.popBackStack() },
             )
@@ -167,7 +159,6 @@ fun AdvancedSettingsScreen(navController: NavHostController) {
 
             Spacer(Modifier.height(20.dp))
 
-            // ─── صيغة البث ───
             Text(
                 text = "صيغة البث للقنوات المباشرة",
                 color = Color.White,
@@ -225,19 +216,19 @@ fun AdvancedSettingsScreen(navController: NavHostController) {
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(Modifier.padding(16.dp)) {
-                    InfoRow(
+                    AdvancedInfoRow(
                         label = "Buffer",
                         value = if (prefs.liteModeEnabled) "15 ثانية" else "30 ثانية"
                     )
-                    InfoRow(
+                    AdvancedInfoRow(
                         label = "Cache فيديو",
                         value = if (prefs.liteModeEnabled) "30 MB" else "200 MB"
                     )
-                    InfoRow(
+                    AdvancedInfoRow(
                         label = "Cache صور",
                         value = if (prefs.liteModeEnabled) "30 MB" else "250 MB"
                     )
-                    InfoRow(
+                    AdvancedInfoRow(
                         label = "وضع Lite",
                         value = if (prefs.liteModeEnabled) "مفعّل" else "معطّل"
                     )
@@ -254,7 +245,6 @@ fun AdvancedSettingsScreen(navController: NavHostController) {
                 title = "الصيانة والتنظيف",
             )
 
-            // ─── مسح Cache الفيديو ───
             CleanupButton(
                 label = "مسح Cache الفيديو",
                 hint = "سيُعاد تحميل الفيديوهات من السيرفر",
@@ -272,7 +262,6 @@ fun AdvancedSettingsScreen(navController: NavHostController) {
                 Spacer(Modifier.height(8.dp))
             }
 
-            // ─── مسح DNS ───
             CleanupButton(
                 label = "مسح ذاكرة DNS",
                 hint = "يُستخدم عند تعذّر الاتصال ببعض السيرفرات",
@@ -290,7 +279,6 @@ fun AdvancedSettingsScreen(navController: NavHostController) {
                 Spacer(Modifier.height(8.dp))
             }
 
-            // ─── مسح الكوكيز ───
             CleanupButton(
                 label = "مسح الكوكيز (Cookies)",
                 hint = "سيُعاد تسجيل الدخول للمصادر",
@@ -552,11 +540,11 @@ private fun SuccessMessage(text: String) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  صف معلومات
+//  صف معلومات (اسم مختلف لتجنب التعارض مع SettingsComponents.InfoRow)
 // ═══════════════════════════════════════════════════════════════
 
 @Composable
-private fun InfoRow(label: String, value: String) {
+private fun AdvancedInfoRow(label: String, value: String) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
