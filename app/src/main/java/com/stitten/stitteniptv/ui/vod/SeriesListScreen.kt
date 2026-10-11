@@ -5,16 +5,22 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -47,10 +53,11 @@ fun SeriesListScreen(
             .fillMaxSize()
             .background(Color(0xFF0D1117))
     ) {
-        // ── شريط علوي ──
-        SeriesTopBar(seriesCount = state.totalCount)
+        SeriesTopBar(
+            seriesCount = state.totalCount,
+            onRefresh = { series.refresh() },
+        )
 
-        // ── قائمة التصنيفات ──
         if (state.categories.isNotEmpty()) {
             LazyRow(
                 modifier = Modifier
@@ -76,7 +83,6 @@ fun SeriesListScreen(
             }
         }
 
-        // ── شبكة المسلسلات ──
         when {
             state.isLoading && series.itemCount == 0 -> {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -122,16 +128,16 @@ fun SeriesListScreen(
     }
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  مكونات مساعدة
-// ═══════════════════════════════════════════════════════════════
-
 @Composable
-private fun SeriesTopBar(seriesCount: Int) {
-    Box(
+private fun SeriesTopBar(
+    seriesCount: Int,
+    onRefresh: () -> Unit,
+) {
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 16.dp)
+            .padding(horizontal = 20.dp, vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             text = "📺 المسلسلات ($seriesCount)",
@@ -139,6 +145,14 @@ private fun SeriesTopBar(seriesCount: Int) {
             fontSize = 24.sp,
             fontWeight = FontWeight.Bold,
         )
+        Spacer(Modifier.weight(1f))
+        IconButton(onClick = onRefresh) {
+            Icon(
+                Icons.Default.Refresh,
+                contentDescription = "تحديث",
+                tint = Color.White,
+            )
+        }
     }
 }
 
@@ -158,7 +172,7 @@ private fun CategoryChip(
             .tvFocusable(onClick = onClick)
             .clip(RoundedCornerShape(20.dp))
             .background(bg)
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
     )
 }
 
@@ -170,15 +184,25 @@ private fun SeriesGridCard(
     PosterCard(
         title = series.name,
         imageUrl = series.poster,
-        subtitle = buildSubtitle(series.rating, series.year),
+        subtitle = buildSeriesSubtitle(series),
         onClick = onClick,
     )
 }
 
-private fun buildSubtitle(rating: String?, year: String?): String? {
+/**
+ * نص فرعي: يبدأ بعدد الحلقات (إن وُجد)، ثم التقييم، ثم السنة.
+ */
+private fun buildSeriesSubtitle(series: SeriesEntity): String? {
     val parts = buildList {
-        if (!rating.isNullOrBlank()) add("⭐ $rating")
-        if (!year.isNullOrBlank()) add(year)
+        if (series.episodeCount > 0) {
+            add("📺 ${series.episodeCount} حلقة")
+        }
+        if (!series.rating.isNullOrBlank()) {
+            add("⭐ ${series.rating}")
+        }
+        if (!series.year.isNullOrBlank()) {
+            add(series.year!!)
+        }
     }
     return parts.takeIf { it.isNotEmpty() }?.joinToString("  ·  ")
 }
