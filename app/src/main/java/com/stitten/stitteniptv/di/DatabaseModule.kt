@@ -23,6 +23,9 @@ object DatabaseModule {
     @Singleton
     fun provideDatabase(@ApplicationContext ctx: Context): AppDatabase =
         Room.databaseBuilder(ctx, AppDatabase::class.java, "stitten_db")
+            // ✅ Migration ذكية من 4 → 5 (تحافظ على البيانات)
+            .addMigrations(*AppDatabase.ALL_MIGRATIONS)
+            // ✅ شبكة أمان: لو نسخة غير معروفة، احذف وأعد
             .fallbackToDestructiveMigration()
             .build()
 
