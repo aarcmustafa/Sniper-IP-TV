@@ -1,37 +1,59 @@
-package com.stitten.stitteniptv.database
+package com.stitten.stitteniptv.database.entity
 
-import androidx.room.Database
-import androidx.room.RoomDatabase
-import com.stitten.stitteniptv.database.dao.ChannelDao
-import com.stitten.stitteniptv.database.dao.ErrorLogDao
-import com.stitten.stitteniptv.database.dao.ParentalBlockDao
-import com.stitten.stitteniptv.database.dao.SourceDao
-import com.stitten.stitteniptv.database.dao.WatchHistoryDao
-import com.stitten.stitteniptv.database.entity.ChannelEntity
-import com.stitten.stitteniptv.database.entity.ErrorLogEntity
-import com.stitten.stitteniptv.database.entity.MovieEntity
-import com.stitten.stitteniptv.database.entity.ParentalBlockEntity
-import com.stitten.stitteniptv.database.entity.SeriesEntity
-import com.stitten.stitteniptv.database.entity.SourceEntity
-import com.stitten.stitteniptv.database.entity.WatchHistoryEntity
+import androidx.room.ColumnInfo
+import androidx.room.Entity
+import androidx.room.Index
+import androidx.room.PrimaryKey
 
-@Database(
-    entities = [
-        WatchHistoryEntity::class,
-        ErrorLogEntity::class,
-        ParentalBlockEntity::class,
-        SourceEntity::class,
-        ChannelEntity::class,
-        MovieEntity::class,
-        SeriesEntity::class
-    ],
-    version = 4,
-    exportSchema = false
+@Entity(
+    tableName = "movies",
+    indices = [
+        Index("category"),
+        Index("name"),
+        Index("addedAt"),
+        Index("sourceId")
+    ]
 )
-abstract class AppDatabase : RoomDatabase() {
-    abstract fun watchHistoryDao(): WatchHistoryDao
-    abstract fun errorLogDao(): ErrorLogDao
-    abstract fun parentalBlockDao(): ParentalBlockDao
-    abstract fun sourceDao(): SourceDao
-    abstract fun channelDao(): ChannelDao
-}
+data class MovieEntity(
+    @PrimaryKey val id: String,
+    val name: String,
+    val poster: String,
+    val url: String,
+    val category: String,
+    val sourceId: Long = 0,
+
+    // ═══════════════════════════════════════════════════════════
+    //  ✅ حقول جديدة (كلها nullable لتوافق آمن مع البيانات القديمة)
+    // ═══════════════════════════════════════════════════════════
+
+    /** صورة عريضة (16:9) للـ Hero Banner */
+    val backdrop: String? = null,
+
+    /** قصة الفيلم */
+    val plot: String? = null,
+
+    /** التقييم (مثل "8.5") */
+    val rating: String? = null,
+
+    /** سنة الإصدار (مثل "2023") */
+    val year: String? = null,
+
+    /** المدة (مثل "2h 15m") */
+    val duration: String? = null,
+
+    /** التصنيف (Action, Drama, ...) */
+    val genre: String? = null,
+
+    /** الممثلون — اسم العمود في SQLite: cast_list (لأن cast كلمة محجوزة) */
+    @ColumnInfo(name = "cast_list")
+    val cast: String? = null,
+
+    /** المخرج */
+    val director: String? = null,
+
+    /** امتداد البث (mp4, mkv, ...) */
+    val containerExtension: String? = null,
+
+    /** تاريخ الإضافة (Unix ms) — لترتيب "أحدث الأفلام" */
+    val addedAt: Long = 0L,
+)
