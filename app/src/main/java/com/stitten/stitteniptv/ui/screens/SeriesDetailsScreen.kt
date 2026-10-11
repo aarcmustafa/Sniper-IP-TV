@@ -32,40 +32,102 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
+import com.stitten.stitteniptv.data.ChannelRepository
+import com.stitten.stitteniptv.data.ContentRepository
 import com.stitten.stitteniptv.data.Episode
-import com.stitten.stitteniptv.data.Series
+import com.stitten.stitteniptv.data.XtreamApi
+import com.stitten.stitteniptv.database.entity.SeriesEntity
 import com.stitten.stitteniptv.ui.components.tvFocusable
 import com.stitten.stitteniptv.ui.navigation.Routes
-import com.stitten.stitteniptv.viewmodel.MainViewModel
+import dagger.hilt.android.EntryPointAccessors
 
 @Composable
 fun SeriesDetailsScreen(
     navController: NavHostController,
     seriesId: String,
-    viewModel: MainViewModel = viewModel()
 ) {
+    val ctx = LocalContext.current
+
+    val entryPoint = remember {
+        EntryPointAccessors.fromApplication(
+            ctx.applicationContext,
+            PlayerEntryPoint::class.java
+        )
+    }
+    val channelRepo: ChannelRepository = remember { entryPoint.channelRepository() }
+    val sourceMgr = remember { entryPoint.sourceManager() }
+
     var episodes by remember { mutableStateOf<List<Episode>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
     var selectedSeason by remember { mutableStateOf<Int?>(null) }
-    var series by remember { mutableStateOf<Series?>(null) }
+    var series by remember { mutableStateOf<SeriesEntity?>(null) }
 
     LaunchedEffect(seriesId) {
-        // جلب معلومات المسلسل من الذاكرة (ContentRepository)
-        series = com.stitten.stitteniptv.data.ContentRepository.series
-            .firstOrNull { it.id == seriesId || it.id.endsWith("_$seriesId") }
+        // ─── 1) جلب المسلسل من Room ───
+        try {
+            series = channelRepo.getSeriesById(seriesId)
+        } catch (_: Exception) { }
 
-        viewModel.loadEpisodes(seriesId) {
-            episodes = it
-            loading = false
-            selectedSeason = it.firstOrNull()?.season
+        // ─── 2) احتياطي: من الذاكرة ───
+        if (series == null) {
+            try {
+                val found = ContentRepository.series.firstOrNull {
+                    it.id == seriesId || it.id.endsWith("_$seriesId")
+                }
+                if (found != null) {
+                    series = SeriesEntity(
+                        id = found.id,
+                        name = found.name,
+                        poster = found.poster,
+                        category = found.category,
+                        backdrop = found.backdrop,
+                        plot = found.plot,
+                        rating = found.rating,
+                        year = found.year,
+                        genre = found.genre,
+                        cast = found.cast,
+                        director = found.director,
+                        episodeCount = found.episodeCount,
+                        seasonCount = found.seasonCount,
+                        addedAt = found.addedAt,
+                        sourceId = found.sourceId,
+                    )
+                }
+            } catch (_: Exception) { }
         }
+
+        // ─── 3) استخراج seriesId الرقمي ───
+        val numericId = if (seriesId.contains("_")) {
+            seriesId.substringAfterLast("_")
+        } else {
+            seriesId
+        }
+
+        // ─── 4) جلب الحلقات من Xtream ───
+        try {
+            val activeSource = sourceMgr.getActive()
+            if (activeSource != null) {
+                val eps = XtreamApi.loadEpisodes(
+                    activeSource.url,
+                    activeSource.username,
+                    activeSource.password,
+                    numericId
+                )
+                ContentRepository.episodes =
+                    ContentRepository.episodes + (numericId to eps)
+                episodes = eps
+                selectedSeason = eps.firstOrNull()?.season
+            }
+        } catch (_: Exception) { }
+
+        loading = false
     }
 
     Box(
@@ -74,35 +136,11 @@ fun SeriesDetailsScreen(
             .background(Color(0xFF0D1117))
     ) {
         when {
-            loading -> {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        CircularProgressIndicator(color = Color(0xFF1F6FEB))
-                        Spacer(Modifier.height(16.dp))
-                        Text("جارٍ تحميل الحلقات...", color = Color.White, fontSize = 16.sp)
-                    }
-                }
-            }
+            loading -> LoadingSeriesView()
 
-            episodes.isEmpty() -> {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("📺", fontSize = 64.sp)
-                        Spacer(Modifier.height(16.dp))
-                        Text("لا توجد حلقات", color = Color.White, fontSize = 20.sp)
-                        Spacer(Modifier.height(16.dp))
-                        Box(
-                            Modifier
-                                .tvFocusable { navController.popBackStack() }
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(Color(0xFF1F6FEB))
-                                .padding(horizontal = 24.dp, vertical = 12.dp)
-                        ) {
-                            Text("← رجوع", color = Color.White, fontSize = 15.sp)
-                        }
-                    }
-                }
-            }
+            episodes.isEmpty() -> EmptyEpisodesView(
+                onBack = { navController.popBackStack() },
+            )
 
             else -> SeriesContent(
                 series = series,
@@ -119,8 +157,40 @@ fun SeriesDetailsScreen(
 }
 
 @Composable
+private fun LoadingSeriesView() {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            CircularProgressIndicator(color = Color(0xFF1F6FEB))
+            Spacer(Modifier.height(16.dp))
+            Text("جارٍ تحميل الحلقات...", color = Color.White, fontSize = 16.sp)
+        }
+    }
+}
+
+@Composable
+private fun EmptyEpisodesView(onBack: () -> Unit) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("📺", fontSize = 64.sp)
+            Spacer(Modifier.height(16.dp))
+            Text("لا توجد حلقات", color = Color.White, fontSize = 20.sp)
+            Spacer(Modifier.height(16.dp))
+            Box(
+                Modifier
+                    .tvFocusable(onClick = onBack)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color(0xFF1F6FEB))
+                    .padding(horizontal = 24.dp, vertical = 12.dp)
+            ) {
+                Text("← رجوع", color = Color.White, fontSize = 15.sp)
+            }
+        }
+    }
+}
+
+@Composable
 private fun SeriesContent(
-    series: Series?,
+    series: SeriesEntity?,
     episodes: List<Episode>,
     selectedSeason: Int?,
     onSeasonSelected: (Int) -> Unit,
@@ -135,7 +205,6 @@ private fun SeriesContent(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 32.dp),
     ) {
-        // ─── Hero ───
         item(key = "hero") {
             Box(
                 modifier = Modifier
@@ -149,7 +218,6 @@ private fun SeriesContent(
                     modifier = Modifier.fillMaxSize(),
                 )
 
-                // تدرج داكن
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -164,7 +232,6 @@ private fun SeriesContent(
                         )
                 )
 
-                // زر الرجوع أعلى يمين
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
@@ -177,7 +244,6 @@ private fun SeriesContent(
                     Text("← رجوع", color = Color.White, fontSize = 14.sp)
                 }
 
-                // معلومات المسلسل أسفل
                 Column(
                     modifier = Modifier
                         .align(Alignment.BottomStart)
@@ -221,7 +287,6 @@ private fun SeriesContent(
             }
         }
 
-        // ─── تبويبات المواسم ───
         if (seasons.size > 1) {
             item(key = "seasons") {
                 Spacer(Modifier.height(8.dp))
@@ -251,7 +316,6 @@ private fun SeriesContent(
             }
         }
 
-        // ─── عنوان الحلقات ───
         item(key = "episodes_header") {
             Text(
                 text = "الحلقات",
@@ -262,7 +326,6 @@ private fun SeriesContent(
             )
         }
 
-        // ─── قائمة الحلقات ───
         items(visibleEpisodes, key = { it.id }) { ep ->
             EpisodeRow(
                 episode = ep,
@@ -293,7 +356,6 @@ private fun EpisodeRow(
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // رقم الحلقة
             Box(
                 modifier = Modifier
                     .width(56.dp)
@@ -323,8 +385,8 @@ private fun EpisodeRow(
                 )
 
                 val meta = buildList {
-                    if (episode.duration?.isNotBlank() == true) add(episode.duration!!)
-                    if (episode.rating?.isNotBlank() == true) add("⭐ ${episode.rating}")
+                    if (!episode.duration.isNullOrBlank()) add(episode.duration!!)
+                    if (!episode.rating.isNullOrBlank()) add("⭐ ${episode.rating}")
                 }.joinToString("  ·  ")
 
                 if (meta.isNotBlank()) {
