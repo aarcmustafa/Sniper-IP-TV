@@ -5,6 +5,7 @@ import androidx.paging.PagingConfig
 import androidx.paging.PagingData
 import com.stitten.stitteniptv.database.dao.ChannelDao
 import com.stitten.stitteniptv.database.entity.ChannelEntity
+import com.stitten.stitteniptv.database.entity.EpisodeEntity
 import com.stitten.stitteniptv.database.entity.MovieEntity
 import com.stitten.stitteniptv.database.entity.SeriesEntity
 import kotlinx.coroutines.flow.Flow
@@ -123,6 +124,57 @@ class ChannelRepository @Inject constructor(
     }
 
     // ═══════════════════════════════════════════════════════════
+    //  ✅ جديد — حفظ الحلقات
+    // ═══════════════════════════════════════════════════════════
+    suspend fun saveEpisodes(seriesId: String, episodes: List<Episode>) {
+        val now = System.currentTimeMillis()
+        val entities = episodes.map {
+            EpisodeEntity(
+                id = "${seriesId}_${it.id}",
+                seriesId = seriesId,
+                title = it.title,
+                season = it.season,
+                episode = it.episode,
+                url = it.url,
+                poster = it.poster,
+                plot = it.plot,
+                duration = it.duration,
+                rating = it.rating,
+                containerExtension = it.containerExtension,
+                episodeId = it.episodeId,
+                addedAt = now,
+            )
+        }
+        entities.chunked(500).forEach { chunk ->
+            dao.insertEpisodes(chunk)
+        }
+    }
+
+    /** جلب الحلقات المحفوظة (كموديل) */
+    suspend fun getEpisodesBySeries(seriesId: String): List<Episode> {
+        return dao.getEpisodesBySeries(seriesId).map { entity ->
+            Episode(
+                id = entity.id,
+                title = entity.title,
+                season = entity.season,
+                episode = entity.episode,
+                url = entity.url,
+                poster = entity.poster,
+                plot = entity.plot,
+                duration = entity.duration,
+                rating = entity.rating,
+                containerExtension = entity.containerExtension,
+                episodeId = entity.episodeId,
+            )
+        }
+    }
+
+    /** حذف حلقات مسلسل معين */
+    suspend fun deleteEpisodesBySeries(seriesId: String) {
+        dao.deleteEpisodesBySeries(seriesId)
+    }
+
+    // ═══════════════════════════════════════════════════════════
     //  القنوات — Paging
     // ═══════════════════════════════════════════════════════════
     fun getAllChannelsPaged(): Flow<PagingData<ChannelEntity>> =
@@ -200,6 +252,7 @@ class ChannelRepository @Inject constructor(
     suspend fun getChannelCount() = dao.getChannelCount()
     suspend fun getMovieCount() = dao.getMovieCount()
     suspend fun getSeriesCount() = dao.getSeriesCount()
+    suspend fun getEpisodeCount() = dao.getEpisodeCount()
 
     // ═══════════════════════════════════════════════════════════
     //  الحذف
@@ -208,6 +261,7 @@ class ChannelRepository @Inject constructor(
         dao.clearChannels()
         dao.clearMovies()
         dao.clearSeries()
+        dao.clearEpisodes()
     }
 
     suspend fun deleteMovie(id: String) = dao.deleteMovieById(id)
