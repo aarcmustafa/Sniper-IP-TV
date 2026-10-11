@@ -11,10 +11,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -47,8 +49,11 @@ import com.stitten.stitteniptv.data.FavoritesManager
 import com.stitten.stitteniptv.database.entity.SeriesEntity
 import com.stitten.stitteniptv.ui.components.tvFocusable
 import com.stitten.stitteniptv.ui.navigation.Routes
+import com.stitten.stitteniptv.ui.theme.AppIcons
 import com.stitten.stitteniptv.viewmodel.MainViewModel
 import dagger.hilt.android.EntryPointAccessors
+
+enum class SeriesDetailTab { OVERVIEW, CAST, EPISODES }
 
 @Composable
 fun SeriesDetailsScreen(
@@ -72,6 +77,7 @@ fun SeriesDetailsScreen(
     var selectedSeason by remember { mutableStateOf<Int?>(null) }
     var series by remember { mutableStateOf<SeriesEntity?>(null) }
     var isFavorite by remember { mutableStateOf(false) }
+    var selectedTab by remember { mutableStateOf(SeriesDetailTab.EPISODES) }
 
     LaunchedEffect(seriesId) {
         try {
@@ -130,7 +136,7 @@ fun SeriesDetailsScreen(
         when {
             loading -> LoadingSeriesView()
 
-            episodes.isEmpty() -> EmptyEpisodesView(
+            series == null && episodes.isEmpty() -> EmptyEpisodesView(
                 onBack = { navController.popBackStack() },
             )
 
@@ -138,7 +144,9 @@ fun SeriesDetailsScreen(
                 series = series,
                 episodes = episodes,
                 selectedSeason = selectedSeason,
+                selectedTab = selectedTab,
                 isFavorite = isFavorite,
+                onTabSelected = { selectedTab = it },
                 onSeasonSelected = { selectedSeason = it },
                 onEpisodeClick = { ep ->
                     navController.navigate(Routes.player(ep.url, ep.title))
@@ -170,7 +178,12 @@ private fun LoadingSeriesView() {
 private fun EmptyEpisodesView(onBack: () -> Unit) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("📺", fontSize = 64.sp)
+            androidx.compose.material3.Icon(
+                imageVector = AppIcons.Series,
+                contentDescription = null,
+                tint = Color(0xFF30363D),
+                modifier = Modifier.size(80.dp),
+            )
             Spacer(Modifier.height(16.dp))
             Text("لا توجد حلقات", color = Color.White, fontSize = 20.sp)
             Spacer(Modifier.height(16.dp))
@@ -192,25 +205,26 @@ private fun SeriesContent(
     series: SeriesEntity?,
     episodes: List<Episode>,
     selectedSeason: Int?,
+    selectedTab: SeriesDetailTab,
     isFavorite: Boolean,
+    onTabSelected: (SeriesDetailTab) -> Unit,
     onSeasonSelected: (Int) -> Unit,
     onEpisodeClick: (Episode) -> Unit,
     onToggleFavorite: () -> Unit,
     onBack: () -> Unit,
 ) {
-    val seasons = episodes.map { it.season }.distinct().sorted()
-    val visibleEpisodes = if (selectedSeason == null) episodes
-    else episodes.filter { it.season == selectedSeason }
-
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 32.dp),
     ) {
+        // ═══════════════════════════════════════════════════════
+        //  Hero
+        // ═══════════════════════════════════════════════════════
         item(key = "hero") {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(380.dp)
+                    .height(420.dp)
             ) {
                 AsyncImage(
                     model = series?.backdrop ?: series?.poster,
@@ -254,7 +268,7 @@ private fun SeriesContent(
                     Text(
                         text = series?.name ?: "المسلسل",
                         color = Color.White,
-                        fontSize = 34.sp,
+                        fontSize = 38.sp,
                         fontWeight = FontWeight.ExtraBold,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
@@ -264,24 +278,15 @@ private fun SeriesContent(
                         if (!series?.year.isNullOrBlank()) add(series!!.year!!)
                         if (!series?.rating.isNullOrBlank()) add("⭐ ${series!!.rating}")
                         if (!series?.genre.isNullOrBlank()) add(series!!.genre!!)
-                        add("${episodes.size} حلقة")
+                        if (episodes.isNotEmpty()) add("${episodes.size} حلقة")
                     }.joinToString("  ·  ")
 
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        text = infoLine,
-                        color = Color(0xFFD0D7DE),
-                        fontSize = 15.sp,
-                    )
-
-                    if (!series?.plot.isNullOrBlank()) {
-                        Spacer(Modifier.height(12.dp))
+                    if (infoLine.isNotBlank()) {
+                        Spacer(Modifier.height(8.dp))
                         Text(
-                            text = series!!.plot!!,
-                            color = Color(0xFFA8B3C1),
-                            fontSize = 14.sp,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
+                            text = infoLine,
+                            color = Color(0xFFD0D7DE),
+                            fontSize = 15.sp,
                         )
                     }
 
@@ -295,74 +300,236 @@ private fun SeriesContent(
             }
         }
 
-        if (seasons.size > 1) {
-            item(key = "seasons") {
-                Spacer(Modifier.height(8.dp))
-                LazyRow(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 12.dp),
-                    contentPadding = PaddingValues(horizontal = 32.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    items(seasons) { season ->
-                        val isSelected = season == selectedSeason
-                        val bg = if (isSelected) Color(0xFF1F6FEB) else Color(0xFF21262D)
-                        Text(
-                            text = "الموسم $season",
-                            color = Color.White,
-                            fontSize = 15.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+        // ═══════════════════════════════════════════════════════
+        //  التبويبات
+        // ═══════════════════════════════════════════════════════
+        item(key = "tabs") {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 32.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                DetailTab(
+                    label = "نظرة عامة",
+                    selected = selectedTab == SeriesDetailTab.OVERVIEW,
+                    onClick = { onTabSelected(SeriesDetailTab.OVERVIEW) },
+                )
+                DetailTab(
+                    label = "الفريق",
+                    selected = selectedTab == SeriesDetailTab.CAST,
+                    onClick = { onTabSelected(SeriesDetailTab.CAST) },
+                )
+                DetailTab(
+                    label = "الحلقات (${episodes.size})",
+                    selected = selectedTab == SeriesDetailTab.EPISODES,
+                    onClick = { onTabSelected(SeriesDetailTab.EPISODES) },
+                )
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════
+        //  محتوى التبويب
+        // ═══════════════════════════════════════════════════════
+        when (selectedTab) {
+            SeriesDetailTab.OVERVIEW -> {
+                item(key = "overview") {
+                    SeriesOverviewTab(series = series)
+                }
+            }
+
+            SeriesDetailTab.CAST -> {
+                item(key = "cast") {
+                    SeriesCastTab(series = series)
+                }
+            }
+
+            SeriesDetailTab.EPISODES -> {
+                // ─── المواسم ───
+                val seasons = episodes.map { it.season }.distinct().sorted()
+                if (seasons.size > 1) {
+                    item(key = "seasons") {
+                        Spacer(Modifier.height(8.dp))
+                        LazyRow(
                             modifier = Modifier
-                                .tvFocusable { onSeasonSelected(season) }
-                                .clip(RoundedCornerShape(20.dp))
-                                .background(bg)
-                                .padding(horizontal = 20.dp, vertical = 10.dp),
+                                .fillMaxWidth()
+                                .padding(vertical = 12.dp),
+                            contentPadding = PaddingValues(horizontal = 32.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            items(seasons) { season ->
+                                val isSelected = season == selectedSeason
+                                val bg = if (isSelected) Color(0xFF1F6FEB)
+                                else Color(0xFF21262D)
+                                Text(
+                                    text = "الموسم $season",
+                                    color = Color.White,
+                                    fontSize = 15.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold
+                                    else FontWeight.Normal,
+                                    modifier = Modifier
+                                        .tvFocusable { onSeasonSelected(season) }
+                                        .clip(RoundedCornerShape(20.dp))
+                                        .background(bg)
+                                        .padding(horizontal = 20.dp, vertical = 10.dp),
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // ─── الحلقات ───
+                val visible = if (selectedSeason == null) episodes
+                else episodes.filter { it.season == selectedSeason }
+
+                items(visible, key = { it.id }) { ep ->
+                    EpisodeRow(
+                        episode = ep,
+                        onClick = { onEpisodeClick(ep) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  تبويب: نظرة عامة
+// ═══════════════════════════════════════════════════════════════
+
+@Composable
+private fun SeriesOverviewTab(series: SeriesEntity?) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 32.dp, vertical = 8.dp)
+    ) {
+        if (!series?.plot.isNullOrBlank()) {
+            SectionTitle(text = "القصة")
+            Text(
+                text = series!!.plot!!,
+                color = Color(0xFFD0D7DE),
+                fontSize = 15.sp,
+                lineHeight = 24.sp,
+            )
+            Spacer(Modifier.height(24.dp))
+        }
+
+        val details = buildList {
+            if (!series?.director.isNullOrBlank()) add("المخرج" to series!!.director!!)
+            if (!series?.genre.isNullOrBlank()) add("التصنيف" to series!!.genre!!)
+            if (!series?.year.isNullOrBlank()) add("السنة" to series!!.year!!)
+            if (!series?.category.isNullOrBlank()) add("الفئة" to series!!.category)
+            if (series != null && series.episodeCount > 0) {
+                add("عدد الحلقات" to "${series.episodeCount}")
+            }
+            if (series != null && series.seasonCount > 0) {
+                add("عدد المواسم" to "${series.seasonCount}")
+            }
+        }
+
+        if (details.isNotEmpty()) {
+            SectionTitle(text = "معلومات")
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                details.forEach { (label, value) ->
+                    Row {
+                        Text(
+                            text = "$label: ",
+                            color = Color(0xFF8B949E),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text(
+                            text = value,
+                            color = Color(0xFFD0D7DE),
+                            fontSize = 14.sp,
                         )
                     }
                 }
             }
         }
+    }
+}
 
-        item(key = "episodes_header") {
-            Text(
-                text = "الحلقات",
-                color = Color.White,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 32.dp, vertical = 8.dp),
-            )
+// ═══════════════════════════════════════════════════════════════
+//  تبويب: الفريق
+// ═══════════════════════════════════════════════════════════════
+
+@Composable
+private fun SeriesCastTab(series: SeriesEntity?) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 32.dp, vertical = 8.dp)
+    ) {
+        if (series?.cast.isNullOrBlank() && series?.director.isNullOrBlank()) {
+            EmptyTabState(message = "لا توجد معلومات عن الفريق")
+            return@Column
         }
 
-        items(visibleEpisodes, key = { it.id }) { ep ->
-            EpisodeRow(
-                episode = ep,
-                onClick = { onEpisodeClick(ep) },
-            )
+        if (!series?.director.isNullOrBlank()) {
+            SectionTitle(text = "المخرج")
+            PersonChip(name = series!!.director!!, role = "مخرج")
+            Spacer(Modifier.height(20.dp))
+        }
+
+        if (!series?.cast.isNullOrBlank()) {
+            SectionTitle(text = "الممثلون")
+            val actors = series!!.cast!!
+                .split(",", "،")
+                .map { it.trim() }
+                .filter { it.isNotBlank() }
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                actors.forEach { actor ->
+                    PersonChip(name = actor, role = "ممثل")
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun FavoriteSeriesButton(
-    isFavorite: Boolean,
-    onClick: () -> Unit,
-) {
-    val text = if (isFavorite) "★  في المفضلة" else "☆  أضف للمفضلة"
-    val bg = if (isFavorite) Color(0xFFF85149).copy(alpha = 0.25f) else Color(0xFF30363D)
-    val textColor = if (isFavorite) Color(0xFFF85149) else Color.White
-
-    Text(
-        text = text,
-        color = textColor,
-        fontSize = 15.sp,
-        fontWeight = FontWeight.SemiBold,
+private fun PersonChip(name: String, role: String) {
+    Row(
         modifier = Modifier
-            .tvFocusable(onClick = onClick)
+            .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
-            .background(bg)
-            .padding(horizontal = 20.dp, vertical = 10.dp)
-    )
+            .background(Color(0xFF161B22))
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(44.dp)
+                .clip(CircleShape)
+                .background(Color(0xFF1F6FEB).copy(alpha = 0.2f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = name.take(1),
+                color = Color(0xFF1F6FEB),
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+
+        Spacer(Modifier.width(12.dp))
+
+        Column {
+            Text(
+                text = name,
+                color = Color.White,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
+            )
+            Text(
+                text = role,
+                color = Color(0xFF8B949E),
+                fontSize = 12.sp,
+            )
+        }
+    }
 }
 
 @Composable
@@ -436,4 +603,77 @@ private fun EpisodeRow(
             )
         }
     }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  المكونات المساعدة
+// ═══════════════════════════════════════════════════════════════
+
+@Composable
+private fun SectionTitle(text: String) {
+    Text(
+        text = text,
+        color = Color.White,
+        fontSize = 20.sp,
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier.padding(bottom = 12.dp),
+    )
+}
+
+@Composable
+private fun DetailTab(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val bg = if (selected) Color(0xFF1F6FEB) else Color(0xFF21262D)
+    Text(
+        text = label,
+        color = Color.White,
+        fontSize = 14.sp,
+        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+        modifier = Modifier
+            .tvFocusable(onClick = onClick)
+            .clip(RoundedCornerShape(20.dp))
+            .background(bg)
+            .padding(horizontal = 20.dp, vertical = 10.dp),
+    )
+}
+
+@Composable
+private fun EmptyTabState(message: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 40.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = message,
+            color = Color(0xFF8B949E),
+            fontSize = 15.sp,
+        )
+    }
+}
+
+@Composable
+private fun FavoriteSeriesButton(
+    isFavorite: Boolean,
+    onClick: () -> Unit,
+) {
+    val text = if (isFavorite) "★  في المفضلة" else "☆  أضف للمفضلة"
+    val bg = if (isFavorite) Color(0xFFF85149).copy(alpha = 0.25f) else Color(0xFF30363D)
+    val textColor = if (isFavorite) Color(0xFFF85149) else Color.White
+
+    Text(
+        text = text,
+        color = textColor,
+        fontSize = 15.sp,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier
+            .tvFocusable(onClick = onClick)
+            .clip(RoundedCornerShape(10.dp))
+            .background(bg)
+            .padding(horizontal = 20.dp, vertical = 10.dp)
+    )
 }
