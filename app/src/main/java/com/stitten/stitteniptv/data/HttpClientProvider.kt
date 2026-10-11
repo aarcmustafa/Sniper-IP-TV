@@ -11,8 +11,13 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Response
 import okhttp3.logging.HttpLoggingInterceptor
+import org.json.JSONObject
+import java.net.Inet4Address
+import java.net.Inet6Address
 import java.net.InetAddress
+import java.net.UnknownHostException
 import java.security.cert.X509Certificate
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
@@ -30,13 +35,11 @@ object HttpClientProvider {
     private var appContext: Context? = null
 
     // ═══════════════════════════════════════════════════════════
-    //  Logging Interceptor (للتشخيص فقط)
+    //  Logging Interceptor
     // ═══════════════════════════════════════════════════════════
 
     private val loggingInterceptor = HttpLoggingInterceptor { message ->
-        try {
-            Log.d(TAG, message)
-        } catch (_: Exception) { }
+        try { Log.d(TAG, message) } catch (_: Exception) { }
     }.apply {
         level = HttpLoggingInterceptor.Level.HEADERS
     }
@@ -72,9 +75,24 @@ object HttpClientProvider {
         }
     }
 
+    private fun getConnectTimeoutSeconds(): Long {
+        return try {
+            (prefsRef?.connectionTimeoutSeconds ?: 20).toLong().coerceIn(5L, 120L)
+        } catch (_: Exception) {
+            20L
+        }
+    }
+
+    private fun getReadTimeoutSeconds(): Long {
+        return try {
+            (prefsRef?.readTimeoutSeconds ?: 90).toLong().coerceIn(15L, 300L)
+        } catch (_: Exception) {
+            90L
+        }
+    }
+
     // ═══════════════════════════════════════════════════════════
     //  ✅ Interceptor موحّد — Referer + Origin + Accept-Language
-    //  يُطبَّق على كل الطلبات (API + Video)
     // ═══════════════════════════════════════════════════════════
 
     private val uaInterceptor = Interceptor { chain ->
@@ -92,6 +110,32 @@ object HttpClientProvider {
             .header("Origin", "$scheme://$host")
             .build()
         chain.proceed(request)
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  ✅ Interceptor إعادة محاولة على 5xx
+    // ═══════════════════════════════════════════════════════════
+
+    private val retryOn5xxInterceptor = Interceptor { chain ->
+        val request = chain.request()
+        var response: Response = chain.proceed(request)
+        var attempt = 0
+
+        while (attempt < 2 &&
+            (response.code == 502 || response.code == 503 || response.code == 504)
+        ) {
+            try {
+                response.close()
+                Thread.sleep(500L * (attempt + 1))
+            } catch (_: Exception) { }
+            attempt++
+            try {
+                response = chain.proceed(request)
+            } catch (e: Exception) {
+                if (attempt >= 2) throw e
+            }
+        }
+        response
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -191,9 +235,7 @@ object HttpClientProvider {
         } catch (_: Exception) { }
     }
 
-    fun reloadCookies() {
-        loadCookies()
-    }
+    fun reloadCookies() { loadCookies() }
 
     fun getCookiesHeader(url: String): String? {
         return try {
@@ -207,31 +249,112 @@ object HttpClientProvider {
     }
 
     // ═══════════════════════════════════════════════════════════
-    //  DNS Cache مخصص
+    //  ✅ SmartDns: Cache + IPv4 preference + DoH fallback
     // ═══════════════════════════════════════════════════════════
 
     private val dnsCache = ConcurrentHashMap<String, List<InetAddress>>()
     private val dnsTimestamps = ConcurrentHashMap<String, Long>()
     private const val DNS_CACHE_MS = 60 * 60 * 1000L
 
-    private object CachedDns : Dns {
+    /** عميل صغير لاستخدامه في DoH (بدون SmartDns لتجنب recursion) */
+    private val dohClient: OkHttpClient by lazy {
+        val sslContext = buildSslContext()
+        val tm = buildTrustManager()
+        OkHttpClient.Builder()
+            .connectTimeout(8, TimeUnit.SECONDS)
+            .readTimeout(8, TimeUnit.SECONDS)
+            .sslSocketFactory(sslContext!!.socketFactory, tm)
+            .hostnameVerifier { _, _ -> true }
+            .build()
+    }
+
+    private object SmartDns : Dns {
         override fun lookup(hostname: String): List<InetAddress> {
             val now = System.currentTimeMillis()
             val cached = dnsCache[hostname]
             val timestamp = dnsTimestamps[hostname] ?: 0L
 
+            // ── 1) Cache سليم ──
             if (cached != null && (now - timestamp) < DNS_CACHE_MS) {
                 return cached
             }
 
-            return try {
+            // ── 2) حاول DNS النظام ──
+            try {
                 val result = Dns.SYSTEM.lookup(hostname)
-                dnsCache[hostname] = result
-                dnsTimestamps[hostname] = now
-                result
-            } catch (e: Exception) {
-                cached ?: throw e
+                if (result.isNotEmpty()) {
+                    val ordered = preferIPv4(result)
+                    dnsCache[hostname] = ordered
+                    dnsTimestamps[hostname] = now
+                    return ordered
+                }
+            } catch (_: UnknownHostException) {
+                // فشل — سنجرب DoH
+            } catch (_: Exception) { }
+
+            // ── 3) Fallback: DoH via Cloudflare ──
+            try {
+                val result = dohLookup(hostname)
+                if (result.isNotEmpty()) {
+                    val ordered = preferIPv4(result)
+                    dnsCache[hostname] = ordered
+                    dnsTimestamps[hostname] = now
+                    try { Log.d(TAG, "DoH resolved $hostname -> ${ordered.size} ips") } catch (_: Exception) { }
+                    return ordered
+                }
+            } catch (_: Exception) { }
+
+            // ── 4) استخدم cache قديم كحل أخير ──
+            cached?.let { return it }
+
+            throw UnknownHostException(hostname)
+        }
+
+        /** IPv4 أولًا ثم IPv6 */
+        private fun preferIPv4(addresses: List<InetAddress>): List<InetAddress> {
+            val v4 = addresses.filterIsInstance<Inet4Address>()
+            val v6 = addresses.filterIsInstance<Inet6Address>()
+            val others = addresses.filter { it !is Inet4Address && it !is Inet6Address }
+            return v4 + v6 + others
+        }
+
+        /**
+         * DoH عبر Cloudflare JSON API.
+         * نستخدم 1.1.1.1 مباشرة (IP) لتجنب DNS lookup إضافي.
+         */
+        private fun dohLookup(hostname: String): List<InetAddress> {
+            val url = "https://1.1.1.1/dns-query?name=$hostname&type=A"
+            val request = Request.Builder()
+                .url(url)
+                .header("Accept", "application/dns-json")
+                .build()
+
+            val response = dohClient.newCall(request).execute()
+            if (!response.isSuccessful) {
+                response.close()
+                return emptyList()
             }
+
+            val body = response.body?.string() ?: ""
+            response.close()
+            if (body.isBlank()) return emptyList()
+
+            val json = JSONObject(body)
+            val answers = json.optJSONArray("Answer") ?: return emptyList()
+            val result = mutableListOf<InetAddress>()
+
+            for (i in 0 until answers.length()) {
+                val ans = answers.optJSONObject(i) ?: continue
+                if (ans.optInt("type") == 1) { // A record
+                    val ip = ans.optString("data", "")
+                    if (ip.isNotBlank()) {
+                        try {
+                            result.add(InetAddress.getByName(ip))
+                        } catch (_: Exception) { }
+                    }
+                }
+            }
+            return result
         }
     }
 
@@ -272,6 +395,7 @@ object HttpClientProvider {
         val tm = buildTrustManager()
         OkHttpClient.Builder()
             .addInterceptor(uaInterceptor)
+            .addInterceptor(retryOn5xxInterceptor)
             .addInterceptor(loggingInterceptor)
             .cookieJar(cookieJar)
             .connectTimeout(60, TimeUnit.SECONDS)
@@ -282,7 +406,7 @@ object HttpClientProvider {
             .followRedirects(true)
             .followSslRedirects(true)
             .retryOnConnectionFailure(true)
-            .dns(CachedDns)
+            .dns(SmartDns)
             .build()
     }
 
@@ -293,13 +417,17 @@ object HttpClientProvider {
     val streamingClient: OkHttpClient by lazy {
         val sslContext = buildSslContext()
         val tm = buildTrustManager()
+        val connectSec = getConnectTimeoutSeconds()
+        val readSec = getReadTimeoutSeconds()
+
         OkHttpClient.Builder()
             .addInterceptor(uaInterceptor)
+            .addInterceptor(retryOn5xxInterceptor)
             .addInterceptor(loggingInterceptor)
             .cookieJar(cookieJar)
             .connectionPool(ConnectionPool(32, 15, TimeUnit.MINUTES))
-            .connectTimeout(20, TimeUnit.SECONDS)
-            .readTimeout(90, TimeUnit.SECONDS)
+            .connectTimeout(connectSec, TimeUnit.SECONDS)
+            .readTimeout(readSec, TimeUnit.SECONDS)
             .writeTimeout(20, TimeUnit.SECONDS)
             .callTimeout(0, TimeUnit.SECONDS)
             .sslSocketFactory(sslContext!!.socketFactory, tm)
@@ -342,7 +470,7 @@ object HttpClientProvider {
                     return socket
                 }
             })
-            .dns(CachedDns)
+            .dns(SmartDns)
             .pingInterval(25, TimeUnit.SECONDS)
             .build()
     }
