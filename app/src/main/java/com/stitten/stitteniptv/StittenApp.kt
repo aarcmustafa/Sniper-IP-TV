@@ -28,9 +28,10 @@ class StittenApp : Application(), ImageLoaderFactory {
         super.onCreate()
 
         // ═══════════════════════════════════════════════════════════
-        //  ✅ جديد — تهيئة HttpClientProvider (قبل أي استخدام للشبكة)
+        //  تهيئة HttpClientProvider (Context + PrefsManager)
+        //  - تحمّل الكوكيز المحفوظة من القرص تلقائيًا
         // ═══════════════════════════════════════════════════════════
-        HttpClientProvider.init(PrefsManager(this))
+        HttpClientProvider.init(this, PrefsManager(this))
 
         performAutoDetection()
         performStartupCleanup()
