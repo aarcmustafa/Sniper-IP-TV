@@ -7,6 +7,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.stitten.stitteniptv.ui.live.LiveScreen
 import com.stitten.stitteniptv.ui.screens.*
 import java.net.URLDecoder
 import java.net.URLEncoder
@@ -27,24 +28,49 @@ object Routes {
     const val ADD_SOURCE_EDIT = "add_source/edit/{sourceId}"
     const val EXTERNAL_PLAYERS = "external_players"
 
+    // ═══════════════════════════════════════════════════════════
+    //  ✅ جديد — مسارات إضافية
+    // ═══════════════════════════════════════════════════════════
+    const val LIVE = "live"
+    const val MOVIES = "movies"
+    const val SERIES_LIST = "series_list"
+    const val MOVIE_DETAILS = "movie/{movieId}"
+    const val SEARCH = "search"
+
     fun seriesDetails(id: String) = "series/$id"
     fun player(url: String, title: String) =
         "player/${URLEncoder.encode(url, "UTF-8")}/${URLEncoder.encode(title, "UTF-8")}"
     fun epg(channelId: String, channelName: String, epgUrl: String) =
         "epg/$channelId/${URLEncoder.encode(channelName, "UTF-8")}/${URLEncoder.encode(epgUrl, "UTF-8")}"
     fun addSourceEdit(id: Long) = "add_source/edit/$id"
+    fun movieDetails(id: String) = "movie/$id"
 }
 
 @Composable
 fun AppNavGraph(navController: NavHostController = rememberNavController()) {
     NavHost(navController = navController, startDestination = Routes.SPLASH) {
+
+        // ═══════════════════════════════════════════════════════════
+        //  الشاشات الأساسية
+        // ═══════════════════════════════════════════════════════════
         composable(Routes.SPLASH) { SplashScreen(navController) }
         composable(Routes.LOGIN) { LoginScreen(navController) }
         composable(Routes.DASHBOARD) { DashboardScreen(navController) }
+
+        // ✅ جديد — شاشة القنوات المباشرة
+        composable(Routes.LIVE) { LiveScreen(navController) }
+
+        // ═══════════════════════════════════════════════════════════
+        //  الإعدادات
+        // ═══════════════════════════════════════════════════════════
         composable(Routes.SETTINGS) { SettingsScreen(navController) }
         composable(Routes.ADVANCED_SETTINGS) { AdvancedSettingsScreen(navController) }
         composable(Routes.PARENTAL) { ParentalControlScreen(navController) }
         composable(Routes.ERRORS) { ErrorLogScreen() }
+
+        // ═══════════════════════════════════════════════════════════
+        //  المصادر
+        // ═══════════════════════════════════════════════════════════
         composable(Routes.SOURCES) { SourcesManagerScreen(navController) }
         composable(Routes.EXTERNAL_PLAYERS) { ExternalPlayersScreen(navController) }
         composable(Routes.ADD_SOURCE) {
@@ -57,6 +83,10 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
             val id = entry.arguments?.getLong("sourceId") ?: -1L
             AddSourceScreen(navController, editSourceId = id)
         }
+
+        // ═══════════════════════════════════════════════════════════
+        //  تفاصيل المسلسل
+        // ═══════════════════════════════════════════════════════════
         composable(
             Routes.SERIES_DETAILS,
             arguments = listOf(navArgument("seriesId") { type = NavType.StringType })
@@ -64,6 +94,10 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
             val id = entry.arguments?.getString("seriesId") ?: ""
             SeriesDetailsScreen(navController, id)
         }
+
+        // ═══════════════════════════════════════════════════════════
+        //  المشغل
+        // ═══════════════════════════════════════════════════════════
         composable(
             Routes.PLAYER,
             arguments = listOf(
@@ -75,6 +109,10 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
             val title = URLDecoder.decode(entry.arguments?.getString("title") ?: "", "UTF-8")
             PlayerScreen(navController, url, title)
         }
+
+        // ═══════════════════════════════════════════════════════════
+        //  دليل البرامج (EPG)
+        // ═══════════════════════════════════════════════════════════
         composable(
             Routes.EPG,
             arguments = listOf(
@@ -88,5 +126,11 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
             val epgUrl = URLDecoder.decode(entry.arguments?.getString("epgUrl") ?: "", "UTF-8")
             EpgScreen(navController, cid, cname, epgUrl)
         }
+
+        // ═══════════════════════════════════════════════════════════
+        //  ⏸️ مسارات مستقبلية (غير مربوطة بعد)
+        //  Routes.MOVIES, Routes.SERIES_LIST, Routes.MOVIE_DETAILS, Routes.SEARCH
+        //  ستُربط عند إنشاء شاشاتها
+        // ═══════════════════════════════════════════════════════════
     }
 }
