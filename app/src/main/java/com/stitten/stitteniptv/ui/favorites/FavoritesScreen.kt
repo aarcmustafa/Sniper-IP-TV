@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -51,7 +52,6 @@ fun FavoritesScreen(
             .fillMaxSize()
             .background(Color(0xFF0D1117))
     ) {
-        // ─── الشريط العلوي ───
         FavoritesTopBar(
             onBack = { navController.popBackStack() },
             moviesCount = state.movies.size,
@@ -59,7 +59,6 @@ fun FavoritesScreen(
             channelsCount = state.channels.size,
         )
 
-        // ─── التبويبات ───
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -85,7 +84,6 @@ fun FavoritesScreen(
 
         Spacer(Modifier.height(8.dp))
 
-        // ─── المحتوى ───
         when (state.selectedTab) {
             FavoritesTab.MOVIES -> {
                 if (state.movies.isEmpty()) {
@@ -150,10 +148,6 @@ fun FavoritesScreen(
     }
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  الشريط العلوي
-// ═══════════════════════════════════════════════════════════════
-
 @Composable
 private fun FavoritesTopBar(
     onBack: () -> Unit,
@@ -195,10 +189,6 @@ private fun FavoritesTopBar(
     }
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  التبويب
-// ═══════════════════════════════════════════════════════════════
-
 @Composable
 private fun TabChip(
     label: String,
@@ -218,10 +208,6 @@ private fun TabChip(
             .padding(horizontal = 16.dp, vertical = 10.dp),
     )
 }
-
-// ═══════════════════════════════════════════════════════════════
-//  الشبكات
-// ═══════════════════════════════════════════════════════════════
 
 @Composable
 private fun MoviesGrid(
@@ -307,10 +293,6 @@ private fun ChannelsGrid(
         }
     }
 }
-
-// ═══════════════════════════════════════════════════════════════
-//  حالة فارغة
-// ═══════════════════════════════════════════════════════════════
 
 @Composable
 private fun EmptyFavoritesView(
