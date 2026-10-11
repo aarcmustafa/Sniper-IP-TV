@@ -68,7 +68,9 @@ class PrefsManager(context: Context) {
         get() = prefs.getString("stream_format", "ts") ?: "ts"
         set(value) = prefs.edit().putString("stream_format", value).apply()
 
-    // ============== Lite Mode ==============
+    // ═══════════════════════════════════════════════════════════
+    //  Lite Mode
+    // ═══════════════════════════════════════════════════════════
     var liteModeEnabled: Boolean
         get() = prefs.getBoolean("lite_mode", false)
         set(value) = prefs.edit().putBoolean("lite_mode", value).apply()
@@ -90,19 +92,22 @@ class PrefsManager(context: Context) {
         set(value) = prefs.edit().putBoolean("user_disabled_lite", value).apply()
 
     // ═══════════════════════════════════════════════════════════
-    //  User-Agent
-    // ═══════════════════════════════════════════════════════════
-    // ⚠️ ملاحظة: نستخدم خاصية واحدة فقط (var userAgent)
-    //    لا نضيف دوال getUserAgent/setUserAgent منفصلة
-    //    لأن Kotlin يولّدها تلقائيًا، وسيسبب تعارضًا.
+    //  User-Agent — باستخدام الدوال (لا خاصية)
+    //  لتفادي التعارض مع getUserAgent/setUserAgent
     // ═══════════════════════════════════════════════════════════
 
-    var userAgent: String
-        get() = prefs.getString("user_agent", HttpClientProvider.DEFAULT_USER_AGENT)
+    fun getUserAgent(): String =
+        prefs.getString("user_agent", HttpClientProvider.DEFAULT_USER_AGENT)
             ?: HttpClientProvider.DEFAULT_USER_AGENT
-        set(value) = prefs.edit().putString("user_agent", value).apply()
 
-    // ============== امتدادات إضافية للبث ==============
+    fun setUserAgent(value: String) {
+        prefs.edit().putString("user_agent", value).apply()
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  امتدادات إضافية للبث
+    // ═══════════════════════════════════════════════════════════
+
     var lastSuccessfulExtension: String
         get() = prefs.getString("last_ext", "") ?: ""
         set(value) = prefs.edit().putString("last_ext", value).apply()
