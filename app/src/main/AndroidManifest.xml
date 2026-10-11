@@ -3,7 +3,7 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <!-- ═══════════════════════════════════════════════════════════
-         الصلاحيات الأساسية
+         الصلاحيات
     ═══════════════════════════════════════════════════════════ -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -12,7 +12,6 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
 
-    <!-- ✅ قراءة الملفات التي يختارها المستخدم فقط -->
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
@@ -20,13 +19,10 @@
     <!-- ═══════════════════════════════════════════════════════════
          مميزات الأجهزة
     ═══════════════════════════════════════════════════════════ -->
-
-    <!-- ✅ required=false — للسماح بالتثبيت على كل أجهزة Android TV -->
     <uses-feature
         android:name="android.software.leanback"
         android:required="false" />
 
-    <!-- ✅ التطبيق لا يحتاج لمس -->
     <uses-feature
         android:name="android.hardware.touchscreen"
         android:required="false" />
@@ -34,23 +30,20 @@
         android:name="android.hardware.faketouch"
         android:required="false" />
 
-    <!-- ✅ أجهزة USB للـ M3U من Flash Drive -->
     <uses-feature
         android:name="android.hardware.usb.host"
         android:required="false" />
 
-    <!-- ✅ يدعم Gamepad (بعض أجهزة TV) -->
     <uses-feature
         android:name="android.hardware.gamepad"
         android:required="false" />
 
-    <!-- ✅ الشاشة الأفقية (TV دائمًا landscape) -->
     <uses-feature
         android:name="android.hardware.screen.landscape"
         android:required="false" />
 
     <!-- ═══════════════════════════════════════════════════════════
-         Queries — للسماح بفتح روابط الفيديو في تطبيقات خارجية
+         Queries
     ═══════════════════════════════════════════════════════════ -->
     <queries>
         <intent>
@@ -95,7 +88,7 @@
         android:theme="@style/Theme.STTITENIPTV">
 
         <!-- ═══════════════════════════════════════════════════════
-             Main Activity — Landscape + LEANBACK
+             Main Activity
         ═══════════════════════════════════════════════════════ -->
         <activity
             android:name=".MainActivity"
@@ -106,35 +99,21 @@
             android:launchMode="singleTask"
             android:theme="@style/Theme.STTITENIPTV">
 
-            <!-- LAUNCHER — للأجهزة العادية -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- LEANBACK_LAUNCHER — يظهر في Android TV Launcher -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
 
-        <!-- ═══════════════════════════════════════════════════════
-             Media Session Service — للتحكم من الريموت
-        ═══════════════════════════════════════════════════════ -->
-        <service
-            android:name=".player.PlaybackService"
-            android:enabled="true"
-            android:exported="true"
-            android:foregroundServiceType="mediaPlayback">
-            <intent-filter>
-                <action android:name="androidx.media3.session.MediaSessionService" />
-                <action android:name="android.media.browse.MediaBrowserService" />
-            </intent-filter>
-        </service>
+        <!-- ✅ تم حذف PlaybackService — لا نحتاجه حاليًا -->
 
         <!-- ═══════════════════════════════════════════════════════
-             FileProvider — لمشاركة ملفات APK / M3U
+             FileProvider
         ═══════════════════════════════════════════════════════ -->
         <provider
             android:name="androidx.core.content.FileProvider"
