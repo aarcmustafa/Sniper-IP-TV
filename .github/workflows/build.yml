@@ -10,6 +10,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
     - name: Checkout Repository
       uses: actions/checkout@v4
@@ -25,8 +26,11 @@ jobs:
       with:
         gradle-version: 8.9
 
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew
+
     - name: Build Debug APK
-      run: gradle assembleDebug
+      run: ./gradlew assembleDebug --stacktrace
 
     - name: Rename APK
       run: |
@@ -38,3 +42,4 @@ jobs:
       with:
         name: STTITEN-IP-TV-Android-TV
         path: output/STTITEN-IP-TV-v1.0.0-tv.apk
+        retention-days: 30
