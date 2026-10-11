@@ -105,7 +105,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ==========================================
-    //  ✅ تسجيل الدخول بـ M3U (بعد التحديث: قنوات + أفلام + مسلسلات)
+    //  تسجيل الدخول بـ M3U
     // ==========================================
     fun loginM3u(
         url: String,
@@ -142,9 +142,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 loadingProgress = 40
             )
 
+            val limitedChannels = result.channels.take(getChannelLimit())
             withContext(Dispatchers.IO) {
                 channelRepo.clearAll()
-                val limitedChannels = result.channels.take(getChannelLimit())
                 if (limitedChannels.isNotEmpty()) channelRepo.saveChannels(limitedChannels)
                 if (result.movies.isNotEmpty()) channelRepo.saveMovies(result.movies)
                 if (result.series.isNotEmpty()) channelRepo.saveSeries(result.series)
@@ -155,17 +155,26 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 loadingProgress = 80
             )
 
-            ContentRepository.channels = result.channels.take(getChannelLimit())
+            ContentRepository.channels = limitedChannels
             ContentRepository.movies = result.movies
             ContentRepository.series = result.series
             ContentRepository.episodes = ContentRepository.episodes + result.seriesEpisodes
 
+            // ✅ حفظ الحلقات في Room
+            withContext(Dispatchers.IO) {
+                result.seriesEpisodes.forEach { (seriesId, eps) ->
+                    if (eps.isNotEmpty()) {
+                        channelRepo.saveEpisodes(seriesId, eps)
+                    }
+                }
+            }
+
             _uiState.value = DashboardUiState(
-                channelsCount = result.channels.size,
+                channelsCount = limitedChannels.size,
                 moviesCount = result.movies.size,
                 seriesCount = result.series.size,
                 loadingProgress = 100,
-                loadingMessage = "✅ ${result.channels.size} قناة · ${result.movies.size} فيلم · ${result.series.size} مسلسل",
+                loadingMessage = "✅ ${limitedChannels.size} قناة · ${result.movies.size} فيلم · ${result.series.size} مسلسل",
                 dataVersion = _uiState.value.dataVersion + 1
             )
             onDone(true)
@@ -295,7 +304,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ==========================================
-    //  ✅ تحميل مصدر M3U — بعد التحديث
+    //  تحميل مصدر M3U
     // ==========================================
     private suspend fun loadM3uSource(source: SourceEntity) {
         _uiState.value = _uiState.value.copy(
@@ -304,7 +313,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         )
 
         val result: M3uParseResult = if (source.url.startsWith("content://")) {
-            // ملف محلي — لن نعيد تحليله هنا (نفترض أنه موجود بالذاكرة)
             M3uParseResult(
                 channels = ContentRepository.channels,
                 movies = ContentRepository.movies,
@@ -361,6 +369,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         ContentRepository.series = result.series
         ContentRepository.episodes = ContentRepository.episodes + result.seriesEpisodes
 
+        // ✅ حفظ الحلقات في Room
+        withContext(Dispatchers.IO) {
+            result.seriesEpisodes.forEach { (seriesId, eps) ->
+                if (eps.isNotEmpty()) {
+                    channelRepo.saveEpisodes(seriesId, eps)
+                }
+            }
+        }
+
         _uiState.value = _uiState.value.copy(
             channelsCount = limitedChannels.size,
             moviesCount = result.movies.size,
@@ -409,6 +426,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     ContentRepository.movies = result.movies
                     ContentRepository.series = result.series
                     ContentRepository.episodes = ContentRepository.episodes + result.seriesEpisodes
+
+                    // ✅ حفظ الحلقات
+                    withContext(Dispatchers.IO) {
+                        result.seriesEpisodes.forEach { (seriesId, eps) ->
+                            if (eps.isNotEmpty()) channelRepo.saveEpisodes(seriesId, eps)
+                        }
+                    }
 
                     _uiState.value = DashboardUiState(
                         channelsCount = limitedChannels.size,
@@ -462,6 +486,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     ContentRepository.series = result.series
                     ContentRepository.episodes = ContentRepository.episodes + result.seriesEpisodes
 
+                    // ✅ حفظ الحلقات
+                    withContext(Dispatchers.IO) {
+                        result.seriesEpisodes.forEach { (seriesId, eps) ->
+                            if (eps.isNotEmpty()) channelRepo.saveEpisodes(seriesId, eps)
+                        }
+                    }
+
                     _uiState.value = DashboardUiState(
                         channelsCount = limitedChannels.size,
                         moviesCount = result.movies.size,
@@ -492,7 +523,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ==========================================
-    //  تحميل حلقات مسلسل
+    //  ✅ تحميل حلقات مسلسل — Room + Xtream
     // ==========================================
     fun loadEpisodes(seriesId: String, onDone: (List<Episode>) -> Unit) {
         viewModelScope.launch {
@@ -503,21 +534,46 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 return@launch
             }
 
-            // ─── 2) من Xtream (فقط إذا كان المصدر Xtream) ───
+            // ─── 2) من Room ───
+            try {
+                val fromDb = withContext(Dispatchers.IO) {
+                    channelRepo.getEpisodesBySeries(seriesId)
+                }
+                if (fromDb.isNotEmpty()) {
+                    ContentRepository.episodes =
+                        ContentRepository.episodes + (seriesId to fromDb)
+                    onDone(fromDb)
+                    return@launch
+                }
+            } catch (_: Exception) { }
+
+            // ─── 3) من Xtream (فقط إذا كان المصدر Xtream) ───
             if (prefs.loginType != "XTREAM") {
                 onDone(emptyList())
                 return@launch
             }
 
-            val eps = XtreamApi.loadEpisodes(
-                prefs.serverUrl,
-                prefs.username,
-                prefs.password,
-                seriesId
-            )
-            ContentRepository.episodes =
-                ContentRepository.episodes + (seriesId to eps)
-            onDone(eps)
+            try {
+                val eps = XtreamApi.loadEpisodes(
+                    prefs.serverUrl,
+                    prefs.username,
+                    prefs.password,
+                    seriesId
+                )
+                ContentRepository.episodes =
+                    ContentRepository.episodes + (seriesId to eps)
+
+                // ✅ حفظ في Room
+                if (eps.isNotEmpty()) {
+                    withContext(Dispatchers.IO) {
+                        channelRepo.saveEpisodes(seriesId, eps)
+                    }
+                }
+
+                onDone(eps)
+            } catch (_: Exception) {
+                onDone(emptyList())
+            }
         }
     }
 
