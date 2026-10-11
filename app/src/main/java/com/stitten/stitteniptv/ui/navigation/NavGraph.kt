@@ -11,6 +11,7 @@ import com.stitten.stitteniptv.ui.live.LiveScreen
 import com.stitten.stitteniptv.ui.screens.*
 import com.stitten.stitteniptv.ui.vod.MovieDetailsScreen
 import com.stitten.stitteniptv.ui.vod.MoviesScreen
+import com.stitten.stitteniptv.ui.vod.SeriesListScreen
 import java.net.URLDecoder
 import java.net.URLEncoder
 
@@ -58,10 +59,11 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
         composable(Routes.DASHBOARD) { DashboardScreen(navController) }
 
         // ═══════════════════════════════════════════════════════════
-        //  ✅ جديد — القنوات + الأفلام
+        //  القنوات + الأفلام + المسلسلات
         // ═══════════════════════════════════════════════════════════
         composable(Routes.LIVE) { LiveScreen(navController) }
         composable(Routes.MOVIES) { MoviesScreen(navController) }
+        composable(Routes.SERIES_LIST) { SeriesListScreen(navController) }
 
         composable(
             Routes.MOVIE_DETAILS,
@@ -139,7 +141,8 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
         }
 
         // ═══════════════════════════════════════════════════════════
-        //  ⏸️ مسارات مستقبلية: SERIES_LIST, SEARCH
+        //  ⏸️ مسار مستقبلي: SEARCH
+        //  سيُربط عند إنشاء شاشة البحث
         // ═══════════════════════════════════════════════════════════
     }
 }
