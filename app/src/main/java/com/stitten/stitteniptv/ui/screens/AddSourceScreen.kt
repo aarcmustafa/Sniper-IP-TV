@@ -29,7 +29,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -63,6 +62,7 @@ import com.stitten.stitteniptv.data.ContentRepository
 import com.stitten.stitteniptv.data.M3uParser
 import com.stitten.stitteniptv.data.XtreamApi
 import com.stitten.stitteniptv.database.entity.SourceEntity
+import com.stitten.stitteniptv.ui.components.tvFocusable
 import com.stitten.stitteniptv.ui.navigation.Routes
 import com.stitten.stitteniptv.viewmodel.MainViewModel
 import dagger.hilt.android.EntryPointAccessors
@@ -367,7 +367,13 @@ fun AddSourceScreen(
                             keyboardType = KeyboardType.Password
                         ),
                         trailingIcon = {
-                            IconButton(onClick = { showPassword = !showPassword }) {
+                            // ✅ Box + tvFocusable بدل IconButton
+                            Box(
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .tvFocusable(onClick = { showPassword = !showPassword }),
+                                contentAlignment = Alignment.Center,
+                            ) {
                                 Icon(
                                     imageVector = if (showPassword)
                                         Icons.Default.VisibilityOff
@@ -377,7 +383,8 @@ fun AddSourceScreen(
                                         "إخفاء كلمة المرور"
                                     else
                                         "إظهار كلمة المرور",
-                                    tint = Color.White
+                                    tint = Color.White,
+                                    modifier = Modifier.size(24.dp),
                                 )
                             }
                         },
