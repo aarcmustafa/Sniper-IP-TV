@@ -5,16 +5,23 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -33,6 +40,7 @@ import com.stitten.stitteniptv.database.entity.MovieEntity
 import com.stitten.stitteniptv.ui.components.PosterCard
 import com.stitten.stitteniptv.ui.components.tvFocusable
 import com.stitten.stitteniptv.ui.navigation.Routes
+import com.stitten.stitteniptv.ui.theme.AppIcons
 
 @Composable
 fun MoviesScreen(
@@ -47,10 +55,11 @@ fun MoviesScreen(
             .fillMaxSize()
             .background(Color(0xFF0D1117))
     ) {
-        // ── شريط علوي ──
-        MoviesTopBar(movieCount = state.totalCount)
+        MoviesTopBar(
+            movieCount = state.totalCount,
+            onRefresh = { movies.refresh() },
+        )
 
-        // ── قائمة التصنيفات ──
         if (state.categories.isNotEmpty()) {
             LazyRow(
                 modifier = Modifier
@@ -76,7 +85,6 @@ fun MoviesScreen(
             }
         }
 
-        // ── شبكة الأفلام ──
         when {
             state.isLoading && movies.itemCount == 0 -> {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -87,8 +95,13 @@ fun MoviesScreen(
             movies.itemCount == 0 -> {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("🎬", fontSize = 64.sp)
-                        Spacer(Modifier.height(12.dp))
+                        Icon(
+                            imageVector = AppIcons.Movies,
+                            contentDescription = null,
+                            tint = Color(0xFF30363D),
+                            modifier = Modifier.size(80.dp),
+                        )
+                        Spacer(Modifier.height(16.dp))
                         Text("لا توجد أفلام", color = Color.White, fontSize = 18.sp)
                     }
                 }
@@ -123,22 +136,41 @@ fun MoviesScreen(
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  مكونات مساعدة
+//  الشريط العلوي — مع أيقونة Movie
 // ═══════════════════════════════════════════════════════════════
 
 @Composable
-private fun MoviesTopBar(movieCount: Int) {
-    Box(
+private fun MoviesTopBar(
+    movieCount: Int,
+    onRefresh: () -> Unit,
+) {
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 16.dp)
+            .padding(horizontal = 20.dp, vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
+        Icon(
+            imageVector = AppIcons.Movies,
+            contentDescription = null,
+            tint = Color(0xFF1F6FEB),
+            modifier = Modifier.size(28.dp),
+        )
+        Spacer(Modifier.width(12.dp))
         Text(
-            text = "🎬 الأفلام ($movieCount)",
+            text = "الأفلام ($movieCount)",
             color = Color.White,
             fontSize = 24.sp,
             fontWeight = FontWeight.Bold,
         )
+        Spacer(Modifier.weight(1f))
+        IconButton(onClick = onRefresh) {
+            Icon(
+                Icons.Default.Refresh,
+                contentDescription = "تحديث",
+                tint = Color.White,
+            )
+        }
     }
 }
 
@@ -158,7 +190,7 @@ private fun CategoryChip(
             .tvFocusable(onClick = onClick)
             .clip(RoundedCornerShape(20.dp))
             .background(bg)
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
     )
 }
 
