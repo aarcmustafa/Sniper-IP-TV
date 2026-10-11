@@ -287,7 +287,8 @@ object XtreamApi {
                     genre = raw.genre,
                     year = yearStr,
                     rating = raw.rating,
-                    backdrop = raw.backdrop
+                    backdrop = raw.backdrop,
+                    duration = raw.episodeRunTime?.let { "$it د" }
                 ))
             }
         } catch (e: Exception) { }
@@ -330,6 +331,7 @@ object XtreamApi {
 
                     val info = ep.optJSONObject("info")
                     val plot = info?.optString("plot", "")?.takeIf { it.isNotBlank() }
+                    val duration = info?.optString("duration", "")?.takeIf { it.isNotBlank() }
                     val rating = info?.optString("rating", "")?.takeIf { it.isNotBlank() && it != "0" }
 
                     episodes.add(Episode(
@@ -340,6 +342,7 @@ object XtreamApi {
                         url = "$s/series/$user/$pass/$epId.$ext",
                         poster = "",
                         plot = plot,
+                        duration = duration,
                         rating = rating,
                         containerExtension = ext,
                         episodeId = epId.toIntOrNull()
