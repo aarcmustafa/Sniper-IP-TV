@@ -8,9 +8,6 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStreamReader
 
-/**
- * نتيجة تحليل M3U مُصنّفة.
- */
 data class M3uParseResult(
     val channels: List<Channel> = emptyList(),
     val movies: List<Movie> = emptyList(),
@@ -21,7 +18,7 @@ data class M3uParseResult(
 object M3uParser {
 
     // ═══════════════════════════════════════════════════════════
-    //  التحميل العادي (ملفات صغيرة < 20 MB)
+    //  التحميل العادي
     // ═══════════════════════════════════════════════════════════
     suspend fun loadFromUrl(url: String): List<Channel> = withContext(Dispatchers.IO) {
         try {
@@ -37,7 +34,6 @@ object M3uParser {
         }
     }
 
-    // ✅ جديد: تحميل مُصنّف
     suspend fun loadFromUrlStructured(url: String): M3uParseResult =
         withContext(Dispatchers.IO) {
             try {
@@ -53,9 +49,6 @@ object M3uParser {
             }
         }
 
-    // ═══════════════════════════════════════════════════════════
-    //  التحميل الانسيابي (ملفات ضخمة > 20 MB)
-    // ═══════════════════════════════════════════════════════════
     suspend fun loadFromUrlStreaming(
         ctx: Context,
         url: String,
@@ -76,7 +69,6 @@ object M3uParser {
         }
     }
 
-    // ✅ جديد: تحميل انسيابي مُصنّف
     suspend fun loadFromUrlStreamingStructured(
         ctx: Context,
         url: String,
@@ -98,7 +90,7 @@ object M3uParser {
     }
 
     // ═══════════════════════════════════════════════════════════
-    //  التحميل إلى ملف (Disk I/O)
+    //  التحميل إلى ملف
     // ═══════════════════════════════════════════════════════════
     private fun downloadToFile(
         url: String,
@@ -155,16 +147,12 @@ object M3uParser {
         }
     }
 
-    // ═══════════════════════════════════════════════════════════
-    //  تحميل من محتوى نصي
-    // ═══════════════════════════════════════════════════════════
     suspend fun loadFromContent(content: String): List<Channel> =
         withContext(Dispatchers.IO) { parse(content) }
 
-    // ✅ جديد: محتوى مُصنّف
     suspend fun loadFromContentStructured(content: String): M3uParseResult =
         withContext(Dispatchers.IO) { parseStructured(content) }
-        
+
     // ═══════════════════════════════════════════════════════════
     //  تحليل نص عادي (قنوات فقط)
     // ═══════════════════════════════════════════════════════════
@@ -206,9 +194,6 @@ object M3uParser {
         return channels
     }
 
-    // ═══════════════════════════════════════════════════════════
-    //  ✅ تحليل نص مُصنّف (قنوات + أفلام + مسلسلات)
-    // ═══════════════════════════════════════════════════════════
     private fun parseStructured(content: String): M3uParseResult {
         if (content.isBlank()) return M3uParseResult()
         val lines = content.lines()
@@ -260,7 +245,6 @@ object M3uParser {
         return channels
     }
 
-    // ✅ تحليل ملف مُصنّف (سطراً بسطر)
     private fun parseFileStreamingStructured(file: File): M3uParseResult {
         if (!file.exists() || file.length() == 0L) return M3uParseResult()
 
@@ -271,7 +255,7 @@ object M3uParser {
 
         return buildStructuredFromLines(lines)
     }
-
+    
     // ═══════════════════════════════════════════════════════════
     //  ⭐ المنطق الأساسي للتصنيف
     // ═══════════════════════════════════════════════════════════
@@ -313,8 +297,18 @@ object M3uParser {
                                 val episode = extractEpisode(pendingName)
                                 val key = baseName.lowercase().trim()
 
+                                // ✅ تنظيف baseName لتجنب مشاكل ID
+                                val cleanBase = baseName
+                                    .replace(Regex("[^a-zA-Z0-9\\u0600-\\u06FF]"), "_")
+                                    .trim('_')
+                                    .lowercase()
+                                    .take(30)
+                                    .ifBlank { "series" }
+
+                                val epId = "m3u_s${season}e${episode}_${cleanBase}"
+
                                 val ep = Episode(
-                                    id = "m3u_ep_${seriesMap[key]?.size ?: 0}_${baseName}_${season}_${episode}",
+                                    id = epId,
                                     title = pendingName,
                                     season = season,
                                     episode = episode,
@@ -327,7 +321,7 @@ object M3uParser {
 
                                 if (!seriesInfoMap.containsKey(key)) {
                                     seriesInfoMap[key] = Series(
-                                        id = "m3u_series_$key",
+                                        id = "m3u_series_$cleanBase",
                                         name = baseName,
                                         poster = pendingLogo,
                                         category = group.ifBlank { "مسلسلات" },
@@ -443,7 +437,6 @@ object M3uParser {
     }
 
     private fun extractSeriesBaseName(name: String): String {
-        // إزالة S01E01 وما بعده
         var base = name
         base = base.replace(
             Regex("""(?i)\s*[sS]\d{1,2}\s*[eE]\d{1,3}.*$"""),
