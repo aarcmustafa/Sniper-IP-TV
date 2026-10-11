@@ -160,7 +160,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             ContentRepository.series = result.series
             ContentRepository.episodes = ContentRepository.episodes + result.seriesEpisodes
 
-            // ✅ حفظ الحلقات في Room
             withContext(Dispatchers.IO) {
                 result.seriesEpisodes.forEach { (seriesId, eps) ->
                     if (eps.isNotEmpty()) {
@@ -189,7 +188,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         user: String,
         pass: String
     ) {
-        // ─── 1) القنوات المباشرة ───
         _uiState.value = _uiState.value.copy(
             loadingMessage = "📺 جاري تحميل القنوات...",
             loadingProgress = 5
@@ -208,7 +206,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         withContext(Dispatchers.IO) { channelRepo.saveChannels(liveLimited) }
         ContentRepository.channels = liveLimited
 
-        // ─── 2) الأفلام ───
         _uiState.value = _uiState.value.copy(
             loadingMessage = "🎬 جاري تحميل الأفلام...",
             loadingProgress = 25
@@ -226,7 +223,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         withContext(Dispatchers.IO) { channelRepo.saveMovies(movies) }
         ContentRepository.movies = movies
 
-        // ─── 3) المسلسلات ───
         _uiState.value = _uiState.value.copy(
             loadingMessage = "📺 جاري تحميل المسلسلات...",
             loadingProgress = 50
@@ -244,7 +240,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         withContext(Dispatchers.IO) { channelRepo.saveSeries(series) }
         ContentRepository.series = series
 
-        // ─── 4) انتهى ───
         _uiState.value = _uiState.value.copy(
             channelsCount = liveLimited.size,
             moviesCount = movies.size,
@@ -369,7 +364,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         ContentRepository.series = result.series
         ContentRepository.episodes = ContentRepository.episodes + result.seriesEpisodes
 
-        // ✅ حفظ الحلقات في Room
         withContext(Dispatchers.IO) {
             result.seriesEpisodes.forEach { (seriesId, eps) ->
                 if (eps.isNotEmpty()) {
@@ -427,7 +421,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     ContentRepository.series = result.series
                     ContentRepository.episodes = ContentRepository.episodes + result.seriesEpisodes
 
-                    // ✅ حفظ الحلقات
                     withContext(Dispatchers.IO) {
                         result.seriesEpisodes.forEach { (seriesId, eps) ->
                             if (eps.isNotEmpty()) channelRepo.saveEpisodes(seriesId, eps)
@@ -486,7 +479,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     ContentRepository.series = result.series
                     ContentRepository.episodes = ContentRepository.episodes + result.seriesEpisodes
 
-                    // ✅ حفظ الحلقات
                     withContext(Dispatchers.IO) {
                         result.seriesEpisodes.forEach { (seriesId, eps) ->
                             if (eps.isNotEmpty()) channelRepo.saveEpisodes(seriesId, eps)
@@ -523,18 +515,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ==========================================
-    //  ✅ تحميل حلقات مسلسل — Room + Xtream
+    //  تحميل حلقات مسلسل
     // ==========================================
     fun loadEpisodes(seriesId: String, onDone: (List<Episode>) -> Unit) {
         viewModelScope.launch {
-            // ─── 1) من الذاكرة أولًا ───
             val cached = ContentRepository.episodes[seriesId]
             if (!cached.isNullOrEmpty()) {
                 onDone(cached)
                 return@launch
             }
 
-            // ─── 2) من Room ───
             try {
                 val fromDb = withContext(Dispatchers.IO) {
                     channelRepo.getEpisodesBySeries(seriesId)
@@ -547,7 +537,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 }
             } catch (_: Exception) { }
 
-            // ─── 3) من Xtream (فقط إذا كان المصدر Xtream) ───
             if (prefs.loginType != "XTREAM") {
                 onDone(emptyList())
                 return@launch
@@ -563,7 +552,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 ContentRepository.episodes =
                     ContentRepository.episodes + (seriesId to eps)
 
-                // ✅ حفظ في Room
                 if (eps.isNotEmpty()) {
                     withContext(Dispatchers.IO) {
                         channelRepo.saveEpisodes(seriesId, eps)
@@ -648,13 +636,20 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ==========================================
-    //  تسجيل الخروج
+    //  ✅ تسجيل الخروج — مع مسح الكوكيز + DNS
     // ==========================================
     fun logout() {
         viewModelScope.launch {
             withContext(Dispatchers.IO) { channelRepo.clearAll() }
             prefs.clear()
             ContentRepository.clear()
+
+            // ✅ مسح الكوكيز + DNS عند تسجيل الخروج
+            try {
+                HttpClientProvider.clearCookies()
+                HttpClientProvider.clearDnsCache()
+            } catch (_: Exception) { }
+
             _uiState.value = DashboardUiState()
         }
     }
