@@ -64,13 +64,13 @@ class ChannelRepository @Inject constructor(
     }
 
     // ═══════════════════════════════════════════════════════════
-    //  ✅ حفظ الأفلام — يدعم الحقول الجديدة
+    //  ✅ حفظ الأفلام — يملأ الحقول الجديدة
     // ═══════════════════════════════════════════════════════════
     suspend fun saveMovies(movies: List<Movie>, sourceId: Long = 0) {
         val now = System.currentTimeMillis()
         val entities = movies.map {
             MovieEntity(
-                // ─── الحقول الأساسية ───
+                // ─── الأساسية ───
                 id = "${sourceId}_${it.id}",
                 name = it.name,
                 poster = it.poster,
@@ -78,7 +78,7 @@ class ChannelRepository @Inject constructor(
                 category = it.category,
                 sourceId = sourceId,
 
-                // ─── الحقول الجديدة ───
+                // ─── الجديدة ───
                 backdrop = it.backdrop,
                 plot = it.plot,
                 rating = it.rating,
@@ -97,20 +97,20 @@ class ChannelRepository @Inject constructor(
     }
 
     // ═══════════════════════════════════════════════════════════
-    //  ✅ حفظ المسلسلات — يدعم الحقول الجديدة + إصلاح sourceId
+    //  ✅ حفظ المسلسلات — يملأ الحقول الجديدة + إصلاح sourceId
     // ═══════════════════════════════════════════════════════════
     suspend fun saveSeries(series: List<Series>, sourceId: Long = 0) {
         val now = System.currentTimeMillis()
         val entities = series.map {
             SeriesEntity(
-                // ─── الحقول الأساسية ───
+                // ─── الأساسية ───
                 id = "${sourceId}_${it.id}",
                 name = it.name,
                 poster = it.poster,
                 category = it.category,
-                sourceId = sourceId,     // ← ✅ إصلاح الخطأ
+                sourceId = sourceId,   // ← ✅ إصلاح (كان it.id خطأ)
 
-                // ─── الحقول الجديدة ───
+                // ─── الجديدة ───
                 backdrop = it.backdrop,
                 plot = it.plot,
                 rating = it.rating,
@@ -152,23 +152,18 @@ class ChannelRepository @Inject constructor(
     fun searchMoviesPaged(query: String): Flow<PagingData<MovieEntity>> =
         Pager(config = pagingConfig()) { dao.searchMovies(query) }.flow
 
-    // ✅ جديد: أحدث الأفلام (لـ Hero + "أحدث الأفلام")
     fun getLatestMoviesPaged(): Flow<PagingData<MovieEntity>> =
         Pager(config = pagingConfig()) { dao.getLatestMoviesPaged() }.flow
 
-    // ✅ جديد: الأفلام حسب التصنيف
     fun getMoviesByCategoryPaged(category: String): Flow<PagingData<MovieEntity>> =
         Pager(config = pagingConfig()) { dao.getMoviesByCategory(category) }.flow
 
-    // ✅ جديد: الأعلى تقييمًا (للـ Hero)
     fun getTopRatedMovies(limit: Int = 20): Flow<List<MovieEntity>> =
         dao.getTopRatedMovies(limit)
 
-    // ✅ جديد: أحدث 20 فيلمًا (قائمة قصيرة)
     fun getLatestMovies(limit: Int = 20): Flow<List<MovieEntity>> =
         dao.getLatestMovies(limit)
 
-    // ✅ جديد: فيلم بواحد
     suspend fun getMovieById(id: String): MovieEntity? = dao.getMovieById(id)
 
     // ═══════════════════════════════════════════════════════════
@@ -180,12 +175,19 @@ class ChannelRepository @Inject constructor(
     fun searchSeriesPaged(query: String): Flow<PagingData<SeriesEntity>> =
         Pager(config = pagingConfig()) { dao.searchSeries(query) }.flow
 
-    // ✅ جديد: المسلسلات حسب التصنيف
     fun getSeriesByCategoryPaged(category: String): Flow<PagingData<SeriesEntity>> =
         Pager(config = pagingConfig()) { dao.getSeriesByCategory(category) }.flow
 
-    // ✅ جديد: مسلسل بواحد
     suspend fun getSeriesById(id: String): SeriesEntity? = dao.getSeriesById(id)
+
+    // ═══════════════════════════════════════════════════════════
+    //  ✅ جديد — دفعات للشاشة الرئيسية (بدون Paging)
+    // ═══════════════════════════════════════════════════════════
+    suspend fun getFirstSeriesPage(limit: Int = 30): List<SeriesEntity> =
+        dao.getSeriesBatch(limit)
+
+    suspend fun getFirstChannelsPage(limit: Int = 30): List<ChannelEntity> =
+        dao.getChannelsBatch(limit)
 
     // ═══════════════════════════════════════════════════════════
     //  التصنيفات
@@ -193,7 +195,6 @@ class ChannelRepository @Inject constructor(
     fun getChannelGroups(): Flow<List<String>> =
         dao.getAllChannelGroups().map { CategoriesManager.sortCategories(it) }
 
-    // ✅ جديد
     fun getMovieCategories(): Flow<List<String>> = dao.getAllMovieCategories()
     fun getSeriesCategories(): Flow<List<String>> = dao.getAllSeriesCategories()
 
@@ -213,7 +214,6 @@ class ChannelRepository @Inject constructor(
         dao.clearSeries()
     }
 
-    // ✅ جديد
     suspend fun deleteMovie(id: String) = dao.deleteMovieById(id)
     suspend fun deleteSeries(id: String) = dao.deleteSeriesById(id)
     suspend fun deleteMoviesBySource(sourceId: Long) = dao.deleteMoviesBySource(sourceId)
