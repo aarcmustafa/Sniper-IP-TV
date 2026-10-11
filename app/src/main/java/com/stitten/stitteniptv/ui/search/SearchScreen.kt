@@ -20,7 +20,11 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.LiveTv
+import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -32,9 +36,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -50,6 +54,7 @@ import com.stitten.stitteniptv.database.entity.SeriesEntity
 import com.stitten.stitteniptv.ui.components.PosterCard
 import com.stitten.stitteniptv.ui.components.tvFocusable
 import com.stitten.stitteniptv.ui.navigation.Routes
+import com.stitten.stitteniptv.ui.theme.AppIcons
 
 @Composable
 fun SearchScreen(
@@ -67,14 +72,12 @@ fun SearchScreen(
             .fillMaxSize()
             .background(Color(0xFF0D1117))
     ) {
-        // ─── شريط البحث ───
         SearchBar(
             query = state.query,
             onQueryChange = viewModel::onQueryChange,
             onClear = viewModel::clear,
         )
 
-        // ─── تبويبات ───
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -82,17 +85,20 @@ fun SearchScreen(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             TabChip(
-                label = "🎬 أفلام",
+                label = "أفلام",
+                icon = AppIcons.Movies,
                 selected = state.selectedTab == SearchTab.MOVIES,
                 onClick = { viewModel.selectTab(SearchTab.MOVIES) },
             )
             TabChip(
-                label = "📺 مسلسلات",
+                label = "مسلسلات",
+                icon = AppIcons.Series,
                 selected = state.selectedTab == SearchTab.SERIES,
                 onClick = { viewModel.selectTab(SearchTab.SERIES) },
             )
             TabChip(
-                label = "📡 قنوات",
+                label = "قنوات",
+                icon = AppIcons.LiveTv,
                 selected = state.selectedTab == SearchTab.CHANNELS,
                 onClick = { viewModel.selectTab(SearchTab.CHANNELS) },
             )
@@ -100,20 +106,17 @@ fun SearchScreen(
 
         Spacer(Modifier.height(8.dp))
 
-        // ─── حالة الفراغ ───
         if (state.query.isBlank()) {
             EmptySearchState()
             return@Column
         }
 
-        // ─── نتائج البحث ───
         when (state.selectedTab) {
             SearchTab.MOVIES -> MoviesResults(
                 movies = movies,
                 onMovieClick = { movie ->
                     navController.navigate(Routes.movieDetails(movie.id))
                 },
-                onChannelSearch = { /* لا شيء */ },
             )
             SearchTab.SERIES -> SeriesResults(
                 series = series,
@@ -130,7 +133,6 @@ fun SearchScreen(
         }
     }
 }
-
 
 // ═══════════════════════════════════════════════════════════════
 //  شريط البحث
@@ -193,40 +195,52 @@ private fun SearchBar(
 
         if (query.isNotEmpty()) {
             Spacer(Modifier.width(8.dp))
-            Text(
-                text = "✕",
-                color = Color.White,
-                fontSize = 18.sp,
+            Icon(
+                Icons.Default.Close,
+                contentDescription = "مسح",
+                tint = Color.White,
                 modifier = Modifier
-                    .tvFocusable(onClick = onClear)
-                    .padding(4.dp),
+                    .size(24.dp)
+                    .tvFocusable(onClick = onClear),
             )
         }
     }
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  تبويب
+//  تبويب مع أيقونة
 // ═══════════════════════════════════════════════════════════════
 
 @Composable
 private fun TabChip(
     label: String,
+    icon: ImageVector,
     selected: Boolean,
     onClick: () -> Unit,
 ) {
     val bg = if (selected) Color(0xFF1F6FEB) else Color(0xFF21262D)
-    Text(
-        text = label,
-        color = Color.White,
-        fontSize = 15.sp,
-        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+    Row(
         modifier = Modifier
             .tvFocusable(onClick = onClick)
             .clip(RoundedCornerShape(20.dp))
             .background(bg)
-            .padding(horizontal = 20.dp, vertical = 10.dp),
-    )
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = Color.White,
+            modifier = Modifier.size(18.dp),
+        )
+        Spacer(Modifier.width(6.dp))
+        Text(
+            text = label,
+            color = Color.White,
+            fontSize = 14.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+        )
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -237,7 +251,6 @@ private fun TabChip(
 private fun MoviesResults(
     movies: androidx.paging.compose.LazyPagingItems<MovieEntity>,
     onMovieClick: (MovieEntity) -> Unit,
-    onChannelSearch: (String) -> Unit,
 ) {
     if (movies.itemCount == 0) {
         NoResultsState()
@@ -343,15 +356,20 @@ private fun ChannelsResults(
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  حالات فارغة
+//  الحالات الفارغة — بأيقونات Material
 // ═══════════════════════════════════════════════════════════════
 
 @Composable
 private fun EmptySearchState() {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("🔍", fontSize = 72.sp)
-            Spacer(Modifier.height(16.dp))
+            Icon(
+                imageVector = Icons.Default.Search,
+                contentDescription = null,
+                tint = Color(0xFF30363D),
+                modifier = Modifier.size(100.dp),
+            )
+            Spacer(Modifier.height(20.dp))
             Text(
                 "ابحث في مكتبتك",
                 color = Color.White,
@@ -372,7 +390,12 @@ private fun EmptySearchState() {
 private fun NoResultsState() {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("😕", fontSize = 72.sp)
+            Icon(
+                imageVector = Icons.Default.Search,
+                contentDescription = null,
+                tint = Color(0xFF30363D),
+                modifier = Modifier.size(80.dp),
+            )
             Spacer(Modifier.height(16.dp))
             Text(
                 "لا توجد نتائج",
