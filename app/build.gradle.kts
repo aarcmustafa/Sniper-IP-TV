@@ -17,11 +17,15 @@ android {
         versionCode = 1
         versionName = "1.0.0"
         resourceConfigurations += listOf("ar", "en", "fr")
+
+        // ✅ دعم معماريتين في APK واحد
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+        }
     }
 
     buildTypes {
         debug {
-            // ✅ تفعيل BuildConfig + Logging في Debug
             isMinifyEnabled = false
             buildConfigField("boolean", "ENABLE_HTTP_LOGGING", "true")
         }
@@ -32,7 +36,6 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            // ✅ إيقاف Logging في Release
             buildConfigField("boolean", "ENABLE_HTTP_LOGGING", "false")
         }
     }
@@ -45,11 +48,17 @@ android {
 
     buildFeatures {
         compose = true
-        buildConfig = true        // ✅ مهم — لتفعيل BuildConfig.DEBUG
+        buildConfig = true
     }
 
     packaging {
-        resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" }
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
+        // ✅ ضمان تضمين مكتبات native في APK
+        jniLibs {
+            useLegacyPackaging = false
+        }
     }
 }
 
@@ -78,7 +87,7 @@ dependencies {
     implementation("androidx.leanback:leanback:1.0.0")
 
     // ═══════════════════════════════════════════════════════════
-    //  Media3 — المشغل + البروتوكولات
+    //  Media3
     // ═══════════════════════════════════════════════════════════
     val media3 = "1.5.1"
     implementation("androidx.media3:media3-exoplayer:$media3")
@@ -95,7 +104,7 @@ dependencies {
     implementation("androidx.media3:media3-extractor:$media3")
 
     // ═══════════════════════════════════════════════════════════
-    //  Room — قاعدة البيانات
+    //  Room
     // ═══════════════════════════════════════════════════════════
     val room = "2.6.1"
     implementation("androidx.room:room-runtime:$room")
@@ -110,14 +119,14 @@ dependencies {
     implementation("androidx.paging:paging-compose:3.3.4")
 
     // ═══════════════════════════════════════════════════════════
-    //  Hilt — حقن التبعيات
+    //  Hilt
     // ═══════════════════════════════════════════════════════════
     implementation("com.google.dagger:hilt-android:2.52")
     ksp("com.google.dagger:hilt-android-compiler:2.52")
     implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
 
     // ═══════════════════════════════════════════════════════════
-    //  الصور — Coil
+    //  Coil
     // ═══════════════════════════════════════════════════════════
     implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("io.coil-kt:coil-gif:2.7.0")
@@ -129,13 +138,13 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
 
     // ═══════════════════════════════════════════════════════════
-    //  الشبكة — OkHttp + Logging
+    //  الشبكة
     // ═══════════════════════════════════════════════════════════
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")   // ✅ مضاف
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
 
     // ═══════════════════════════════════════════════════════════
-    //  DataStore — لحفظ الإعدادات
+    //  DataStore
     // ═══════════════════════════════════════════════════════════
     implementation("androidx.datastore:datastore-preferences:1.1.1")
 
@@ -146,9 +155,6 @@ dependencies {
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
 
-    // ═══════════════════════════════════════════════════════════
-    //  أدوات التطوير
-    // ═══════════════════════════════════════════════════════════
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 }
