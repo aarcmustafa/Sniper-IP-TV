@@ -68,7 +68,6 @@ fun DashboardScreen(
 
             else -> DashboardContent(
                 state = state,
-                navController = navController,
                 onMovieClick = { movie ->
                     navController.navigate(Routes.movieDetails(movie.id))
                 },
@@ -86,7 +85,7 @@ fun DashboardScreen(
                 onSettingsClick = { navController.navigate(Routes.SETTINGS) },
                 onLiveClick = { navController.navigate(Routes.LIVE) },
                 onMoviesClick = { navController.navigate(Routes.MOVIES) },
-                onSeriesListClick = { /* TODO */ },
+                onSeriesListClick = { navController.navigate(Routes.SERIES_LIST) },
             )
         }
     }
@@ -95,7 +94,6 @@ fun DashboardScreen(
 @Composable
 private fun DashboardContent(
     state: DashboardUiState,
-    navController: NavHostController,
     onMovieClick: (MovieEntity) -> Unit,
     onSeriesClick: (SeriesEntity) -> Unit,
     onChannelClick: (ChannelEntity) -> Unit,
@@ -223,10 +221,6 @@ private fun buildSubtitle(rating: String?, year: String?): String? {
     return parts.takeIf { it.isNotEmpty() }?.joinToString("  ·  ")
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  الشريط العلوي — مع أزرار التنقل
-// ═══════════════════════════════════════════════════════════════
-
 @Composable
 private fun DashboardTopBar(
     onSearchClick: () -> Unit,
@@ -250,40 +244,31 @@ private fun DashboardTopBar(
 
         Spacer(Modifier.weight(1f))
 
-        // ✅ زر القنوات المباشرة
         IconButton(onClick = onLiveClick) {
             Icon(Icons.Default.LiveTv, "قنوات مباشرة", tint = Color.White)
         }
         Spacer(Modifier.width(4.dp))
 
-        // ✅ زر الأفلام
         IconButton(onClick = onMoviesClick) {
             Icon(Icons.Default.Movie, "أفلام", tint = Color.White)
         }
         Spacer(Modifier.width(4.dp))
 
-        // ✅ زر المسلسلات
         IconButton(onClick = onSeriesListClick) {
             Icon(Icons.Default.Tv, "مسلسلات", tint = Color.White)
         }
         Spacer(Modifier.width(8.dp))
 
-        // زر البحث
         IconButton(onClick = onSearchClick) {
             Icon(Icons.Default.Search, "بحث", tint = Color.White)
         }
         Spacer(Modifier.width(4.dp))
 
-        // زر الإعدادات
         IconButton(onClick = onSettingsClick) {
             Icon(Icons.Default.Settings, "إعدادات", tint = Color.White)
         }
     }
 }
-
-// ═══════════════════════════════════════════════════════════════
-//  حالات خاصة
-// ═══════════════════════════════════════════════════════════════
 
 @Composable
 private fun LoadingView() {
