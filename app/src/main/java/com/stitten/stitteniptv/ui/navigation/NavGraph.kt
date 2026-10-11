@@ -9,6 +9,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.stitten.stitteniptv.ui.live.LiveScreen
 import com.stitten.stitteniptv.ui.screens.*
+import com.stitten.stitteniptv.ui.search.SearchScreen
 import com.stitten.stitteniptv.ui.vod.MovieDetailsScreen
 import com.stitten.stitteniptv.ui.vod.MoviesScreen
 import com.stitten.stitteniptv.ui.vod.SeriesListScreen
@@ -31,7 +32,7 @@ object Routes {
     const val ADD_SOURCE_EDIT = "add_source/edit/{sourceId}"
     const val EXTERNAL_PLAYERS = "external_players"
 
-    // ✅ جديد
+    // ✅ شاشات جديدة
     const val LIVE = "live"
     const val MOVIES = "movies"
     const val SERIES_LIST = "series_list"
@@ -59,11 +60,12 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
         composable(Routes.DASHBOARD) { DashboardScreen(navController) }
 
         // ═══════════════════════════════════════════════════════════
-        //  القنوات + الأفلام + المسلسلات
+        //  القنوات + الأفلام + المسلسلات + البحث
         // ═══════════════════════════════════════════════════════════
         composable(Routes.LIVE) { LiveScreen(navController) }
         composable(Routes.MOVIES) { MoviesScreen(navController) }
         composable(Routes.SERIES_LIST) { SeriesListScreen(navController) }
+        composable(Routes.SEARCH) { SearchScreen(navController) }
 
         composable(
             Routes.MOVIE_DETAILS,
@@ -139,10 +141,5 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
             val epgUrl = URLDecoder.decode(entry.arguments?.getString("epgUrl") ?: "", "UTF-8")
             EpgScreen(navController, cid, cname, epgUrl)
         }
-
-        // ═══════════════════════════════════════════════════════════
-        //  ⏸️ مسار مستقبلي: SEARCH
-        //  سيُربط عند إنشاء شاشة البحث
-        // ═══════════════════════════════════════════════════════════
     }
 }
