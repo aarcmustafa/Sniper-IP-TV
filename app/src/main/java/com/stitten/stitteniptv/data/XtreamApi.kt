@@ -21,9 +21,19 @@ object XtreamApi {
         preferredFormat = if (format == "m3u8" || format == "hls") "m3u8" else "ts"
     }
 
-    private data class RawChannel(val id: String, val name: String, val icon: String, val categoryId: String)
-    private data class RawMovie(val id: String, val name: String, val poster: String, val categoryId: String, val ext: String)
-    private data class RawSeries(val id: String, val name: String, val cover: String, val categoryId: String)
+    private data class RawChannel(
+        val id: String, val name: String, val icon: String, val categoryId: String
+    )
+    private data class RawMovie(
+        val id: String, val name: String, val poster: String, val categoryId: String,
+        val ext: String, val rating: String?, val added: String?, val year: String?
+    )
+    private data class RawSeries(
+        val id: String, val name: String, val cover: String, val categoryId: String,
+        val plot: String?, val cast: String?, val director: String?,
+        val genre: String?, val releaseDate: String?, val rating: String?,
+        val backdrop: String?, val episodeRunTime: String?
+    )
 
     suspend fun validate(server: String, user: String, pass: String): Boolean =
         withContext(Dispatchers.IO) {
@@ -45,23 +55,20 @@ object XtreamApi {
             } catch (e: Exception) { false }
         }
 
-    suspend fun loadLiveCategories(
-        server: String, user: String, pass: String
-    ): Map<String, String> = withContext(Dispatchers.IO) {
-        loadCategories(server, user, pass, "get_live_categories")
-    }
+    suspend fun loadLiveCategories(server: String, user: String, pass: String): Map<String, String> =
+        withContext(Dispatchers.IO) {
+            loadCategories(server, user, pass, "get_live_categories")
+        }
 
-    suspend fun loadVodCategories(
-        server: String, user: String, pass: String
-    ): Map<String, String> = withContext(Dispatchers.IO) {
-        loadCategories(server, user, pass, "get_vod_categories")
-    }
+    suspend fun loadVodCategories(server: String, user: String, pass: String): Map<String, String> =
+        withContext(Dispatchers.IO) {
+            loadCategories(server, user, pass, "get_vod_categories")
+        }
 
-    suspend fun loadSeriesCategories(
-        server: String, user: String, pass: String
-    ): Map<String, String> = withContext(Dispatchers.IO) {
-        loadCategories(server, user, pass, "get_series_categories")
-    }
+    suspend fun loadSeriesCategories(server: String, user: String, pass: String): Map<String, String> =
+        withContext(Dispatchers.IO) {
+            loadCategories(server, user, pass, "get_series_categories")
+        }
 
     private suspend fun loadCategories(
         server: String, user: String, pass: String, action: String
@@ -88,8 +95,7 @@ object XtreamApi {
         rawChannels: List<RawChannel>, categoriesMap: Map<String, String>
     ): Map<String, String> {
         val result = mutableMapOf<String, String>()
-        val grouped = rawChannels.groupBy { it.categoryId }
-        grouped.forEach { (catId, channels) ->
+        rawChannels.groupBy { it.categoryId }.forEach { (catId, channels) ->
             val originalName = categoriesMap[catId] ?: "باقة $catId"
             if (!originalName.startsWith("باقة ")) {
                 result[catId] = originalName
@@ -133,6 +139,9 @@ object XtreamApi {
         return result
     }
 
+    // ═══════════════════════════════════════════════════════════
+    //  القنوات المباشرة
+    // ═══════════════════════════════════════════════════════════
     suspend fun loadLiveStreams(
         server: String, user: String, pass: String,
         onProgress: (loaded: Int) -> Unit = {}
@@ -175,7 +184,10 @@ object XtreamApi {
         } catch (e: Exception) { }
         channels
     }
-    
+
+    // ═══════════════════════════════════════════════════════════
+    //  الأفلام — مع الحقول الجديدة
+    // ═══════════════════════════════════════════════════════════
     suspend fun loadVodStreams(
         server: String, user: String, pass: String,
         onProgress: (loaded: Int) -> Unit = {}
@@ -198,27 +210,40 @@ object XtreamApi {
                     name = obj.optString("name"),
                     poster = obj.optString("stream_icon"),
                     categoryId = obj.optString("category_id"),
-                    ext = obj.optString("container_extension", "mp4")
+                    ext = obj.optString("container_extension", "mp4"),
+                    rating = obj.optString("rating", "").takeIf { it.isNotBlank() && it != "0" },
+                    added = obj.optString("added", "").takeIf { it.isNotBlank() },
+                    year = obj.optString("year", "").takeIf { it.isNotBlank() && it != "null" }
                 ))
                 if (i % 500 == 0 && i > 0) onProgress(i)
             }
             onProgress(rawMovies.size)
 
             val smartCategories = detectSmartCategoriesForMovies(rawMovies, categoriesMap)
+            val now = System.currentTimeMillis()
+
             rawMovies.forEach { raw ->
                 val categoryName = smartCategories[raw.categoryId] ?: "باقة ${raw.categoryId}"
+                val addedMs = raw.added?.toLongOrNull()?.let { it * 1000 } ?: now
                 movies.add(Movie(
                     id = raw.id,
                     name = raw.name,
                     poster = raw.poster,
                     url = "$s/movie/$user/$pass/${raw.id}.${raw.ext}",
-                    category = categoryName
+                    category = categoryName,
+                    rating = raw.rating,
+                    year = raw.year,
+                    containerExtension = raw.ext,
+                    addedAt = addedMs
                 ))
             }
         } catch (e: Exception) { }
         movies
     }
 
+    // ═══════════════════════════════════════════════════════════
+    //  المسلسلات — مع الحقول الجديدة
+    // ═══════════════════════════════════════════════════════════
     suspend fun loadSeries(
         server: String, user: String, pass: String,
         onProgress: (loaded: Int) -> Unit = {}
@@ -236,30 +261,65 @@ object XtreamApi {
             val rawSeries = mutableListOf<RawSeries>()
             for (i in 0 until arr.length()) {
                 val obj = arr.getJSONObject(i)
+                val backdrop = extractBackdrop(obj)
                 rawSeries.add(RawSeries(
                     id = obj.optString("series_id"),
                     name = obj.optString("name"),
                     cover = obj.optString("cover"),
-                    categoryId = obj.optString("category_id")
+                    categoryId = obj.optString("category_id"),
+                    plot = obj.optString("plot", "").takeIf { it.isNotBlank() },
+                    cast = obj.optString("cast", "").takeIf { it.isNotBlank() },
+                    director = obj.optString("director", "").takeIf { it.isNotBlank() },
+                    genre = obj.optString("genre", "").takeIf { it.isNotBlank() },
+                    releaseDate = obj.optString("releaseDate", "").takeIf { it.isNotBlank() },
+                    rating = obj.optString("rating", "").takeIf { it.isNotBlank() && it != "0" },
+                    backdrop = backdrop,
+                    episodeRunTime = obj.optString("episode_run_time", "").takeIf { it.isNotBlank() }
                 ))
                 if (i % 500 == 0 && i > 0) onProgress(i)
             }
             onProgress(rawSeries.size)
 
             val smartCategories = detectSmartCategoriesForSeries(rawSeries, categoriesMap)
+
             rawSeries.forEach { raw ->
                 val categoryName = smartCategories[raw.categoryId] ?: "باقة ${raw.categoryId}"
+                val yearStr = raw.releaseDate?.take(4)
                 series.add(Series(
                     id = raw.id,
                     name = raw.name,
                     poster = raw.cover,
-                    category = categoryName
+                    category = categoryName,
+                    plot = raw.plot,
+                    cast = raw.cast,
+                    director = raw.director,
+                    genre = raw.genre,
+                    year = yearStr,
+                    rating = raw.rating,
+                    backdrop = raw.backdrop,
+                    duration = raw.episodeRunTime?.let { "$it د" }
                 ))
             }
         } catch (e: Exception) { }
         series
     }
 
+    private fun extractBackdrop(obj: JSONObject): String? {
+        // backdrop_path قد يكون String أو JSONArray
+        val backdropAny = obj.opt("backdrop_path") ?: return null
+        return when (backdropAny) {
+            is String -> backdropAny.takeIf { it.isNotBlank() && it != "null" }
+            is JSONArray -> {
+                if (backdropAny.length() > 0) backdropAny.optString(0)
+                else null
+            }
+            else -> null
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  الحلقات — مع الحقول الجديدة
+    // ═══════════════════════════════════════════════════════════
     suspend fun loadEpisodes(
         server: String, user: String, pass: String, seriesId: String
     ): List<Episode> = withContext(Dispatchers.IO) {
@@ -281,13 +341,24 @@ object XtreamApi {
                     val epNum = ep.optInt("episode_num", i + 1)
                     val title = ep.optString("title", "الحلقة $epNum")
                     val ext = ep.optString("container_extension", "mp4")
+
+                    val info = ep.optJSONObject("info")
+                    val plot = info?.optString("plot", "")?.takeIf { it.isNotBlank() }
+                    val duration = info?.optString("duration", "")?.takeIf { it.isNotBlank() }
+                    val rating = info?.optString("rating", "")?.takeIf { it.isNotBlank() && it != "0" }
+
                     episodes.add(Episode(
                         id = epId,
                         title = title,
                         season = season.toIntOrNull() ?: 1,
                         episode = epNum,
                         url = "$s/series/$user/$pass/$epId.$ext",
-                        poster = ""
+                        poster = "",
+                        plot = plot,
+                        duration = duration,
+                        rating = rating,
+                        containerExtension = ext,
+                        episodeId = epId.toIntOrNull()
                     ))
                 }
             }
