@@ -92,18 +92,22 @@ object HttpClientProvider {
     }
 
     // ═══════════════════════════════════════════════════════════
-    //  ✅ Interceptor موحّد — بدون Referer/Origin/Accept-Encoding
-    //  (per PCAP analysis: بعض لوحات Xtream ترفض Referer/Origin)
+    //  ✅ Interceptor موحّد — Referer + Origin + Accept-Language
     // ═══════════════════════════════════════════════════════════
 
     private val uaInterceptor = Interceptor { chain ->
         val original = chain.request()
+        val host = original.url.host
+        val scheme = original.url.scheme
 
         val request: Request = original.newBuilder()
             .header("User-Agent", getUserAgent())
             .header("Accept", "*/*")
             .header("Accept-Language", "ar,en-US;q=0.9,en;q=0.8")
             .header("Connection", "keep-alive")
+            .header("Accept-Encoding", "identity")
+            .header("Referer", "$scheme://$host/")
+            .header("Origin", "$scheme://$host")
             .build()
         chain.proceed(request)
     }
