@@ -22,31 +22,27 @@ object PlayerFactory {
         startPositionMs: Long = 0L,
     ): ExoPlayer {
 
-        // ✅ RetryHttpDataSource كما هو (جيد)
         val dataSource = RetryHttpDataSource(candidates)
         val mediaSourceFactory = DefaultMediaSourceFactory { dataSource }
 
-        // ═══════════════════════════════════════════════════════════
-        //  ✅ LoadControl محسّن: مخزون أكبر بكثير للبث المباشر
-        //  min=30s / max=120s / start=3s / afterRebuffer=6s
-        // ═══════════════════════════════════════════════════════════
+        // ✅ LoadControl محسّن
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
-                30_000,   // minBufferMs: أدنى مخزون قبل البدء
-                120_000,  // maxBufferMs: أقصى مخزون
-                3_000,    // bufferForPlaybackMs: لا تبدأ إلا بعد 3 ثوان
-                6_000     // bufferForPlaybackAfterRebufferMs: بعد التقطيع
+                30_000,
+                120_000,
+                3_000,
+                6_000
             )
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
 
-        // ✅ TrackSelector لتحسين الاستقرار ومنع التبديل المزعج
+        // ✅ TrackSelector
         val trackSelector = DefaultTrackSelector(context).apply {
             setParameters(
                 buildUponParameters()
                     .setAllowVideoMixedMimeTypeAdaptiveness(true)
                     .setAllowAudioMixedMimeTypeAdaptiveness(true)
-                    .setForceHighestSupportedBitrate(false) // يسمح بالتكيف
+                    .setForceHighestSupportedBitrate(false)
             )
         }
 
@@ -57,48 +53,35 @@ object PlayerFactory {
             .setHandleAudioBecomingNoisy(true)
             .build()
 
-        // ═══════════════════════════════════════════════════════════
-        //  ✅ إعداد LiveConfiguration: تنعيم السرعة بدل القفزات
-        // ═══════════════════════════════════════════════════════════
         val mediaItem = MediaItem.fromUri(candidates.first())
 
+        // ✅ الإعداد الصحيح: LiveConfiguration يُمرّر مع setMediaItem
         if (kind == StreamKind.LIVE) {
             val liveConfig = MediaItem.LiveConfiguration.Builder()
-                .setTargetOffsetMs(3_000)     // تأخير 3 ثوان عن البث الحقيقي
-                .setMinPlaybackSpeed(0.95f)   // 95% حد أدنى
-                .setMaxPlaybackSpeed(1.05f)   // 105% حد أقصى
+                .setTargetOffsetMs(3_000)
+                .setMinPlaybackSpeed(0.95f)
+                .setMaxPlaybackSpeed(1.05f)
                 .build()
 
-            player.setMediaItem(mediaItem, startPositionMs)
-            player.prepare()
-            player.setLiveConfiguration(liveConfig)
+            player.setMediaItem(mediaItem, liveConfig, startPositionMs)
         } else {
             player.setMediaItem(mediaItem, startPositionMs)
-            player.prepare()
         }
 
+        player.prepare()
         player.playWhenReady = true
 
-        // ═══════════════════════════════════════════════════════════
-        //  ✅ إدارة أخطاء ذكية: لا تعيد التهيئة عند كل تقطيع
-        //  - بحد أقصى 3 محاولات
-        //  - فترة تهدئة 30 ثانية قبل إعادة العد
-        // ═══════════════════════════════════════════════════════════
+        // ✅ إدارة أخطاء ذكية - حد 3 محاولات
         var errorCount = 0
         var lastErrorTime = 0L
 
         player.addListener(object : Player.Listener {
             override fun onPlayerError(error: PlaybackException) {
                 val now = System.currentTimeMillis()
-
-                // صفّر العدّاد إذا مر أكثر من 30 ثانية على آخر خطأ
-                if (now - lastErrorTime > 30_000) {
-                    errorCount = 0
-                }
+                if (now - lastErrorTime > 30_000) errorCount = 0
                 errorCount++
                 lastErrorTime = now
 
-                // بعد 3 أخطاء متتالية: توقف عن إعادة المحاولة
                 if (errorCount > 3) return
 
                 val pos = player.currentPosition
