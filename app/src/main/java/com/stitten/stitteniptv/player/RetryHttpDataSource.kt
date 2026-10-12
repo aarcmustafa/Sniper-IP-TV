@@ -4,19 +4,31 @@ import android.net.Uri
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.BaseDataSource
 import androidx.media3.datasource.DataSpec
-import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.TransferListener
+import androidx.media3.datasource.okhttp.OkHttpDataSource
 import com.stitten.stitteniptv.data.HttpClientProvider
 import java.io.IOException
 
+/**
+ * DataSource يعتمد على OkHttpClient المشترك (streamingClient).
+ *
+ * المزايا التي يحصل عليها البث من هذا الدمج:
+ *   - SmartDns (IPv4 preference + DoH fallback)
+ *   - CookieJar مشترك مع طلبات Xtream API
+ *   - ConnectionPool مع 32 keep-alive connection
+ *   - tcpNoDelay لتقليل زمن الاستجابة
+ *   - retryOn5xx تلقائي
+ *   - User-Agent موحّد (VLC/3.0.20 LibVLC/3.0.20)
+ *
+ * يدعم أيضاً قائمة مرشحين (روابط احتياطية).
+ */
 @UnstableApi
 class RetryHttpDataSource(
     private val candidates: List<String>,
     listener: TransferListener? = null,
 ) : BaseDataSource(true) {
 
-    private var currentIndex = 0
-    private var current: DefaultHttpDataSource? = null
+    private var current: OkHttpDataSource? = null
     private var currentUri: String? = null
     private var bytesRemaining = 0L
 
@@ -34,11 +46,10 @@ class RetryHttpDataSource(
         for (i in startIndex until candidates.size) {
             val url = candidates[i]
             try {
-                val source = buildSource(url)
+                val source = buildSource()
                 val newSpec = dataSpec.withUri(Uri.parse(url))
                 val len = source.open(newSpec)
                 current = source
-                currentIndex = i
                 currentUri = url
                 bytesRemaining = len
                 transferStarted(dataSpec)
@@ -56,28 +67,13 @@ class RetryHttpDataSource(
         throw lastError ?: IOException("All stream candidates failed")
     }
 
-    // ✅ DefaultHttpDataSource مع User-Agent فقط (بدون Referer/Origin/Accept-Encoding)
-    private fun buildSource(url: String): DefaultHttpDataSource {
-        val ua = HttpClientProvider.getUserAgent()
-
-        val headers = mutableMapOf<String, String>()
-        headers["User-Agent"] = ua
-        headers["Accept"] = "*/*"
-        headers["Connection"] = "keep-alive"
-
-        try {
-            val cookieHeader = HttpClientProvider.getCookiesHeader(url)
-            if (!cookieHeader.isNullOrBlank()) {
-                headers["Cookie"] = cookieHeader
-            }
-        } catch (_: Exception) { }
-
-        return DefaultHttpDataSource.Factory()
-            .setUserAgent(ua)
-            .setDefaultRequestProperties(headers)
-            .setConnectTimeoutMs(8_000)
-            .setReadTimeoutMs(8_000)
-            .setAllowCrossProtocolRedirects(true)
+    /**
+     * نستخدم streamingClient المشترك من HttpClientProvider.
+     * كل شيء (UA, DNS, Cookies, Timeouts, Retry) مُدار مركزياً هناك.
+     */
+    private fun buildSource(): OkHttpDataSource {
+        return OkHttpDataSource.Factory(HttpClientProvider.streamingClient)
+            .setUserAgent(HttpClientProvider.getUserAgent())
             .createDataSource()
     }
 
