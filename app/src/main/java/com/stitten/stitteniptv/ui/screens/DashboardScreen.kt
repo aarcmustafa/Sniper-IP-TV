@@ -70,6 +70,11 @@ fun DashboardScreen(
 
     var isRefreshing by remember { mutableStateOf(false) }
 
+    // ═══════════════════════════════════════════════════════════
+    //  ✅ التحميل الكامل: نعرض الدائرة النسبية حتى تصل 100%
+    // ═══════════════════════════════════════════════════════════
+    val showFullLoading = mainState.isLoading || isRefreshing
+
     LaunchedEffect(mainState.isLoading, isRefreshing) {
         if (isRefreshing && !mainState.isLoading) {
             viewModel.retry()
@@ -83,23 +88,37 @@ fun DashboardScreen(
             .background(Color(0xFF0D1117))
     ) {
         when {
-            isRefreshing -> Box(
+            // 1️⃣ التحميل الرئيسي (من المصدر) — دائرة نسبية %
+            showFullLoading -> Box(
                 Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center,
             ) {
                 LoadingProgress(
-                    progress = mainState.loadingProgress / 100f,
-                    label = mainState.loadingMessage,
+                    progress = (mainState.loadingProgress / 100f)
+                        .coerceIn(0f, 1f)
+                        .let { if (it <= 0f) null else it },
+                    label = mainState.loadingMessage.ifBlank { "جارٍ تحميل القنوات..." },
                 )
             }
 
-            state.isLoading -> SkeletonHomeScreen()
+            // 2️⃣ تحميل بيانات الواجهة (بعد انتهاء المصدر)
+            state.isLoading -> Box(
+                Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center,
+            ) {
+                LoadingProgress(
+                    progress = null,
+                    label = "جارٍ تجهيز الواجهة...",
+                )
+            }
 
+            // 3️⃣ خطأ
             state.errorMessage != null -> ErrorView(
                 message = state.errorMessage!!,
                 onRetry = viewModel::retry,
             )
 
+            // 4️⃣ المحتوى
             else -> DashboardContent(
                 state = state,
                 onMovieClick = { movie ->
