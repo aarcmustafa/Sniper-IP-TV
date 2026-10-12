@@ -9,7 +9,6 @@ import androidx.compose.ui.graphics.Color
 
 // ─────────────────────────────────────────────────────────────
 //  الخلفيات (Layered Surfaces)
-//  كل طبقة أفتح قليلاً من السابقة لخلق عمق بصري
 // ─────────────────────────────────────────────────────────────
 
 /** الخلفية الأساسية — أسود عميق يبرز البوسترات */
@@ -41,7 +40,7 @@ val TvPrimaryLight = Color(0xFF60A5FA)
 //  الألوان المميزة (Accents)
 // ─────────────────────────────────────────────────────────────
 
-/** ذهبي فاخر — للعناصر المميزة (VIP, Featured, Premium) */
+/** ذهبي فاخر — للعناصر المميزة */
 val TvGold = Color(0xFFF5B301)
 
 /** أخضر نجاح — للتأكيدات */
@@ -93,14 +92,11 @@ val TvBorder = Color(0xFF2A2E38)
 val TvBorderActive = Color(0xFF3B82F6)
 
 // ─────────────────────────────────────────────────────────────
-//  Gradients للـ Hero Banner والبطاقات
+//  Gradients
 // ─────────────────────────────────────────────────────────────
 
-/** تعتيم من أسفل للأعلى — لقراءة النص فوق الصور */
 val TvGradientBottom = Color(0x00000000)
 val TvGradientTop = Color(0xE6000000)
-
-/** طبقة شفافة للنقر */
 val TvScrim = Color(0x99000000)
 
 // ─────────────────────────────────────────────────────────────
@@ -110,9 +106,30 @@ val TvScrim = Color(0x99000000)
 /** لون خلفية Skeleton loading */
 val TvSkeleton = Color(0xFF1F2330)
 
-/** لون تمييز Skeletton (Shimmer) */
+/** لون تمييز Skeleton (Shimmer) */
 val TvSkeletonHighlight = Color(0xFF2A2F3D)
 
-/** لون التصنيفات المحددة */
+/** ألوان التصنيفات */
 val TvChipSelected = Color(0xFF3B82F6)
 val TvChipUnselected = Color(0xFF1A1D26)
+
+// ═══════════════════════════════════════════════════════════
+//  🔄 Aliases للتوافق مع الكود القديم
+//  (يمكن حذفها لاحقًا بعد تحديث كل الشاشات)
+// ═══════════════════════════════════════════════════════════
+
+val BackgroundDark = TvBackground
+val SurfaceDark = TvSurface
+val SurfaceElevated = TvSurfaceElevated
+val SurfaceHighlight = TvSurfaceHigh
+
+val PrimaryAccent = TvPrimary
+val SecondaryAccent = TvPrimaryLight
+val FocusBorder = TvFocus
+val GreenAccent = TvSuccess
+val RedAccent = TvError
+
+val TextPrimary = TvText
+val TextSecondary = TvTextSecondary
+val TextMuted = TvTextTertiary
+val Divider = TvBorder
