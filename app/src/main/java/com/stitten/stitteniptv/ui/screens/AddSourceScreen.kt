@@ -12,25 +12,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -50,9 +38,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -63,8 +48,12 @@ import com.stitten.stitteniptv.data.ContentRepository
 import com.stitten.stitteniptv.data.M3uParser
 import com.stitten.stitteniptv.data.XtreamApi
 import com.stitten.stitteniptv.database.entity.SourceEntity
+import com.stitten.stitteniptv.ui.components.PasswordField
 import com.stitten.stitteniptv.ui.components.tvFocusable
 import com.stitten.stitteniptv.ui.navigation.Routes
+import com.stitten.stitteniptv.ui.theme.Radius
+import com.stitten.stitteniptv.ui.theme.Spacing
+import com.stitten.stitteniptv.ui.theme.TvSurfaceHigh
 import com.stitten.stitteniptv.viewmodel.MainViewModel
 import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.launch
@@ -97,7 +86,6 @@ fun AddSourceScreen(
     var pass by remember { mutableStateOf("") }
     var epgUrl by remember { mutableStateOf("") }
     var message by remember { mutableStateOf("") }
-    var showPassword by remember { mutableStateOf(false) }
 
     var localLoading by remember { mutableStateOf(false) }
     var pendingNavigate by remember { mutableStateOf(false) }
@@ -147,15 +135,12 @@ fun AddSourceScreen(
     ) { uri: Uri? ->
         uri ?: return@rememberLauncherForActivityResult
 
-        // ✅ طلب صلاحية دائمة للملف — يمنع فقدانه بعد إعادة التشغيل
         try {
             ctx.contentResolver.takePersistableUriPermission(
                 uri,
                 Intent.FLAG_GRANT_READ_URI_PERMISSION
             )
-        } catch (e: Exception) {
-            // بعض المزودين لا يدعمون الصلاحيات الدائمة — لا مشكلة
-        }
+        } catch (_: Exception) { }
 
         scope.launch {
             localLoading = true
@@ -203,7 +188,7 @@ fun AddSourceScreen(
             }
         }
     }
-    
+
     Box(modifier = Modifier.fillMaxSize()) {
 
         Image(
@@ -245,11 +230,11 @@ fun AddSourceScreen(
             Spacer(Modifier.height(16.dp))
 
             Row(horizontalArrangement = Arrangement.Center) {
-                TabButton("M3U / M3U8", mode == 0, !isBusy) { mode = 0 }
+                AddSourceTabButton("M3U / M3U8", mode == 0, !isBusy) { mode = 0 }
                 Spacer(Modifier.width(8.dp))
-                TabButton("ملف من الجهاز / USB", mode == 1, !isBusy) { mode = 1 }
+                AddSourceTabButton("ملف من الجهاز / USB", mode == 1, !isBusy) { mode = 1 }
                 Spacer(Modifier.width(8.dp))
-                TabButton("Xtream API", mode == 2, !isBusy) { mode = 2 }
+                AddSourceTabButton("Xtream API", mode == 2, !isBusy) { mode = 2 }
             }
             Spacer(Modifier.height(24.dp))
 
@@ -382,42 +367,19 @@ fun AddSourceScreen(
                         enabled = !isBusy
                     )
                     Spacer(Modifier.height(12.dp))
-                    OutlinedTextField(
+
+                    // ═══════════════════════════════════════════════
+                    //  كلمة السر — زر الكشف مستقل وغير قابل للتركيز بالريموت
+                    // ═══════════════════════════════════════════════
+                    PasswordField(
                         value = pass,
                         onValueChange = { pass = it },
-                        label = { Text("Password") },
-                        visualTransformation = if (showPassword)
-                            VisualTransformation.None
-                        else
-                            PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Password
-                        ),
-                        trailingIcon = {
-                            Box(
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .tvFocusable(onClick = { showPassword = !showPassword }),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Icon(
-                                    imageVector = if (showPassword)
-                                        Icons.Default.VisibilityOff
-                                    else
-                                        Icons.Default.Visibility,
-                                    contentDescription = if (showPassword)
-                                        "إخفاء كلمة المرور"
-                                    else
-                                        "إظهار كلمة المرور",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(24.dp),
-                                )
-                            }
-                        },
+                        label = "Password",
+                        placeholder = "أدخل كلمة المرور",
+                        enabled = !isBusy,
                         modifier = Modifier.width(600.dp),
-                        singleLine = true,
-                        enabled = !isBusy
                     )
+
                     Spacer(Modifier.height(20.dp))
                     Button(
                         onClick = {
@@ -464,152 +426,47 @@ fun AddSourceScreen(
                         },
                         modifier = Modifier.width(300.dp).height(56.dp),
                         enabled = !isBusy
-                    ) { Text("اختبار وحفظ", fontSize = 18.sp) }
+                    ) { Text("حفظ وتحميل", fontSize = 18.sp) }
                 }
             }
 
-            // ─── رسالة الخطأ ───
-            if (message.isNotEmpty() && !isBusy) {
+            if (message.isNotBlank()) {
                 Spacer(Modifier.height(16.dp))
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = Color(0xFFDA3633).copy(alpha = 0.2f)
-                    ),
-                    shape = RoundedCornerShape(10.dp),
+                Text(
+                    message,
+                    color = if (message.startsWith("خطأ") || message.contains("فشل") ||
+                        message.contains("غير صحيحة") || message.contains("املأ"))
+                        Color(0xFFDA3633)
+                    else
+                        Color(0xFF66BB6A),
+                    fontSize = 15.sp,
+                    textAlign = TextAlign.Center,
                     modifier = Modifier.width(600.dp)
-                ) {
-                    Text(
-                        text = "⚠️ $message",
-                        color = Color(0xFFFF7B72),
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Medium,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(14.dp)
-                    )
-                }
+                )
+            }
+
+            // ─── شريط التقدم ───
+            if (isBusy) {
+                Spacer(Modifier.height(24.dp))
+                AddSourceProgressCard(
+                    progress = progressPercent,
+                    message = progressMessage
+                )
             }
 
             Spacer(Modifier.height(24.dp))
-        }
 
-        // ═══════════════════════════════════════════════════════════
-        //  Progress Overlay
-        // ═══════════════════════════════════════════════════════════
-        if (isBusy) {
-            ProgressOverlay(
-                progress = progressPercent,
-                message = progressMessage,
+            // ─── زر الرجوع ───
+            Text(
+                "← رجوع",
+                color = Color.White,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier
+                    .tvFocusable(onClick = { navController.popBackStack() })
+                    .background(TvSurfaceHigh, RoundedCornerShape(Radius.md))
+                    .padding(horizontal = Spacing.xxl, vertical = Spacing.md)
             )
         }
     }
-}
-
-// ═══════════════════════════════════════════════════════════════
-//  Progress Overlay
-// ═══════════════════════════════════════════════════════════════
-
-@Composable
-private fun ProgressOverlay(
-    progress: Int,
-    message: String,
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.92f)),
-        contentAlignment = Alignment.Center
-    ) {
-        Card(
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF161B22)),
-            shape = RoundedCornerShape(20.dp),
-            modifier = Modifier.width(420.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .padding(40.dp)
-                    .fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier.size(200.dp)
-                ) {
-                    CircularProgressIndicator(
-                        progress = { (progress / 100f).coerceIn(0f, 1f) },
-                        modifier = Modifier.size(200.dp),
-                        color = MaterialTheme.colorScheme.primary,
-                        strokeWidth = 14.dp,
-                        trackColor = Color(0xFF21262D)
-                    )
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            "$progress%",
-                            color = Color.White,
-                            fontSize = 48.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            "مكتمل",
-                            color = Color.LightGray,
-                            fontSize = 12.sp
-                        )
-                    }
-                }
-
-                Spacer(Modifier.height(28.dp))
-
-                Text(
-                    message.ifBlank { "جاري التحميل..." },
-                    color = Color.White,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Medium,
-                    textAlign = TextAlign.Center,
-                    maxLines = 3,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(Modifier.height(20.dp))
-
-                LinearProgressIndicator(
-                    progress = { (progress / 100f).coerceIn(0f, 1f) },
-                    modifier = Modifier.fillMaxWidth().height(8.dp),
-                    color = MaterialTheme.colorScheme.primary,
-                    trackColor = Color(0xFF21262D)
-                )
-
-                Spacer(Modifier.height(16.dp))
-
-                Text(
-                    "لا تغلق التطبيق",
-                    color = Color(0xFF8B949E),
-                    fontSize = 12.sp,
-                )
-            }
-        }
-    }
-}
-
-// ═══════════════════════════════════════════════════════════════
-//  زر تبويب
-// ═══════════════════════════════════════════════════════════════
-
-@Composable
-private fun TabButton(
-    text: String,
-    selected: Boolean,
-    enabled: Boolean,
-    onClick: () -> Unit
-) {
-    Button(
-        onClick = onClick,
-        enabled = enabled,
-        colors = ButtonDefaults.buttonColors(
-            containerColor = if (selected) MaterialTheme.colorScheme.primary
-            else MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-            contentColor = if (selected) MaterialTheme.colorScheme.onPrimary
-            else MaterialTheme.colorScheme.onSurface
-        )
-    ) { Text(text, fontSize = 14.sp) }
 }
