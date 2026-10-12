@@ -9,16 +9,6 @@ import androidx.media3.datasource.TransferListener
 import com.stitten.stitteniptv.data.HttpClientProvider
 import java.io.IOException
 
-/**
- * DataSource يعتمد على DefaultHttpDataSource (مضمون أنه يعمل مع Media3)
- * مع دعم:
- *  - User-Agent من HttpClientProvider
- *  - Cookies من CookieJar
- *  - Referer + Origin + Accept-Language
- *  - AllowCrossProtocolRedirects (HTTP → HTTPS)
- *  - Timeouts قصيرة للفشل السريع
- *  - تبديل تلقائي بين المرشحين
- */
 @UnstableApi
 class RetryHttpDataSource(
     private val candidates: List<String>,
@@ -66,12 +56,6 @@ class RetryHttpDataSource(
         throw lastError ?: IOException("All stream candidates failed")
     }
 
-    /**
-     * ✅ يبني DefaultHttpDataSource مع:
-     *  - الرؤوس المطلوبة يدويًا (لأن DefaultHttpDataSource لا يعرف Interceptor)
-     *  - مهلة قصيرة
-     *  - تتبع التحويلات بين HTTP و HTTPS
-     */
     private fun buildSource(url: String): DefaultHttpDataSource {
         val ua = HttpClientProvider.getUserAgent()
 
@@ -82,7 +66,6 @@ class RetryHttpDataSource(
         headers["Connection"] = "keep-alive"
         headers["Accept-Encoding"] = "identity"
 
-        // Referer + Origin
         try {
             val uri = Uri.parse(url)
             val host = uri.host
@@ -93,7 +76,6 @@ class RetryHttpDataSource(
             }
         } catch (_: Exception) { }
 
-        // Cookies
         try {
             val cookieHeader = HttpClientProvider.getCookiesHeader(url)
             if (!cookieHeader.isNullOrBlank()) {
@@ -104,8 +86,8 @@ class RetryHttpDataSource(
         return DefaultHttpDataSource.Factory()
             .setUserAgent(ua)
             .setDefaultRequestProperties(headers)
-            .setConnectTimeoutMs(10_000)   // ✅ مدعوم في DefaultHttpDataSource
-            .setReadTimeoutMs(15_000)      // ✅ مدعوم
+            .setConnectTimeoutMs(10_000)
+            .setReadTimeoutMs(15_000)
             .setAllowCrossProtocolRedirects(true)
             .createDataSource()
     }
