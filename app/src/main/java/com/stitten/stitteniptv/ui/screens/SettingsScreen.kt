@@ -20,27 +20,21 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.LiveTv
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Movie
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Storage
-import androidx.compose.material.icons.filled.Tv
-import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -51,14 +45,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.stitten.stitteniptv.R
 import com.stitten.stitteniptv.data.PrefsManager
+import com.stitten.stitteniptv.ui.components.tvFocusable
 import com.stitten.stitteniptv.ui.navigation.Routes
 import com.stitten.stitteniptv.ui.settings.UserAgentSection
 import com.stitten.stitteniptv.ui.theme.AppIcons
@@ -88,7 +85,6 @@ fun SettingsScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
 
-        // ─── خلفية ───
         if (!liteModeState) {
             Image(
                 painter = painterResource(id = R.drawable.bg_main),
@@ -99,7 +95,7 @@ fun SettingsScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.80f))
+                    .background(Color.Black.copy(alpha = 0.85f))
             )
         } else {
             Box(
@@ -116,18 +112,18 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState())
         ) {
 
-            // ═══════════════════════════════════════════════════
-            //  الشريط العلوي (رجوع + عنوان)
-            // ═══════════════════════════════════════════════════
+            // ═══════════════════════════════════════════════════════
+            //  الشريط العلوي
+            // ═══════════════════════════════════════════════════════
             SettingsTopBar(
                 onBack = { navController.popBackStack() },
             )
 
             Spacer(Modifier.height(24.dp))
 
-            // ═══════════════════════════════════════════════════
-            //  📺 العرض والواجهة
-            // ═══════════════════════════════════════════════════
+            // ═══════════════════════════════════════════════════════
+            //  🎬 العرض والواجهة
+            // ═══════════════════════════════════════════════════════
             SectionHeader(
                 icon = AppIcons.Movies,
                 title = "العرض والواجهة",
@@ -175,9 +171,9 @@ fun SettingsScreen(
 
             Spacer(Modifier.height(28.dp))
 
-            // ═══════════════════════════════════════════════════
+            // ═══════════════════════════════════════════════════════
             //  🌐 الشبكة والاتصال
-            // ═══════════════════════════════════════════════════
+            // ═══════════════════════════════════════════════════════
             SectionHeader(
                 icon = AppIcons.Wifi,
                 title = "الشبكة والاتصال",
@@ -187,9 +183,9 @@ fun SettingsScreen(
 
             Spacer(Modifier.height(28.dp))
 
-            // ═══════════════════════════════════════════════════
+            // ═══════════════════════════════════════════════════════
             //  💾 المحتوى والمفضلة
-            // ═══════════════════════════════════════════════════
+            // ═══════════════════════════════════════════════════════
             SectionHeader(
                 icon = AppIcons.Favorites,
                 title = "المحتوى والمفضلة",
@@ -245,9 +241,9 @@ fun SettingsScreen(
 
             Spacer(Modifier.height(28.dp))
 
-            // ═══════════════════════════════════════════════════
+            // ═══════════════════════════════════════════════════════
             //  📡 المصادر
-            // ═══════════════════════════════════════════════════
+            // ═══════════════════════════════════════════════════════
             SectionHeader(
                 icon = AppIcons.Source,
                 title = "المصادر",
@@ -269,9 +265,9 @@ fun SettingsScreen(
 
             Spacer(Modifier.height(28.dp))
 
-            // ═══════════════════════════════════════════════════
+            // ═══════════════════════════════════════════════════════
             //  🔧 الأدوات
-            // ═══════════════════════════════════════════════════
+            // ═══════════════════════════════════════════════════════
             SectionHeader(
                 icon = AppIcons.Settings,
                 title = "الأدوات",
@@ -301,9 +297,9 @@ fun SettingsScreen(
 
             Spacer(Modifier.height(28.dp))
 
-            // ═══════════════════════════════════════════════════
+            // ═══════════════════════════════════════════════════════
             //  💻 معلومات الجهاز
-            // ═══════════════════════════════════════════════════
+            // ═══════════════════════════════════════════════════════
             SectionHeader(
                 icon = AppIcons.Storage,
                 title = "معلومات الجهاز",
@@ -358,9 +354,9 @@ fun SettingsScreen(
 
             Spacer(Modifier.height(28.dp))
 
-            // ═══════════════════════════════════════════════════
+            // ═══════════════════════════════════════════════════════
             //  ℹ️ حول التطبيق
-            // ═══════════════════════════════════════════════════
+            // ═══════════════════════════════════════════════════════
             SectionHeader(
                 icon = AppIcons.Info,
                 title = "حول التطبيق",
@@ -374,20 +370,23 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(Modifier.padding(20.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = AppIcons.Movies,
-                            contentDescription = null,
-                            tint = Color(0xFF1F6FEB),
-                            modifier = Modifier.size(28.dp)
-                        )
-                        Spacer(Modifier.width(12.dp))
-                        Text(
-                            "STTITEN IP TV",
-                            color = Color(0xFF1F6FEB),
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                    // ✅ LTR للشعار
+                    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = AppIcons.Movies,
+                                contentDescription = null,
+                                tint = Color(0xFF1F6FEB),
+                                modifier = Modifier.size(28.dp)
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Text(
+                                "STTITEN IP TV",
+                                color = Color(0xFF1F6FEB),
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                     Spacer(Modifier.height(12.dp))
                     InfoRow("المطور", "جلولي مصطفى")
@@ -398,9 +397,9 @@ fun SettingsScreen(
 
             Spacer(Modifier.height(32.dp))
 
-            // ═══════════════════════════════════════════════════
+            // ═══════════════════════════════════════════════════════
             //  تسجيل الخروج
-            // ═══════════════════════════════════════════════════
+            // ═══════════════════════════════════════════════════════
             Button(
                 onClick = {
                     prefs.clear()
@@ -420,7 +419,11 @@ fun SettingsScreen(
                     modifier = Modifier.size(22.dp)
                 )
                 Spacer(Modifier.width(10.dp))
-                Text("تسجيل الخروج", fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    "تسجيل الخروج",
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold
+                )
             }
 
             Spacer(Modifier.height(24.dp))
@@ -438,7 +441,12 @@ private fun SettingsTopBar(onBack: () -> Unit) {
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconButton(onClick = onBack) {
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .tvFocusable(onClick = onBack),
+            contentAlignment = Alignment.Center,
+        ) {
             Icon(
                 Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = "رجوع",
@@ -446,14 +454,18 @@ private fun SettingsTopBar(onBack: () -> Unit) {
                 modifier = Modifier.size(28.dp),
             )
         }
+
         Spacer(Modifier.width(12.dp))
+
         Icon(
             imageVector = AppIcons.Settings,
             contentDescription = null,
             tint = Color(0xFF1F6FEB),
             modifier = Modifier.size(32.dp),
         )
+
         Spacer(Modifier.width(12.dp))
+
         Text(
             "الإعدادات",
             color = Color.White,
@@ -464,7 +476,7 @@ private fun SettingsTopBar(onBack: () -> Unit) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  عنوان قسم (مع أيقونة + خط فاصل)
+//  عنوان قسم
 // ═══════════════════════════════════════════════════════════════
 
 @Composable
@@ -495,7 +507,87 @@ private fun SectionHeader(
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  نص توضيحي أسفل الإعداد
+//  صف قابل للتركيز
+// ═══════════════════════════════════════════════════════════════
+
+@Composable
+private fun FocusableSettingRow(
+    label: String,
+    onClick: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .tvFocusable(onClick = onClick)
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(
+            text = label,
+            color = Color.White,
+            fontSize = 17.sp,
+            fontWeight = FontWeight.Medium,
+        )
+        content()
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  صف تنقل
+// ═══════════════════════════════════════════════════════════════
+
+@Composable
+private fun FocusableNavigationRow(
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .tvFocusable(onClick = onClick),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFF161B22).copy(alpha = 0.9f)
+        ),
+        shape = RoundedCornerShape(12.dp),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    title,
+                    color = Color.White,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    subtitle,
+                    color = Color.White.copy(alpha = 0.75f),
+                    fontSize = 12.sp
+                )
+            }
+            Icon(
+                Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier
+                    .size(24.dp)
+                    .graphicsLayer(rotationZ = 180f),
+            )
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  نص توضيحي
 // ═══════════════════════════════════════════════════════════════
 
 @Composable
@@ -504,6 +596,32 @@ private fun HintText(text: String) {
         text = text,
         color = Color(0xFF8B949E),
         fontSize = 12.sp,
-        modifier = Modifier.padding(start = 8.dp, bottom = 12.dp, top = 4.dp),
+        modifier = Modifier.padding(start = 8.dp, top = 2.dp, bottom = 8.dp),
     )
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  صف معلومات
+// ═══════════════════════════════════════════════════════════════
+
+@Composable
+private fun InfoRow(label: String, value: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 3.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(
+            text = label,
+            color = Color(0xFF8B949E),
+            fontSize = 14.sp,
+        )
+        Text(
+            text = value,
+            color = Color.White,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+        )
+    }
 }
