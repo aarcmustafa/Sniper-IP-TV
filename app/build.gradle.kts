@@ -69,10 +69,10 @@ android {
 }
 
 dependencies {
+
     // ═══════════════════════════════════════════════════════════
-    //  LibVLC (محرك VLC لتشغيل البث)
+    //  LibVLC (محرك VLC لتشغيل البث)  ← 🆕 أُضيف حديثًا
     // ═══════════════════════════════════════════════════════════
-    // المكتبة الرسمية من VideoLAN
     implementation("org.videolan.android:libvlc-all:3.7.5")
 
     // ═══════════════════════════════════════════════════════════
@@ -99,7 +99,7 @@ dependencies {
     implementation("androidx.leanback:leanback:1.0.0")
 
     // ═══════════════════════════════════════════════════════════
-    //  Media3
+    //  Media3 (ExoPlayer)
     // ═══════════════════════════════════════════════════════════
     val media3 = "1.5.1"
     implementation("androidx.media3:media3-exoplayer:$media3")
