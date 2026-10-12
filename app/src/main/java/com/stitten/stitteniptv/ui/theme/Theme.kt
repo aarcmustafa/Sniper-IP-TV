@@ -91,6 +91,7 @@ fun STTITENIPTVTheme(
     MaterialTheme(
         colorScheme = colorScheme,
         typography = AppTypography,
+        shapes = AppShapes,        // ← ✅ أُضيف هذا السطر
         content = content,
     )
 }
