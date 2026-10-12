@@ -36,29 +36,22 @@ class VlcPlayerEngine(private val context: Context) : PlayerEngine {
 
     private fun ensurePlayer(): MediaPlayer {
         mediaPlayer?.let { return it }
-
         val mp = MediaPlayer(libVLC).apply {
             vlcVideoLayout?.let { attachViews(it, null, false, false) }
             setEventListener { event ->
                 when (event.type) {
                     MediaPlayer.Event.Opening ->
                         onStateChanged?.invoke(PlayerState.Loading)
-
                     MediaPlayer.Event.Playing ->
                         onStateChanged?.invoke(PlayerState.Playing)
-
                     MediaPlayer.Event.Paused ->
                         onStateChanged?.invoke(PlayerState.Paused)
-
                     MediaPlayer.Event.Stopped ->
                         onStateChanged?.invoke(PlayerState.Idle)
-
                     MediaPlayer.Event.Buffering ->
                         onStateChanged?.invoke(PlayerState.Buffering(event.buffering))
-
                     MediaPlayer.Event.EndReached ->
                         onStateChanged?.invoke(PlayerState.Ended)
-
                     MediaPlayer.Event.EncounteredError -> {
                         onStateChanged?.invoke(PlayerState.Error)
                         onError?.invoke("فشل تشغيل القناة بواسطة VLC")
@@ -76,7 +69,9 @@ class VlcPlayerEngine(private val context: Context) : PlayerEngine {
         mediaPlayer?.attachViews(layout, null, false, false)
     }
 
-    override fun prepare(url: String) {
+    // ✅ الدالة الجديدة تدعم قائمة مرشحين (VLC يستخدم الأول)
+    override fun prepare(candidates: List<String>, kind: StreamKind) {
+        val url = candidates.firstOrNull() ?: return
         if (url.isBlank()) return
         onStateChanged?.invoke(PlayerState.Loading)
 
