@@ -18,11 +18,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -41,7 +38,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -113,9 +109,6 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState())
         ) {
 
-            // ═══════════════════════════════════════════════════════
-            //  الشريط العلوي
-            // ═══════════════════════════════════════════════════════
             SettingsTopBar(
                 onBack = { navController.popBackStack() },
             )
@@ -371,7 +364,6 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(Modifier.padding(20.dp)) {
-                    // ✅ LTR للشعار
                     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
@@ -508,86 +500,6 @@ private fun SectionHeader(
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  صف قابل للتركيز
-// ═══════════════════════════════════════════════════════════════
-
-@Composable
-private fun FocusableSettingRow(
-    label: String,
-    onClick: () -> Unit,
-    content: @Composable () -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-            .tvFocusable(onClick = onClick)
-            .padding(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Text(
-            text = label,
-            color = Color.White,
-            fontSize = 17.sp,
-            fontWeight = FontWeight.Medium,
-        )
-        content()
-    }
-}
-
-// ═══════════════════════════════════════════════════════════════
-//  صف تنقل
-// ═══════════════════════════════════════════════════════════════
-
-@Composable
-private fun FocusableNavigationRow(
-    title: String,
-    subtitle: String,
-    onClick: () -> Unit,
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .tvFocusable(onClick = onClick),
-        colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF161B22).copy(alpha = 0.9f)
-        ),
-        shape = RoundedCornerShape(12.dp),
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    title,
-                    color = Color.White,
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    subtitle,
-                    color = Color.White.copy(alpha = 0.75f),
-                    fontSize = 12.sp
-                )
-            }
-            Icon(
-                Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier
-                    .size(24.dp)
-                    .graphicsLayer(rotationZ = 180f),
-            )
-        }
-    }
-}
-
-// ═══════════════════════════════════════════════════════════════
 //  نص توضيحي
 // ═══════════════════════════════════════════════════════════════
 
@@ -599,30 +511,4 @@ private fun HintText(text: String) {
         fontSize = 12.sp,
         modifier = Modifier.padding(start = 8.dp, top = 2.dp, bottom = 8.dp),
     )
-}
-
-// ═══════════════════════════════════════════════════════════════
-//  صف معلومات
-// ═══════════════════════════════════════════════════════════════
-
-@Composable
-private fun InfoRow(label: String, value: String) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 3.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Text(
-            text = label,
-            color = Color(0xFF8B949E),
-            fontSize = 14.sp,
-        )
-        Text(
-            text = value,
-            color = Color.White,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Medium,
-        )
-    }
 }
