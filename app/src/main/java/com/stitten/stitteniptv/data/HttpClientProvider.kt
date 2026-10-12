@@ -92,22 +92,18 @@ object HttpClientProvider {
     }
 
     // ═══════════════════════════════════════════════════════════
-    //  ✅ Interceptor موحّد — Referer + Origin + Accept-Language
+    //  ✅ Interceptor موحّد — بدون Referer/Origin/Accept-Encoding
+    //  (per PCAP analysis: بعض لوحات Xtream ترفض Referer/Origin)
     // ═══════════════════════════════════════════════════════════
 
     private val uaInterceptor = Interceptor { chain ->
         val original = chain.request()
-        val host = original.url.host
-        val scheme = original.url.scheme
 
         val request: Request = original.newBuilder()
             .header("User-Agent", getUserAgent())
             .header("Accept", "*/*")
             .header("Accept-Language", "ar,en-US;q=0.9,en;q=0.8")
             .header("Connection", "keep-alive")
-            .header("Accept-Encoding", "identity")
-            .header("Referer", "$scheme://$host/")
-            .header("Origin", "$scheme://$host")
             .build()
         chain.proceed(request)
     }
@@ -249,14 +245,13 @@ object HttpClientProvider {
     }
 
     // ═══════════════════════════════════════════════════════════
-    //  ✅ SmartDns: Cache + IPv4 preference + DoH fallback
+    //  SmartDns: Cache + IPv4 preference + DoH fallback
     // ═══════════════════════════════════════════════════════════
 
     private val dnsCache = ConcurrentHashMap<String, List<InetAddress>>()
     private val dnsTimestamps = ConcurrentHashMap<String, Long>()
     private const val DNS_CACHE_MS = 60 * 60 * 1000L
 
-    /** عميل صغير لاستخدامه في DoH (بدون SmartDns لتجنب recursion) */
     private val dohClient: OkHttpClient by lazy {
         val sslContext = buildSslContext()
         val tm = buildTrustManager()
@@ -274,12 +269,10 @@ object HttpClientProvider {
             val cached = dnsCache[hostname]
             val timestamp = dnsTimestamps[hostname] ?: 0L
 
-            // ── 1) Cache سليم ──
             if (cached != null && (now - timestamp) < DNS_CACHE_MS) {
                 return cached
             }
 
-            // ── 2) حاول DNS النظام ──
             try {
                 val result = Dns.SYSTEM.lookup(hostname)
                 if (result.isNotEmpty()) {
@@ -289,10 +282,8 @@ object HttpClientProvider {
                     return ordered
                 }
             } catch (_: UnknownHostException) {
-                // فشل — سنجرب DoH
             } catch (_: Exception) { }
 
-            // ── 3) Fallback: DoH via Cloudflare ──
             try {
                 val result = dohLookup(hostname)
                 if (result.isNotEmpty()) {
@@ -304,13 +295,11 @@ object HttpClientProvider {
                 }
             } catch (_: Exception) { }
 
-            // ── 4) استخدم cache قديم كحل أخير ──
             cached?.let { return it }
 
             throw UnknownHostException(hostname)
         }
 
-        /** IPv4 أولًا ثم IPv6 */
         private fun preferIPv4(addresses: List<InetAddress>): List<InetAddress> {
             val v4 = addresses.filterIsInstance<Inet4Address>()
             val v6 = addresses.filterIsInstance<Inet6Address>()
@@ -318,10 +307,6 @@ object HttpClientProvider {
             return v4 + v6 + others
         }
 
-        /**
-         * DoH عبر Cloudflare JSON API.
-         * نستخدم 1.1.1.1 مباشرة (IP) لتجنب DNS lookup إضافي.
-         */
         private fun dohLookup(hostname: String): List<InetAddress> {
             val url = "https://1.1.1.1/dns-query?name=$hostname&type=A"
             val request = Request.Builder()
@@ -345,7 +330,7 @@ object HttpClientProvider {
 
             for (i in 0 until answers.length()) {
                 val ans = answers.optJSONObject(i) ?: continue
-                if (ans.optInt("type") == 1) { // A record
+                if (ans.optInt("type") == 1) {
                     val ip = ans.optString("data", "")
                     if (ip.isNotBlank()) {
                         try {
@@ -385,7 +370,7 @@ object HttpClientProvider {
             null
         }
     }
-    
+
     // ═══════════════════════════════════════════════════════════
     //  عميل API
     // ═══════════════════════════════════════════════════════════
