@@ -49,14 +49,15 @@ object HttpClientProvider {
     // ═══════════════════════════════════════════════════════════
 
     val USER_AGENT_PRESETS = listOf(
+        "VLC/3.0.20 LibVLC/3.0.20",
         "IPTVSmartersPro/1.1.1",
-        "VLC/3.0.18 LibVLC/3.0.18",
         "TiviMate/4.7.0",
         "Kodi/20.0 (Linux; Android 12) ExoPlayerLib/2.19.1",
         "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Mobile Safari/537.36"
     )
 
-    const val DEFAULT_USER_AGENT = "IPTVSmartersPro/1.1.1"
+    // ✅ VLC — الأنسب لمشغل IPTV (لا يُحجب)
+    const val DEFAULT_USER_AGENT = "VLC/3.0.20 LibVLC/3.0.20"
 
     @Volatile
     private var prefsRef: PrefsManager? = null
@@ -92,22 +93,16 @@ object HttpClientProvider {
     }
 
     // ═══════════════════════════════════════════════════════════
-    //  ✅ Interceptor موحّد — Referer + Origin + Accept-Language
+    //  ✅ Interceptor موحّد — بدون Referer/Origin/Accept-Encoding
     // ═══════════════════════════════════════════════════════════
 
     private val uaInterceptor = Interceptor { chain ->
         val original = chain.request()
-        val host = original.url.host
-        val scheme = original.url.scheme
 
         val request: Request = original.newBuilder()
             .header("User-Agent", getUserAgent())
             .header("Accept", "*/*")
-            .header("Accept-Language", "ar,en-US;q=0.9,en;q=0.8")
             .header("Connection", "keep-alive")
-            .header("Accept-Encoding", "identity")
-            .header("Referer", "$scheme://$host/")
-            .header("Origin", "$scheme://$host")
             .build()
         chain.proceed(request)
     }
