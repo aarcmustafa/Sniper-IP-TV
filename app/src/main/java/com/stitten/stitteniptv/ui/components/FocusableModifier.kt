@@ -32,11 +32,22 @@ import androidx.compose.ui.unit.dp
  * ✅ تأثير Focus واضح (تكبير + حدود زرقاء + خلفية)
  * ✅ يمنع النقر المزدوج عبر debounce 300ms
  *
- * ⚠️ ملاحظة: `shape` يجب أن يكون قبل `onClick` حتى يعمل trailing lambda
- *    بالشكل: `Modifier.tvFocusable { onClick() }`
+ * ⚠️ يوجد نسختان (overloads) للتوافق مع كل أنماط الاستدعاء:
+ *    1. `Modifier.tvFocusable { onClick() }`         ← الأكثر استخدامًا
+ *    2. `Modifier.tvFocusable(shape) { onClick() }`  ← مع شكل مخصص
  */
+
+// ═══════════════════════════════════════════════════════════════
+//  النسخة 1: onClick فقط (نفس التوقيع القديم - توافق 100%)
+// ═══════════════════════════════════════════════════════════════
+fun Modifier.tvFocusable(onClick: () -> Unit): Modifier =
+    tvFocusable(RoundedCornerShape(12.dp), onClick)
+
+// ═══════════════════════════════════════════════════════════════
+//  النسخة 2: shape + onClick (عند الحاجة لشكل مخصص)
+// ═══════════════════════════════════════════════════════════════
 fun Modifier.tvFocusable(
-    shape: RoundedCornerShape = RoundedCornerShape(12.dp),
+    shape: RoundedCornerShape,
     onClick: () -> Unit,
 ): Modifier = composed {
     var isFocused by remember { mutableStateOf(false) }
