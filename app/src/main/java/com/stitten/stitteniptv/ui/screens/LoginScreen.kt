@@ -32,12 +32,12 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -55,15 +55,18 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.stitten.stitteniptv.R
 import com.stitten.stitteniptv.database.entity.SourceEntity
+import com.stitten.stitteniptv.ui.components.tvFocusable
 import com.stitten.stitteniptv.ui.navigation.Routes
 import com.stitten.stitteniptv.ui.theme.AppIcons
 import com.stitten.stitteniptv.viewmodel.MainViewModel
@@ -102,8 +105,8 @@ fun LoginScreen(
 
         if (sources.isEmpty()) {
             WelcomeScreen(
-                onAddXtream = { navController.navigate("add_source?type=XTREAM") },
-                onAddM3u = { navController.navigate("add_source?type=M3U") }
+                onAddXtream = { navController.navigate(Routes.addSourceWithType("XTREAM")) },
+                onAddM3u = { navController.navigate(Routes.addSourceWithType("M3U")) }
             )
         } else {
             AccountsListScreen(
@@ -242,12 +245,15 @@ private fun WelcomeScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Text(
-            "STTITEN IP TV",
-            color = MaterialTheme.colorScheme.primary,
-            fontSize = 48.sp,
-            fontWeight = FontWeight.Bold
-        )
+        // ✅ LTR للشعار
+        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+            Text(
+                "STTITEN IP TV",
+                color = MaterialTheme.colorScheme.primary,
+                fontSize = 48.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
         Spacer(Modifier.height(12.dp))
         Text(
             "أضف حسابك للبدء",
@@ -360,12 +366,15 @@ private fun AccountsListScreen(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                "STTITEN IP TV",
-                color = MaterialTheme.colorScheme.primary,
-                fontSize = 32.sp,
-                fontWeight = FontWeight.Bold
-            )
+            // ✅ LTR للشعار
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                Text(
+                    "STTITEN IP TV",
+                    color = MaterialTheme.colorScheme.primary,
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
             Spacer(Modifier.weight(1f))
             Text(
                 "${sources.size} حساب",
@@ -575,9 +584,12 @@ private fun AccountCard(
                 }
             }
 
-            IconButton(
-                onClick = onEdit,
-                modifier = Modifier.size(48.dp)
+            // ✅ زر تعديل — Box + tvFocusable
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .tvFocusable(onClick = onEdit),
+                contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     Icons.Default.Edit,
@@ -587,9 +599,12 @@ private fun AccountCard(
                 )
             }
 
-            IconButton(
-                onClick = onDelete,
-                modifier = Modifier.size(48.dp)
+            // ✅ زر حذف — Box + tvFocusable
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .tvFocusable(onClick = onDelete),
+                contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     Icons.Default.Delete,
