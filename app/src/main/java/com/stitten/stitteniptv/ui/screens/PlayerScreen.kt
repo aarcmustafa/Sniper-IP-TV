@@ -71,28 +71,39 @@ private fun detectKind(url: String): StreamKind {
     }
 }
 
+// ═══════════════════════════════════════════════════════════════
+//  بناء المرشحين — مرشحان فقط (per PCAP analysis)
+// ═══════════════════════════════════════════════════════════════
+
 private fun buildCandidates(url: String, kind: StreamKind): List<String> {
     if (url.isBlank()) return listOf(url)
 
     val cleanUrl = url.substringBefore("?")
     val lower = cleanUrl.lowercase()
 
+    // ─── HLS / M3U8 — لا نبدّل ───
     if (lower.endsWith(".m3u8") || lower.endsWith(".m3u")) {
         return listOf(url)
     }
+
+    // ─── القنوات: مرشحان فقط (ts ↔ m3u8) ───
+    if (kind == StreamKind.LIVE) {
+        val hasExt = cleanUrl.contains(".")
+        val base = if (hasExt) cleanUrl.substringBeforeLast(".") else cleanUrl
+        val ext = if (hasExt) cleanUrl.substringAfterLast(".").lowercase() else ""
+
+        val alt = if (ext == "ts") "m3u8" else "ts"
+
+        return listOf(url, "$base.$alt")
+    }
+
+    // ─── الأفلام: مرشحان فقط ───
     if (!cleanUrl.contains(".")) return listOf(url)
 
     val base = url.substringBeforeLast(".")
     val query = url.substringAfterLast(".").substringAfter("?", "")
 
-    val alternatives = listOf("mp4", "mkv", "avi", "ts", "m3u8")
-    val candidates = mutableListOf(url)
+    val alt = if (query.isBlank()) "$base.mkv" else "$base.mkv?$query"
 
-    alternatives.forEach { ext ->
-        val candidate = if (query.isBlank()) "$base.$ext" else "$base.$ext?$query"
-        if (candidate != url && candidate !in candidates) {
-            candidates.add(candidate)
-        }
-    }
-    return candidates
+    return listOf(url, alt)
 }
