@@ -17,13 +17,10 @@ android {
         versionCode = 1
         versionName = "1.0.0"
         resourceConfigurations += listOf("ar", "en", "fr")
-
-        ndk {
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
-        }
+        // ✅ لا نضع ndk.abiFilters هنا — نستخدم splits فقط
     }
 
-    // ✅ ABI Splits — كل APK يحمل معمارية واحدة فقط
+    // ✅ ABI Splits: كل APK يحمل معمارية واحدة فقط
     splits {
         abi {
             isEnable = true
@@ -76,8 +73,6 @@ android {
 }
 
 dependencies {
-
-    // ❌ LibVLC محذوف نهائيًا
 
     // ─── Compose ───
     implementation(platform("androidx.compose:compose-bom:2024.12.01"))
