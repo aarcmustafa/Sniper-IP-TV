@@ -24,9 +24,9 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -35,7 +35,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -301,58 +304,90 @@ private fun DashboardTopBar(
             .padding(horizontal = 32.dp, vertical = 20.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // ─── الشعار (أيقونة + نص) ───
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                imageVector = AppIcons.Movies,
-                contentDescription = null,
-                tint = Color(0xFF1F6FEB),
-                modifier = Modifier.size(26.dp),
-            )
-            Spacer(Modifier.width(10.dp))
-            Text(
-                text = "SNIPER IPTV",
-                color = Color(0xFF1F6FEB),
-                fontSize = 22.sp,
-                fontWeight = FontWeight.ExtraBold,
-            )
+        // ✅ الشعار بـ LTR (لمنع انعكاس النص)
+        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = AppIcons.Movies,
+                    contentDescription = null,
+                    tint = Color(0xFF1F6FEB),
+                    modifier = Modifier.size(26.dp),
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    text = "STTITEN IP TV",
+                    color = Color(0xFF1F6FEB),
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                )
+            }
         }
 
         Spacer(Modifier.weight(1f))
 
-        IconButton(onClick = onMoviesClick) {
-            Icon(Icons.Default.Movie, "أفلام", tint = Color.White)
-        }
-        Spacer(Modifier.width(4.dp))
+        TopBarButton(
+            icon = Icons.Default.Movie,
+            contentDescription = "أفلام",
+            onClick = onMoviesClick,
+        )
+        TopBarButton(
+            icon = Icons.Default.Tv,
+            contentDescription = "مسلسلات",
+            onClick = onSeriesListClick,
+        )
+        TopBarButton(
+            icon = Icons.Default.LiveTv,
+            contentDescription = "قنوات مباشرة",
+            onClick = onLiveClick,
+        )
+        TopBarButton(
+            icon = Icons.Default.Favorite,
+            contentDescription = "المفضلة",
+            tint = Color(0xFFF85149),
+            onClick = onFavoritesClick,
+        )
+        TopBarButton(
+            icon = Icons.Default.Search,
+            contentDescription = "بحث",
+            onClick = onSearchClick,
+        )
+        TopBarButton(
+            icon = Icons.Default.Refresh,
+            contentDescription = "تحديث من المصدر",
+            tint = Color(0xFF66BB6A),
+            onClick = onRefreshClick,
+        )
+        TopBarButton(
+            icon = Icons.Default.Settings,
+            contentDescription = "إعدادات",
+            onClick = onSettingsClick,
+        )
+    }
+}
 
-        IconButton(onClick = onSeriesListClick) {
-            Icon(Icons.Default.Tv, "مسلسلات", tint = Color.White)
-        }
-        Spacer(Modifier.width(4.dp))
+// ═══════════════════════════════════════════════════════════════
+//  ✅ زر TopBar — يستخدم tvFocusable لإضاءة واضحة بالريموت
+// ═══════════════════════════════════════════════════════════════
 
-        IconButton(onClick = onLiveClick) {
-            Icon(Icons.Default.LiveTv, "قنوات مباشرة", tint = Color.White)
-        }
-        Spacer(Modifier.width(4.dp))
-
-        IconButton(onClick = onFavoritesClick) {
-            Icon(Icons.Default.Favorite, "المفضلة", tint = Color(0xFFF85149))
-        }
-        Spacer(Modifier.width(4.dp))
-
-        IconButton(onClick = onSearchClick) {
-            Icon(Icons.Default.Search, "بحث", tint = Color.White)
-        }
-        Spacer(Modifier.width(4.dp))
-
-        IconButton(onClick = onRefreshClick) {
-            Icon(Icons.Default.Refresh, "تحديث من المصدر", tint = Color(0xFF66BB6A))
-        }
-        Spacer(Modifier.width(4.dp))
-
-        IconButton(onClick = onSettingsClick) {
-            Icon(Icons.Default.Settings, "إعدادات", tint = Color.White)
-        }
+@Composable
+private fun TopBarButton(
+    icon: ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit,
+    tint: Color = Color.White,
+) {
+    Box(
+        modifier = Modifier
+            .size(48.dp)
+            .tvFocusable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            tint = tint,
+            modifier = Modifier.size(24.dp),
+        )
     }
 }
 
