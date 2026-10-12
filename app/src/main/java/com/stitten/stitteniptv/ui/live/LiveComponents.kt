@@ -14,6 +14,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -73,7 +76,6 @@ fun LiveTopBar(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
-        // ─── الشعار والأيقونة ───
         Box(
             modifier = Modifier
                 .size(40.dp)
@@ -93,7 +95,6 @@ fun LiveTopBar(
             )
         }
 
-        // ─── العنوان ───
         Column {
             Text(
                 text = "القنوات المباشرة",
@@ -110,13 +111,11 @@ fun LiveTopBar(
 
         Spacer(Modifier.weight(1f))
 
-        // ─── البحث ───
-        SearchField(
+        LiveSearchField(
             query = searchQuery,
             onQueryChange = onSearchChange,
         )
 
-        // ─── زر التحديث ───
         IconButton(
             onClick = onRefresh,
             modifier = Modifier
@@ -135,7 +134,7 @@ fun LiveTopBar(
 }
 
 @Composable
-private fun SearchField(
+private fun LiveSearchField(
     query: String,
     onQueryChange: (String) -> Unit,
 ) {
@@ -259,7 +258,6 @@ fun ChannelGridCard(
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
 
-        // ─── الصورة ───
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -271,7 +269,6 @@ fun ChannelGridCard(
                     onClick = onClick,
                 ),
         ) {
-            // ─── الشعار ───
             AsyncImage(
                 model = channel.logo,
                 contentDescription = channel.name,
@@ -281,7 +278,6 @@ fun ChannelGridCard(
                     .padding(Spacing.md),
             )
 
-            // ─── طبقة تعتيم سفلية ───
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -297,14 +293,12 @@ fun ChannelGridCard(
                     )
             )
 
-            // ─── شارة LIVE (أعلى يسار) ───
             LiveBadge(
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .padding(Spacing.sm)
             )
 
-            // ─── زر المفضلة (أعلى يمين) ───
             FavoriteButton(
                 isFavorite = isFavorite,
                 onClick = onToggleFavorite,
@@ -314,7 +308,6 @@ fun ChannelGridCard(
             )
         }
 
-        // ─── اسم القناة ───
         Spacer(Modifier.height(Spacing.sm))
 
         Text(
