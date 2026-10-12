@@ -5,7 +5,6 @@ import androidx.compose.ui.Modifier
 
 /**
  * واجهة موحدة لكل محركات التشغيل (ExoPlayer / libvlc).
- * شاشات ui/player يجب أن تتعامل مع هذه الواجهة فقط.
  */
 interface PlayerEngine {
 
@@ -15,7 +14,12 @@ interface PlayerEngine {
     val durationMs: Long
     val positionMs: Long
 
-    fun prepare(url: String)
+    /** تشغيل قائمة مرشحين (روابط احتياطية) + نوع البث */
+    fun prepare(candidates: List<String>, kind: StreamKind)
+
+    /** اختصار لرابط واحد (افتراضيًا LIVE) */
+    fun prepare(url: String) = prepare(listOf(url), StreamKind.LIVE)
+
     fun play()
     fun pause()
     fun stop()
@@ -26,7 +30,6 @@ interface PlayerEngine {
     fun setOnStateChanged(callback: (PlayerState) -> Unit)
     fun setOnError(callback: (String) -> Unit)
 
-    /** كل محرك يعرض سطح الفيديو بطريقته الخاصة */
     @Composable
     fun VideoSurface(modifier: Modifier)
 }
