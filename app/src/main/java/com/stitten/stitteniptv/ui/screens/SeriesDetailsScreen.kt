@@ -11,16 +11,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -28,28 +22,26 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
-import coil.compose.AsyncImage
 import com.stitten.stitteniptv.data.ChannelRepository
 import com.stitten.stitteniptv.data.ContentRepository
 import com.stitten.stitteniptv.data.Episode
 import com.stitten.stitteniptv.data.FavoritesManager
 import com.stitten.stitteniptv.database.entity.SeriesEntity
+import com.stitten.stitteniptv.ui.components.FocusStyle
 import com.stitten.stitteniptv.ui.components.tvFocusable
 import com.stitten.stitteniptv.ui.navigation.Routes
-import com.stitten.stitteniptv.ui.theme.AppIcons
+import com.stitten.stitteniptv.ui.theme.Radius
+import com.stitten.stitteniptv.ui.theme.Spacing
+import com.stitten.stitteniptv.ui.theme.TvBackground
+import com.stitten.stitteniptv.ui.theme.TvSurfaceHigh
+import com.stitten.stitteniptv.ui.theme.TvText
 import com.stitten.stitteniptv.viewmodel.MainViewModel
 import dagger.hilt.android.EntryPointAccessors
 
@@ -118,7 +110,7 @@ fun SeriesDetailsScreen(
             favorites.getFavoriteSeriesIds().contains(seriesId)
         } catch (_: Exception) { false }
 
-        // ─── 4) ✅ نمرّر الـ ID الكامل — loadEpisodes سيجرب كل الاحتمالات ───
+        // ─── 4) تحميل الحلقات ───
         mainViewModel.loadEpisodes(seriesId) { eps ->
             episodes = eps
             selectedSeason = eps.firstOrNull()?.season
@@ -129,12 +121,12 @@ fun SeriesDetailsScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF0D1117))
+            .background(TvBackground)
     ) {
         when {
-            loading -> LoadingSeriesView()
+            loading -> SeriesDetailsSkeleton()
 
-            series == null && episodes.isEmpty() -> EmptyEpisodesView(
+            series == null && episodes.isEmpty() -> EmptySeriesView(
                 onBack = { navController.popBackStack() },
             )
 
@@ -161,42 +153,9 @@ fun SeriesDetailsScreen(
     }
 }
 
-@Composable
-private fun LoadingSeriesView() {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            CircularProgressIndicator(color = Color(0xFF1F6FEB))
-            Spacer(Modifier.height(16.dp))
-            Text("جارٍ تحميل الحلقات...", color = Color.White, fontSize = 16.sp)
-        }
-    }
-}
-
-@Composable
-private fun EmptyEpisodesView(onBack: () -> Unit) {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            androidx.compose.material3.Icon(
-                imageVector = AppIcons.Series,
-                contentDescription = null,
-                tint = Color(0xFF30363D),
-                modifier = Modifier.size(80.dp),
-            )
-            Spacer(Modifier.height(16.dp))
-            Text("لا توجد حلقات", color = Color.White, fontSize = 20.sp)
-            Spacer(Modifier.height(16.dp))
-            Box(
-                Modifier
-                    .tvFocusable(onClick = onBack)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(Color(0xFF1F6FEB))
-                    .padding(horizontal = 24.dp, vertical = 12.dp)
-            ) {
-                Text("← رجوع", color = Color.White, fontSize = 15.sp)
-            }
-        }
-    }
-}
+// ═══════════════════════════════════════════════════════════════
+//  المحتوى الرئيسي
+// ═══════════════════════════════════════════════════════════════
 
 @Composable
 private fun SeriesContent(
@@ -213,89 +172,19 @@ private fun SeriesContent(
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 32.dp),
+        contentPadding = PaddingValues(bottom = Spacing.xxxl),
     ) {
         // ═══════════════════════════════════════════════════════
         //  Hero
         // ═══════════════════════════════════════════════════════
         item(key = "hero") {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(420.dp)
-            ) {
-                AsyncImage(
-                    model = series?.backdrop ?: series?.poster,
-                    contentDescription = series?.name,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(
-                                    Color.Black.copy(alpha = 0.3f),
-                                    Color.Black.copy(alpha = 0.5f),
-                                    Color(0xFF0D1117).copy(alpha = 1f),
-                                )
-                            )
-                        )
-                )
-
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(20.dp)
-                        .tvFocusable(onClick = onBack)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(Color.Black.copy(alpha = 0.6f))
-                        .padding(horizontal = 16.dp, vertical = 10.dp)
-                ) {
-                    Text("← رجوع", color = Color.White, fontSize = 14.sp)
-                }
-
-                Column(
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .fillMaxWidth()
-                        .padding(horizontal = 32.dp, vertical = 24.dp)
-                ) {
-                    Text(
-                        text = series?.name ?: "المسلسل",
-                        color = Color.White,
-                        fontSize = 38.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-
-                    val infoLine = buildList {
-                        if (!series?.year.isNullOrBlank()) add(series!!.year!!)
-                        if (!series?.rating.isNullOrBlank()) add("⭐ ${series!!.rating}")
-                        if (!series?.genre.isNullOrBlank()) add(series!!.genre!!)
-                        if (episodes.isNotEmpty()) add("${episodes.size} حلقة")
-                    }.joinToString("  ·  ")
-
-                    if (infoLine.isNotBlank()) {
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            text = infoLine,
-                            color = Color(0xFFD0D7DE),
-                            fontSize = 15.sp,
-                        )
-                    }
-
-                    Spacer(Modifier.height(16.dp))
-
-                    FavoriteSeriesButton(
-                        isFavorite = isFavorite,
-                        onClick = onToggleFavorite,
-                    )
-                }
-            }
+            SeriesHero(
+                series = series,
+                episodeCount = episodes.size,
+                isFavorite = isFavorite,
+                onToggleFavorite = onToggleFavorite,
+                onBack = onBack,
+            )
         }
 
         // ═══════════════════════════════════════════════════════
@@ -305,8 +194,11 @@ private fun SeriesContent(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 32.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    .padding(
+                        horizontal = Spacing.xxxl,
+                        vertical = Spacing.lg,
+                    ),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
                 DetailTab(
                     label = "نظرة عامة",
@@ -332,7 +224,10 @@ private fun SeriesContent(
         when (selectedTab) {
             SeriesDetailTab.OVERVIEW -> {
                 item(key = "overview") {
-                    SeriesOverviewTab(series = series)
+                    SeriesOverviewTab(
+                        series = series,
+                        episodeCount = episodes.size,
+                    )
                 }
             }
 
@@ -346,39 +241,22 @@ private fun SeriesContent(
                 val seasons = episodes.map { it.season }.distinct().sorted()
                 if (seasons.size > 1) {
                     item(key = "seasons") {
-                        Spacer(Modifier.height(8.dp))
-                        LazyRow(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 12.dp),
-                            contentPadding = PaddingValues(horizontal = 32.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            items(seasons) { season ->
-                                val isSelected = season == selectedSeason
-                                val bg = if (isSelected) Color(0xFF1F6FEB)
-                                else Color(0xFF21262D)
-                                Text(
-                                    text = "الموسم $season",
-                                    color = Color.White,
-                                    fontSize = 15.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold
-                                    else FontWeight.Normal,
-                                    modifier = Modifier
-                                        .tvFocusable { onSeasonSelected(season) }
-                                        .clip(RoundedCornerShape(20.dp))
-                                        .background(bg)
-                                        .padding(horizontal = 20.dp, vertical = 10.dp),
-                                )
-                            }
-                        }
+                        Spacer(Modifier.height(Spacing.sm))
+                        SeasonSelector(
+                            seasons = seasons,
+                            selectedSeason = selectedSeason,
+                            onSeasonSelected = onSeasonSelected,
+                        )
                     }
                 }
 
                 val visible = if (selectedSeason == null) episodes
                 else episodes.filter { it.season == selectedSeason }
 
-                items(visible, key = { it.id }) { ep ->
+                items(
+                    items = visible,
+                    key = { it.id },
+                ) { ep ->
                     EpisodeRow(
                         episode = ep,
                         onClick = { onEpisodeClick(ep) },
@@ -390,286 +268,55 @@ private fun SeriesContent(
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  تبويب: نظرة عامة
+//  شريط المواسم
 // ═══════════════════════════════════════════════════════════════
 
 @Composable
-private fun SeriesOverviewTab(series: SeriesEntity?) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 32.dp, vertical = 8.dp)
-    ) {
-        if (!series?.plot.isNullOrBlank()) {
-            SectionTitle(text = "القصة")
-            Text(
-                text = series!!.plot!!,
-                color = Color(0xFFD0D7DE),
-                fontSize = 15.sp,
-                lineHeight = 24.sp,
-            )
-            Spacer(Modifier.height(24.dp))
-        }
-
-        val details = buildList {
-            if (!series?.director.isNullOrBlank()) add("المخرج" to series!!.director!!)
-            if (!series?.genre.isNullOrBlank()) add("التصنيف" to series!!.genre!!)
-            if (!series?.year.isNullOrBlank()) add("السنة" to series!!.year!!)
-            if (!series?.category.isNullOrBlank()) add("الفئة" to series!!.category)
-            if (series != null && series.episodeCount > 0) {
-                add("عدد الحلقات" to "${series.episodeCount}")
-            }
-            if (series != null && series.seasonCount > 0) {
-                add("عدد المواسم" to "${series.seasonCount}")
-            }
-        }
-
-        if (details.isNotEmpty()) {
-            SectionTitle(text = "معلومات")
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                details.forEach { (label, value) ->
-                    Row {
-                        Text(
-                            text = "$label: ",
-                            color = Color(0xFF8B949E),
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                        )
-                        Text(
-                            text = value,
-                            color = Color(0xFFD0D7DE),
-                            fontSize = 14.sp,
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-// ═══════════════════════════════════════════════════════════════
-//  تبويب: الفريق
-// ═══════════════════════════════════════════════════════════════
-
-@Composable
-private fun SeriesCastTab(series: SeriesEntity?) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 32.dp, vertical = 8.dp)
-    ) {
-        if (series?.cast.isNullOrBlank() && series?.director.isNullOrBlank()) {
-            EmptyTabState(message = "لا توجد معلومات عن الفريق")
-            return@Column
-        }
-
-        if (!series?.director.isNullOrBlank()) {
-            SectionTitle(text = "المخرج")
-            PersonChip(name = series!!.director!!, role = "مخرج")
-            Spacer(Modifier.height(20.dp))
-        }
-
-        if (!series?.cast.isNullOrBlank()) {
-            SectionTitle(text = "الممثلون")
-            val actors = series!!.cast!!
-                .split(",", "،")
-                .map { it.trim() }
-                .filter { it.isNotBlank() }
-
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                actors.forEach { actor ->
-                    PersonChip(name = actor, role = "ممثل")
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun PersonChip(name: String, role: String) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(Color(0xFF161B22))
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(44.dp)
-                .clip(CircleShape)
-                .background(Color(0xFF1F6FEB).copy(alpha = 0.2f)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = name.take(1),
-                color = Color(0xFF1F6FEB),
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-            )
-        }
-
-        Spacer(Modifier.width(12.dp))
-
-        Column {
-            Text(
-                text = name,
-                color = Color.White,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Medium,
-            )
-            Text(
-                text = role,
-                color = Color(0xFF8B949E),
-                fontSize = 12.sp,
-            )
-        }
-    }
-}
-
-@Composable
-private fun EpisodeRow(
-    episode: Episode,
-    onClick: () -> Unit,
+private fun SeasonSelector(
+    seasons: List<Int>,
+    selectedSeason: Int?,
+    onSeasonSelected: (Int) -> Unit,
 ) {
-    Card(
+    LazyRow(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 32.dp, vertical = 6.dp)
-            .tvFocusable(onClick = onClick),
-        colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF161B22),
-        ),
-        shape = RoundedCornerShape(12.dp),
+            .padding(vertical = Spacing.md),
+        contentPadding = PaddingValues(horizontal = Spacing.xxxl),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                modifier = Modifier
-                    .width(56.dp)
-                    .height(56.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(Color(0xFF1F6FEB).copy(alpha = 0.2f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = "${episode.episode}",
-                    color = Color(0xFF1F6FEB),
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-            }
-
-            Spacer(Modifier.width(16.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = episode.title.ifBlank { "الحلقة ${episode.episode}" },
-                    color = Color.White,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-
-                val meta = buildList {
-                    if (!episode.duration.isNullOrBlank()) add(episode.duration!!)
-                    if (!episode.rating.isNullOrBlank()) add("⭐ ${episode.rating}")
-                }.joinToString("  ·  ")
-
-                if (meta.isNotBlank()) {
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = meta,
-                        color = Color(0xFF8B949E),
-                        fontSize = 13.sp,
-                    )
-                }
-            }
-
-            Text(
-                text = "▶",
-                color = Color(0xFF1F6FEB),
-                fontSize = 22.sp,
+        items(seasons) { season ->
+            SeasonChip(
+                label = "الموسم $season",
+                selected = season == selectedSeason,
+                onClick = { onSeasonSelected(season) },
             )
         }
     }
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  المكونات المساعدة
-// ═══════════════════════════════════════════════════════════════
-
 @Composable
-private fun SectionTitle(text: String) {
-    Text(
-        text = text,
-        color = Color.White,
-        fontSize = 20.sp,
-        fontWeight = FontWeight.Bold,
-        modifier = Modifier.padding(bottom = 12.dp),
-    )
-}
-
-@Composable
-private fun DetailTab(
+private fun SeasonChip(
     label: String,
     selected: Boolean,
     onClick: () -> Unit,
 ) {
-    val bg = if (selected) Color(0xFF1F6FEB) else Color(0xFF21262D)
+    val bg = if (selected) SeriesAccent else TvSurfaceHigh
+    val textColor = if (selected) Color.White else TvText
+
     Text(
         text = label,
-        color = Color.White,
-        fontSize = 14.sp,
-        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-        modifier = Modifier
-            .tvFocusable(onClick = onClick)
-            .clip(RoundedCornerShape(20.dp))
-            .background(bg)
-            .padding(horizontal = 20.dp, vertical = 10.dp),
-    )
-}
-
-@Composable
-private fun EmptyTabState(message: String) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 40.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = message,
-            color = Color(0xFF8B949E),
-            fontSize = 15.sp,
-        )
-    }
-}
-
-@Composable
-private fun FavoriteSeriesButton(
-    isFavorite: Boolean,
-    onClick: () -> Unit,
-) {
-    val text = if (isFavorite) "★  في المفضلة" else "☆  أضف للمفضلة"
-    val bg = if (isFavorite) Color(0xFFF85149).copy(alpha = 0.25f) else Color(0xFF30363D)
-    val textColor = if (isFavorite) Color(0xFFF85149) else Color.White
-
-    Text(
-        text = text,
         color = textColor,
         fontSize = 15.sp,
-        fontWeight = FontWeight.SemiBold,
+        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
         modifier = Modifier
-            .tvFocusable(onClick = onClick)
-            .clip(RoundedCornerShape(10.dp))
-            .background(bg)
-            .padding(horizontal = 20.dp, vertical = 10.dp)
+            .tvFocusable(
+                style = FocusStyle.Chip,
+                onClick = onClick,
+            )
+            .background(
+                color = bg,
+                shape = RoundedCornerShape(Radius.pill),
+            )
+            .padding(horizontal = Spacing.xl, vertical = Spacing.sm),
     )
 }
