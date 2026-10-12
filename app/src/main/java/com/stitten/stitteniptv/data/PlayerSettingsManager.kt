@@ -2,6 +2,7 @@ package com.stitten.stitteniptv.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.stitten.stitteniptv.player.EngineType
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -38,9 +39,31 @@ class PlayerSettingsManager @Inject constructor(
         get() = prefs.getInt("buffer_ms", 15000)
         set(v) = prefs.edit().putInt("buffer_ms", v).apply()
 
+    // ═══════════════════════════════════════════════════════════
+    //  نوع المحرك (ExoPlayer / VLC / AUTO)
+    // ═══════════════════════════════════════════════════════════
+
+    /** القيمة الخام المحفوظة (متوافق مع الكود القديم: "exo" / "vlc" / "auto") */
     var engine: String
-        get() = prefs.getString("engine", "exo") ?: "exo"
+        get() = prefs.getString("engine", "auto") ?: "auto"
         set(v) = prefs.edit().putString("engine", v).apply()
+
+    /** ✅ دوال مساعدة جديدة: قراءة/كتابة EngineType مباشرة */
+    var engineType: EngineType
+        get() = when (engine.lowercase()) {
+            "vlc", "libvlc" -> EngineType.VLC
+            "exo", "exoplayer", "media3" -> EngineType.EXOPLAYER
+            else -> EngineType.AUTO
+        }
+        set(value) {
+            engine = when (value) {
+                EngineType.VLC -> "vlc"
+                EngineType.EXOPLAYER -> "exo"
+                EngineType.AUTO -> "auto"
+            }
+        }
+
+    // ═══════════════════════════════════════════════════════════
 
     var externalPlayerPackage: String
         get() = prefs.getString("ext_pkg", "") ?: ""
