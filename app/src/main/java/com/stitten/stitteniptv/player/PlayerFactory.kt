@@ -25,7 +25,7 @@ object PlayerFactory {
         val dataSource = RetryHttpDataSource(candidates)
         val mediaSourceFactory = DefaultMediaSourceFactory { dataSource }
 
-        // ✅ LoadControl محسّن
+        // LoadControl محسّن
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
                 30_000,
@@ -36,7 +36,7 @@ object PlayerFactory {
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
 
-        // ✅ TrackSelector
+        // TrackSelector
         val trackSelector = DefaultTrackSelector(context).apply {
             setParameters(
                 buildUponParameters()
@@ -55,7 +55,7 @@ object PlayerFactory {
 
         val mediaItem = MediaItem.fromUri(candidates.first())
 
-        // ✅ الإعداد الصحيح: LiveConfiguration يُمرّر مع setMediaItem
+        // LiveConfiguration تُضاف إلى MediaItem نفسه
         if (kind == StreamKind.LIVE) {
             val liveConfig = MediaItem.LiveConfiguration.Builder()
                 .setTargetOffsetMs(3_000)
@@ -63,7 +63,11 @@ object PlayerFactory {
                 .setMaxPlaybackSpeed(1.05f)
                 .build()
 
-            player.setMediaItem(mediaItem, liveConfig, startPositionMs)
+            player.setMediaItem(
+                mediaItem.buildUpon()
+                    .setLiveConfiguration(liveConfig)
+                    .build()
+            )
         } else {
             player.setMediaItem(mediaItem, startPositionMs)
         }
@@ -71,7 +75,7 @@ object PlayerFactory {
         player.prepare()
         player.playWhenReady = true
 
-        // ✅ إدارة أخطاء ذكية - حد 3 محاولات
+        // إدارة أخطاء ذكية - حد 3 محاولات
         var errorCount = 0
         var lastErrorTime = 0L
 
