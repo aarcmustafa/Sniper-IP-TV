@@ -12,21 +12,9 @@ import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
-import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
 
 enum class StreamKind { LIVE, MOVIE, EPISODE }
 
-/**
- * مصنع المشغل: ExoPlayer/Media3 فقط.
- * مُهيّأ ليعطي أداءً يوازي LibVLC على قنوات IPTV:
- *   - HW decoder + fallback تلقائي إلى SW
- *   - إعادة محاولة متعددة (LoadErrorHandlingPolicy + listener)
- *   - تسامح مع البث التالف/غير القياسي
- *   - Live latency مضبوط
- *   - Wake mode لمنع نوم الشاشة أثناء البث
- *
- * ملاحظة: User-Agent يُدار عبر RetryHttpDataSource + HttpClientProvider.
- */
 @UnstableApi
 object PlayerFactory {
 
@@ -39,13 +27,11 @@ object PlayerFactory {
         startPositionMs: Long = 0L,
     ): ExoPlayer {
 
-        // ─── 1) DataSource — يستخدم ملفك الحالي كما هو ───
-        //     UA + Cookies يُداران داخله عبر HttpClientProvider
+        // ─── 1) DataSource ───
         val dataSource = RetryHttpDataSource(candidates)
         val mediaSourceFactory = DefaultMediaSourceFactory { dataSource }
 
-        // ─── 2) RenderersFactory — HW مع fallback تلقائي إلى SW ───
-        // يعوّض: --avcodec-hw=any
+        // ─── 2) RenderersFactory ───
         val renderersFactory = DefaultRenderersFactory(context)
             .setEnableDecoderFallback(true)
             .setExtensionRendererMode(
@@ -53,23 +39,21 @@ object PlayerFactory {
             )
             .setEnableAudioTrackPlaybackParams(true)
 
-        // ─── 3) LoadControl — Caching ذكي حسب نوع البث ───
-        // يعوّض: --network-caching / --live-caching
+        // ─── 3) LoadControl ───
         val isLive = kind == StreamKind.LIVE
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
-                /* minBufferMs  = */ if (isLive) 5_000 else 20_000,
-                /* maxBufferMs  = */ if (isLive) 60_000 else 120_000,
-                /* forPlayback  = */ 1_500,
-                /* afterRebuffer= */ 3_000
+                if (isLive) 5_000 else 20_000,
+                if (isLive) 60_000 else 120_000,
+                1_500,
+                3_000
             )
             .setPrioritizeTimeOverSizeThresholds(true)
             .setBackBuffer(30_000, true)
             .setTargetBufferBytes(C.LENGTH_UNSET)
             .build()
 
-        // ─── 4) TrackSelector — تسامح مع الأنواع المختلطة ───
-        // يعوّض VLC في التسامح مع البث غير القياسي
+        // ─── 4) TrackSelector ───
         val trackSelector = DefaultTrackSelector(context).apply {
             setParameters(
                 buildUponParameters()
@@ -83,15 +67,11 @@ object PlayerFactory {
             )
         }
 
-        // ─── 5) Load Error Handling — إعادة محاولة قوية ───
-        val errorHandlingPolicy = DefaultLoadErrorHandlingPolicy(MAX_RETRIES)
-
-        // ─── 6) ExoPlayer builder ───
+        // ─── 5) ExoPlayer builder ───
         val player = ExoPlayer.Builder(context, renderersFactory)
             .setMediaSourceFactory(mediaSourceFactory)
             .setLoadControl(loadControl)
             .setTrackSelector(trackSelector)
-            .setLoadErrorHandlingPolicy(errorHandlingPolicy)
             .setHandleAudioBecomingNoisy(true)
             .setWakeMode(C.WAKE_MODE_NETWORK)
             .setAudioAttributes(
@@ -99,12 +79,12 @@ object PlayerFactory {
                     .setUsage(C.USAGE_MEDIA)
                     .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
                     .build(),
-                /* handleAudioFocus = */ true
+                true
             )
             .setUseLazyPreparation(true)
             .build()
 
-        // ─── 7) MediaItem + LiveConfiguration ───
+        // ─── 6) MediaItem + LiveConfiguration ───
         val mediaItem = MediaItem.fromUri(candidates.first())
 
         if (isLive) {
@@ -126,7 +106,7 @@ object PlayerFactory {
         player.prepare()
         player.playWhenReady = true
 
-        // ─── 8) Error listener — يعيد المحاولة عند فشل جسيم ───
+        // ─── 7) Error listener ───
         var errorCount = 0
         var lastErrorTime = 0L
 
