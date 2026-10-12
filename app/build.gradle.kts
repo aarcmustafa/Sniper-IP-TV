@@ -17,18 +17,14 @@ android {
         versionCode = 1
         versionName = "1.0.0"
         resourceConfigurations += listOf("ar", "en", "fr")
-        // ✅ لا نضع ndk.abiFilters هنا — نستخدم splits فقط
-    }
 
-    // ✅ ABI Splits: كل APK يحمل معمارية واحدة فقط
-    splits {
-        abi {
-            isEnable = true
-            reset()
-            include("arm64-v8a", "armeabi-v7a")
-            isUniversalApk = false
+        // ✅ دعم معماريتين في APK واحد
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
         }
     }
+
+    // ❌ لا يوجد splits — نبني APK واحد شامل
 
     buildTypes {
         debug {
