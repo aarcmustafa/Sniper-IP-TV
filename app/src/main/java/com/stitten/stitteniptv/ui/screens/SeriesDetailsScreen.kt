@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -253,12 +254,13 @@ private fun SeriesContent(
                 val visible = if (selectedSeason == null) episodes
                 else episodes.filter { it.season == selectedSeason }
 
-                items(
+                itemsIndexed(
                     items = visible,
-                    key = { it.id },
-                ) { ep ->
+                    key = { _, ep -> ep.id },
+                ) { index, ep ->
                     EpisodeRow(
                         episode = ep,
+                        episodeNumber = index + 1,
                         onClick = { onEpisodeClick(ep) },
                     )
                 }
