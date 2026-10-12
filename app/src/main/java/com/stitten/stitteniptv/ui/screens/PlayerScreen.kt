@@ -72,38 +72,18 @@ private fun detectKind(url: String): StreamKind {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  بناء المرشحين — مرشحان فقط (per PCAP analysis)
+//  ✅ بناء المرشحين — نُعيد الرابط الأصلي فقط
+//
+//  السبب: تمرير مرشح ثانٍ بصيغة مختلفة (.ts ↔ .m3u8) يؤدي إلى:
+//    1. فتح قناة مختلفة تمامًا عند أول تقطيع شبكة
+//    2. ظهور "قفزات" ومشاهد غريبة أثناء التشغيل
+//    3. إعادة تحميل لا داعي لها
+//
+//  RetryHttpDataSource في PlayerFactory يتعامل مع إعادة المحاولة
+//  تلقائيًا على نفس الرابط بدون أي تدخل خارجي.
 // ═══════════════════════════════════════════════════════════════
 
 private fun buildCandidates(url: String, kind: StreamKind): List<String> {
     if (url.isBlank()) return listOf(url)
-
-    val cleanUrl = url.substringBefore("?")
-    val lower = cleanUrl.lowercase()
-
-    // ─── HLS / M3U8 — لا نبدّل ───
-    if (lower.endsWith(".m3u8") || lower.endsWith(".m3u")) {
-        return listOf(url)
-    }
-
-    // ─── القنوات: مرشحان فقط (ts ↔ m3u8) ───
-    if (kind == StreamKind.LIVE) {
-        val hasExt = cleanUrl.contains(".")
-        val base = if (hasExt) cleanUrl.substringBeforeLast(".") else cleanUrl
-        val ext = if (hasExt) cleanUrl.substringAfterLast(".").lowercase() else ""
-
-        val alt = if (ext == "ts") "m3u8" else "ts"
-
-        return listOf(url, "$base.$alt")
-    }
-
-    // ─── الأفلام: مرشحان فقط ───
-    if (!cleanUrl.contains(".")) return listOf(url)
-
-    val base = url.substringBeforeLast(".")
-    val query = url.substringAfterLast(".").substringAfter("?", "")
-
-    val alt = if (query.isBlank()) "$base.mkv" else "$base.mkv?$query"
-
-    return listOf(url, alt)
+    return listOf(url)
 }
