@@ -40,24 +40,30 @@ class PlayerSettingsManager @Inject constructor(
         set(v) = prefs.edit().putInt("buffer_ms", v).apply()
 
     // ═══════════════════════════════════════════════════════════
-    //  نوع المحرك (ExoPlayer / VLC / AUTO)
+    //  نوع المحرك (ExoPlayer فقط الآن — تم إزالة VLC)
+    //  ملاحظة: القيمة المحفوظة القديمة "vlc" تُهاجر تلقائيًا إلى "exo"
     // ═══════════════════════════════════════════════════════════
 
-    /** القيمة الخام المحفوظة (متوافق مع الكود القديم: "exo" / "vlc" / "auto") */
+    /**
+     * القيمة الخام المحفوظة.
+     * - أي قيمة قديمة "vlc"/"libvlc" تُعتبر الآن "exo".
+     * - القيم المدعومة فعليًا: "exo" أو "auto".
+     */
     var engine: String
-        get() = prefs.getString("engine", "auto") ?: "auto"
+        get() {
+            val raw = prefs.getString("engine", "auto") ?: "auto"
+            return if (raw.lowercase() in setOf("vlc", "libvlc")) "exo" else raw
+        }
         set(v) = prefs.edit().putString("engine", v).apply()
 
-    /** ✅ دوال مساعدة جديدة: قراءة/كتابة EngineType مباشرة */
+    /** ✅ قراءة/كتابة EngineType مباشرة */
     var engineType: EngineType
         get() = when (engine.lowercase()) {
-            "vlc", "libvlc" -> EngineType.VLC
             "exo", "exoplayer", "media3" -> EngineType.EXOPLAYER
             else -> EngineType.AUTO
         }
         set(value) {
             engine = when (value) {
-                EngineType.VLC -> "vlc"
                 EngineType.EXOPLAYER -> "exo"
                 EngineType.AUTO -> "auto"
             }
