@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -46,9 +45,7 @@ import androidx.navigation.NavHostController
 import com.stitten.stitteniptv.R
 import com.stitten.stitteniptv.data.ContentRepository
 import com.stitten.stitteniptv.data.M3uParser
-import com.stitten.stitteniptv.data.XtreamApi
 import com.stitten.stitteniptv.database.entity.SourceEntity
-import com.stitten.stitteniptv.ui.components.PasswordField
 import com.stitten.stitteniptv.ui.components.tvFocusable
 import com.stitten.stitteniptv.ui.navigation.Routes
 import com.stitten.stitteniptv.ui.theme.Radius
@@ -89,6 +86,7 @@ fun AddSourceScreen(
 
     var localLoading by remember { mutableStateOf(false) }
     var pendingNavigate by remember { mutableStateOf(false) }
+    var loadingStarted by remember { mutableStateOf(false) }
 
     val isBusy = localLoading || uiState.isLoading
 
@@ -122,10 +120,15 @@ fun AddSourceScreen(
         }
     }
 
+    // الانتقال إلى Dashboard بعد اكتمال التحميل الفعلي
     LaunchedEffect(pendingNavigate, uiState.isLoading) {
-        if (pendingNavigate && !uiState.isLoading) {
-            navController.navigate(Routes.DASHBOARD) {
-                popUpTo(Routes.ADD_SOURCE) { inclusive = true }
+        if (pendingNavigate) {
+            if (uiState.isLoading) {
+                loadingStarted = true
+            } else if (loadingStarted && uiState.error == null) {
+                navController.navigate(Routes.DASHBOARD) {
+                    popUpTo(Routes.ADD_SOURCE) { inclusive = true }
+                }
             }
         }
     }
@@ -244,189 +247,68 @@ fun AddSourceScreen(
                 //  M3U من رابط
                 // ═══════════════════════════════════════════════════
                 0 -> {
-                    OutlinedTextField(
-                        value = m3uUrl,
-                        onValueChange = { m3uUrl = it },
-                        label = { Text("رابط M3U / M3U8") },
-                        placeholder = { Text("http://example.com/list.m3u") },
-                        modifier = Modifier.width(600.dp),
-                        singleLine = true,
-                        enabled = !isBusy
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    OutlinedTextField(
-                        value = epgUrl,
-                        onValueChange = { epgUrl = it },
-                        label = { Text("رابط EPG (اختياري)") },
-                        placeholder = { Text("http://example.com/epg.xml") },
-                        modifier = Modifier.width(600.dp),
-                        singleLine = true,
-                        enabled = !isBusy
-                    )
-                    Spacer(Modifier.height(20.dp))
-                    Button(
-                        onClick = {
-                            if (m3uUrl.isBlank()) {
-                                message = "أدخل الرابط"
-                                return@Button
-                            }
-                            message = ""
-                            scope.launch {
-                                localLoading = true
-                                try {
-                                    val channels = M3uParser.loadFromUrl(m3uUrl)
-                                    if (channels.isEmpty()) {
-                                        message = "فشل تحميل القنوات — تحقق من الرابط"
-                                        localLoading = false
-                                        return@launch
-                                    }
-                                    ContentRepository.channels = channels
-
-                                    val detectedType = if (m3uUrl.lowercase().contains(".m3u8"))
-                                        "M3U8" else "M3U"
-
-                                    val newId = sourceMgr.add(
-                                        SourceEntity(
-                                            name = name.ifBlank {
-                                                "$detectedType: ${m3uUrl.takeLast(30)}"
-                                            },
-                                            type = detectedType,
-                                            url = m3uUrl,
-                                            epgUrl = epgUrl,
-                                            isActive = false
-                                        )
-                                    )
-                                    sourceMgr.setActive(newId)
-                                    localLoading = false
-
-                                    val newSource = sourceMgr.getById(newId)
-                                    if (newSource != null) {
-                                        pendingNavigate = true
-                                        mainViewModel.switchSource(newSource)
-                                    } else {
-                                        navController.navigate(Routes.DASHBOARD) {
-                                            popUpTo(Routes.ADD_SOURCE) { inclusive = true }
-                                        }
-                                    }
-                                } catch (e: Exception) {
-                                    message = "خطأ: ${e.message}"
-                                    localLoading = false
-                                }
+                    M3uForm(
+                        m3uUrl = m3uUrl,
+                        onM3uUrlChange = { m3uUrl = it },
+                        epgUrl = epgUrl,
+                        onEpgUrlChange = { epgUrl = it },
+                        name = name,
+                        isBusy = isBusy,
+                        message = message,
+                        onMessageChange = { message = it },
+                        onSourceReady = { newSource ->
+                            pendingNavigate = true
+                            mainViewModel.switchSource(newSource)
+                        },
+                        onNavigateDirect = {
+                            navController.navigate(Routes.DASHBOARD) {
+                                popUpTo(Routes.ADD_SOURCE) { inclusive = true }
                             }
                         },
-                        modifier = Modifier.width(300.dp).height(56.dp),
-                        enabled = !isBusy
-                    ) { Text("حفظ وتحميل", fontSize = 18.sp) }
+                        sourceMgr = sourceMgr,
+                        scope = scope,
+                        onLocalLoadingChange = { localLoading = it }
+                    )
                 }
 
                 // ═══════════════════════════════════════════════════
                 //  ملف من الجهاز
                 // ═══════════════════════════════════════════════════
                 1 -> {
-                    Text(
-                        "اختر ملف M3U من ذاكرة التلفاز الداخلية أو USB",
-                        color = Color.White,
-                        fontSize = 18.sp,
-                        textAlign = TextAlign.Center
+                    FilePickerForm(
+                        isBusy = isBusy,
+                        onPickFile = { filePicker.launch(arrayOf("*/*")) }
                     )
-                    Spacer(Modifier.height(20.dp))
-                    Button(
-                        onClick = { filePicker.launch(arrayOf("*/*")) },
-                        modifier = Modifier.width(400.dp).height(56.dp),
-                        enabled = !isBusy
-                    ) { Text("📂 فتح منتقي الملفات", fontSize = 18.sp) }
                 }
 
                 // ═══════════════════════════════════════════════════
                 //  Xtream API
                 // ═══════════════════════════════════════════════════
                 2 -> {
-                    OutlinedTextField(
-                        value = server,
-                        onValueChange = { server = it },
-                        label = { Text("Server URL") },
-                        placeholder = { Text("http://example.com:8080") },
-                        modifier = Modifier.width(600.dp),
-                        singleLine = true,
-                        enabled = !isBusy
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        "أدخل اسم السيرفر كاملاً: http://اسم-السيرفر:المنفذ",
-                        color = Color.LightGray,
-                        fontSize = 12.sp,
-                        modifier = Modifier.width(600.dp)
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    OutlinedTextField(
-                        value = user,
-                        onValueChange = { user = it },
-                        label = { Text("Username") },
-                        modifier = Modifier.width(600.dp),
-                        singleLine = true,
-                        enabled = !isBusy
-                    )
-                    Spacer(Modifier.height(12.dp))
-
-                    // ═══════════════════════════════════════════════
-                    //  كلمة السر — زر الكشف مستقل وغير قابل للتركيز بالريموت
-                    // ═══════════════════════════════════════════════
-                    PasswordField(
-                        value = pass,
-                        onValueChange = { pass = it },
-                        label = "Password",
-                        placeholder = "أدخل كلمة المرور",
-                        enabled = !isBusy,
-                        modifier = Modifier.width(600.dp),
-                    )
-
-                    Spacer(Modifier.height(20.dp))
-                    Button(
-                        onClick = {
-                            if (server.isBlank() || user.isBlank() || pass.isBlank()) {
-                                message = "املأ كل الحقول"
-                                return@Button
-                            }
-                            if (!server.contains(".")) {
-                                message = "أدخل اسم سيرفر صحيح"
-                                return@Button
-                            }
-                            message = ""
-                            scope.launch {
-                                localLoading = true
-                                val valid = XtreamApi.validate(server, user, pass)
-                                if (!valid) {
-                                    message = "بيانات Xtream غير صحيحة أو السيرفر غير متاح"
-                                    localLoading = false
-                                    return@launch
-                                }
-                                val newId = sourceMgr.add(
-                                    SourceEntity(
-                                        name = name.ifBlank { "Xtream: $user" },
-                                        type = "XTREAM",
-                                        url = server,
-                                        username = user,
-                                        password = pass,
-                                        isActive = false
-                                    )
-                                )
-                                sourceMgr.setActive(newId)
-                                localLoading = false
-
-                                val newSource = sourceMgr.getById(newId)
-                                if (newSource != null) {
-                                    pendingNavigate = true
-                                    mainViewModel.switchSource(newSource)
-                                } else {
-                                    navController.navigate(Routes.DASHBOARD) {
-                                        popUpTo(Routes.ADD_SOURCE) { inclusive = true }
-                                    }
-                                }
+                    XtreamForm(
+                        server = server,
+                        onServerChange = { server = it },
+                        user = user,
+                        onUserChange = { user = it },
+                        pass = pass,
+                        onPassChange = { pass = it },
+                        name = name,
+                        isBusy = isBusy,
+                        message = message,
+                        onMessageChange = { message = it },
+                        onSourceReady = { newSource ->
+                            pendingNavigate = true
+                            mainViewModel.switchSource(newSource)
+                        },
+                        onNavigateDirect = {
+                            navController.navigate(Routes.DASHBOARD) {
+                                popUpTo(Routes.ADD_SOURCE) { inclusive = true }
                             }
                         },
-                        modifier = Modifier.width(300.dp).height(56.dp),
-                        enabled = !isBusy
-                    ) { Text("حفظ وتحميل", fontSize = 18.sp) }
+                        sourceMgr = sourceMgr,
+                        scope = scope,
+                        onLocalLoadingChange = { localLoading = it }
+                    )
                 }
             }
 
