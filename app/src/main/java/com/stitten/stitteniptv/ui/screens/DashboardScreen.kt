@@ -7,23 +7,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.LiveTv
-import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -34,8 +25,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -50,6 +42,7 @@ import com.stitten.stitteniptv.database.entity.SeriesEntity
 import com.stitten.stitteniptv.database.entity.WatchHistoryEntity
 import com.stitten.stitteniptv.ui.components.ContentRow
 import com.stitten.stitteniptv.ui.components.ContinueWatchingSection
+import com.stitten.stitteniptv.ui.components.FocusStyle
 import com.stitten.stitteniptv.ui.components.HeroBanner
 import com.stitten.stitteniptv.ui.components.LoadingProgress
 import com.stitten.stitteniptv.ui.components.PosterCard
@@ -57,6 +50,13 @@ import com.stitten.stitteniptv.ui.components.SkeletonHomeScreen
 import com.stitten.stitteniptv.ui.components.tvFocusable
 import com.stitten.stitteniptv.ui.navigation.Routes
 import com.stitten.stitteniptv.ui.theme.AppIcons
+import com.stitten.stitteniptv.ui.theme.Radius
+import com.stitten.stitteniptv.ui.theme.Spacing
+import com.stitten.stitteniptv.ui.theme.TvBackground
+import com.stitten.stitteniptv.ui.theme.TvPrimary
+import com.stitten.stitteniptv.ui.theme.TvSurfaceHigh
+import com.stitten.stitteniptv.ui.theme.TvText
+import com.stitten.stitteniptv.ui.theme.TvTextSecondary
 import com.stitten.stitteniptv.viewmodel.MainViewModel
 
 @Composable
@@ -70,9 +70,6 @@ fun DashboardScreen(
 
     var isRefreshing by remember { mutableStateOf(false) }
 
-    // ═══════════════════════════════════════════════════════════
-    //  ✅ التحميل الكامل: نعرض الدائرة النسبية حتى تصل 100%
-    // ═══════════════════════════════════════════════════════════
     val showFullLoading = mainState.isLoading || isRefreshing
 
     LaunchedEffect(mainState.isLoading, isRefreshing) {
@@ -85,23 +82,20 @@ fun DashboardScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF0D1117))
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        TvBackground,
+                        Color(0xFF0D1014),
+                    )
+                )
+            )
     ) {
         when {
-            // 1️⃣ التحميل الرئيسي (من المصدر) — دائرة نسبية %
-            showFullLoading -> Box(
-                Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center,
-            ) {
-                LoadingProgress(
-                    progress = (mainState.loadingProgress / 100f)
-                        .coerceIn(0f, 1f)
-                        .let { if (it <= 0f) null else it },
-                    label = mainState.loadingMessage.ifBlank { "جارٍ تحميل القنوات..." },
-                )
-            }
+            // 1️⃣ التحميل الكامل مع Skeleton احترافي
+            showFullLoading -> SkeletonHomeScreen()
 
-            // 2️⃣ تحميل بيانات الواجهة (بعد انتهاء المصدر)
+            // 2️⃣ تحميل بيانات الواجهة
             state.isLoading -> Box(
                 Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center,
@@ -150,7 +144,7 @@ fun DashboardScreen(
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  المحتوى الرئيسي: Sidebar عمودي يسار + محتوى يمين
+//  المحتوى الرئيسي
 // ═══════════════════════════════════════════════════════════════
 
 @Composable
@@ -171,8 +165,8 @@ private fun DashboardContent(
 ) {
     Row(modifier = Modifier.fillMaxSize()) {
 
-        // ═══════ الشريط الجانبي (يسار) ═══════
-        SideNavBar(
+        // ═══════ الشريط الجانبي (من ملف منفصل) ═══════
+        DashboardSidebar(
             onMoviesClick = onMoviesClick,
             onSeriesListClick = onSeriesListClick,
             onLiveClick = onLiveClick,
@@ -182,32 +176,38 @@ private fun DashboardContent(
             onSettingsClick = onSettingsClick,
         )
 
-        // ═══════ المحتوى (يمين) ═══════
+        // ═══════ المحتوى ═══════
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(start = 12.dp),
-            contentPadding = PaddingValues(bottom = 32.dp),
+                .padding(start = Spacing.md),
+            contentPadding = PaddingValues(bottom = Spacing.xxxl),
         ) {
+            // ─── Hero Banner ───
             state.featuredMovie?.let { movie ->
                 item(key = "hero") {
-                    HeroBanner(
-                        title = movie.name,
-                        posterUrl = movie.poster,
-                        backdropUrl = movie.backdrop,
-                        plot = movie.plot,
-                        rating = movie.rating,
-                        year = movie.year,
-                        subtitle = movie.genre ?: "فيلم",
-                        onPlay = { onMovieClick(movie) },
-                        onDetails = { onMovieClick(movie) },
-                    )
+                    Spacer(Modifier.height(Spacing.xl))
+                    Box(modifier = Modifier.padding(horizontal = Spacing.xxl)) {
+                        HeroBanner(
+                            title = movie.name,
+                            posterUrl = movie.poster,
+                            backdropUrl = movie.backdrop,
+                            plot = movie.plot,
+                            rating = movie.rating,
+                            year = movie.year,
+                            subtitle = movie.genre ?: "فيلم",
+                            quality = "HD",
+                            onPlay = { onMovieClick(movie) },
+                            onDetails = { onMovieClick(movie) },
+                        )
+                    }
                 }
             }
 
+            // ─── متابعة المشاهدة ───
             if (state.continueWatching.isNotEmpty()) {
                 item(key = "continue") {
-                    Spacer(Modifier.height(16.dp))
+                    Spacer(Modifier.height(Spacing.xxl))
                     ContinueWatchingSection(
                         items = state.continueWatching,
                         onItemClick = onContinueClick,
@@ -216,83 +216,100 @@ private fun DashboardContent(
                 }
             }
 
+            // ─── أحدث الأفلام ───
             if (state.latestMovies.isNotEmpty()) {
                 item(key = "movies") {
-                    Spacer(Modifier.height(20.dp))
+                    Spacer(Modifier.height(Spacing.xxl))
                     ContentRow(
                         title = "أحدث الأفلام",
+                        subtitle = "إصدارات جديدة",
                         icon = AppIcons.Movies,
                         items = state.latestMovies,
                         key = { it.id },
+                        onSeeAll = onMoviesClick,
                     ) { movie ->
                         PosterCard(
                             title = movie.name,
                             imageUrl = movie.poster,
                             subtitle = buildSubtitle(movie.rating, movie.year),
+                            rating = movie.rating,
                             onClick = { onMovieClick(movie) },
                         )
                     }
                 }
             }
 
+            // ─── الأعلى تقييمًا ───
             if (state.topRatedMovies.isNotEmpty()) {
                 item(key = "top_rated") {
-                    Spacer(Modifier.height(20.dp))
+                    Spacer(Modifier.height(Spacing.xxl))
                     ContentRow(
                         title = "الأعلى تقييمًا",
+                        subtitle = "الأفضل حسب IMDb",
                         icon = AppIcons.Trending,
                         items = state.topRatedMovies,
                         key = { "top_${it.id}" },
+                        onSeeAll = onMoviesClick,
                     ) { movie ->
                         PosterCard(
                             title = movie.name,
                             imageUrl = movie.poster,
                             subtitle = buildSubtitle(movie.rating, movie.year),
+                            rating = movie.rating,
                             onClick = { onMovieClick(movie) },
                         )
                     }
                 }
             }
 
+            // ─── المسلسلات ───
             if (state.allSeries.isNotEmpty()) {
                 item(key = "series") {
-                    Spacer(Modifier.height(20.dp))
+                    Spacer(Modifier.height(Spacing.xxl))
                     ContentRow(
                         title = "المسلسلات",
+                        subtitle = "أحدث المسلسلات",
                         icon = AppIcons.Series,
                         items = state.allSeries,
                         key = { it.id },
+                        onSeeAll = onSeriesListClick,
                     ) { series ->
                         PosterCard(
                             title = series.name,
                             imageUrl = series.poster,
                             subtitle = buildSubtitle(series.rating, series.year),
+                            rating = series.rating,
                             onClick = { onSeriesClick(series) },
                         )
                     }
                 }
             }
 
+            // ─── قنوات مباشرة ───
             if (state.liveChannels.isNotEmpty()) {
                 item(key = "channels") {
-                    Spacer(Modifier.height(20.dp))
+                    Spacer(Modifier.height(Spacing.xxl))
                     ContentRow(
                         title = "قنوات مباشرة",
+                        subtitle = "بث حي 24/7",
                         icon = AppIcons.LiveTv,
                         items = state.liveChannels,
                         key = { it.id },
+                        onSeeAll = onLiveClick,
                     ) { channel ->
                         PosterCard(
                             title = channel.name,
                             imageUrl = channel.logo,
                             subtitle = channel.groupName.takeIf { it.isNotBlank() },
                             isChannel = true,
+                            isLive = true,
                             onClick = { onChannelClick(channel) },
                         )
                     }
                 }
             }
 
+            // ─── حالة فارغة ───
             if (
                 state.featuredMovie == null &&
                 state.latestMovies.isEmpty() &&
@@ -304,120 +321,6 @@ private fun DashboardContent(
                 item(key = "empty") { EmptyStateView() }
             }
         }
-    }
-}
-
-// ═══════════════════════════════════════════════════════════════
-//  الشريط الجانبي: أيقونات كبيرة + نصوص واضحة
-// ═══════════════════════════════════════════════════════════════
-
-@Composable
-private fun SideNavBar(
-    onMoviesClick: () -> Unit,
-    onSeriesListClick: () -> Unit,
-    onLiveClick: () -> Unit,
-    onFavoritesClick: () -> Unit,
-    onSearchClick: () -> Unit,
-    onRefreshClick: () -> Unit,
-    onSettingsClick: () -> Unit,
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxHeight()
-            .width(140.dp)
-            .background(Color(0xFF161B22))
-            .padding(vertical = 20.dp, horizontal = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        // ═══════ الشعار ═══════
-        Icon(
-            imageVector = AppIcons.Movies,
-            contentDescription = null,
-            tint = Color(0xFF1F6FEB),
-            modifier = Modifier.size(36.dp),
-        )
-        Spacer(Modifier.height(4.dp))
-        Text(
-            text = "STTITEN",
-            color = Color(0xFF1F6FEB),
-            fontSize = 13.sp,
-            fontWeight = FontWeight.ExtraBold,
-            textAlign = TextAlign.Center,
-        )
-        Spacer(Modifier.height(20.dp))
-
-        // ═══════ عناصر التنقل ═══════
-        SideNavButton(
-            icon = Icons.Default.Movie,
-            label = "أفلام",
-            onClick = onMoviesClick,
-        )
-        SideNavButton(
-            icon = Icons.Default.Tv,
-            label = "مسلسلات",
-            onClick = onSeriesListClick,
-        )
-        SideNavButton(
-            icon = Icons.Default.LiveTv,
-            label = "مباشر",
-            onClick = onLiveClick,
-        )
-        SideNavButton(
-            icon = Icons.Default.Favorite,
-            label = "المفضلة",
-            tint = Color(0xFFF85149),
-            onClick = onFavoritesClick,
-        )
-        SideNavButton(
-            icon = Icons.Default.Search,
-            label = "بحث",
-            onClick = onSearchClick,
-        )
-        SideNavButton(
-            icon = Icons.Default.Refresh,
-            label = "مزامنة",
-            tint = Color(0xFF66BB6A),
-            onClick = onRefreshClick,
-        )
-        SideNavButton(
-            icon = Icons.Default.Settings,
-            label = "إعدادات",
-            onClick = onSettingsClick,
-        )
-    }
-}
-
-@Composable
-private fun SideNavButton(
-    icon: ImageVector,
-    label: String,
-    onClick: () -> Unit,
-    tint: Color = Color.White,
-) {
-    Column(
-        modifier = Modifier
-            .width(124.dp)
-            .tvFocusable(onClick = onClick)
-            .padding(vertical = 10.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = label,
-            tint = tint,
-            modifier = Modifier.size(34.dp),
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text = label,
-            color = tint,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.SemiBold,
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-        )
     }
 }
 
@@ -438,17 +341,54 @@ private fun ErrorView(message: String, onRetry: () -> Unit) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(Spacing.lg),
+            modifier = Modifier
+                .clip(RoundedCornerShape(Radius.lg))
+                .background(TvSurfaceHigh)
+                .padding(Spacing.xxxl),
         ) {
-            Text("⚠️", fontSize = 48.sp)
-            Text(message, color = Color.White, fontSize = 16.sp)
-            Box(
-                Modifier
-                    .tvFocusable(onClick = onRetry)
-                    .background(Color(0xFF1F6FEB), shape = RoundedCornerShape(10.dp))
-                    .padding(horizontal = 24.dp, vertical = 12.dp)
+            Text("⚠️", fontSize = 56.sp)
+
+            Text(
+                text = "حدث خطأ",
+                color = TvText,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+            )
+
+            Text(
+                text = message,
+                color = TvTextSecondary,
+                fontSize = 14.sp,
+                textAlign = TextAlign.Center,
+            )
+
+            Spacer(Modifier.height(Spacing.sm))
+
+            Row(
+                modifier = Modifier
+                    .tvFocusable(
+                        style = FocusStyle.Button,
+                        onClick = onRetry,
+                    )
+                    .clip(RoundedCornerShape(Radius.md))
+                    .background(TvPrimary)
+                    .padding(horizontal = Spacing.xxl, vertical = Spacing.md),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
-                Text("🔄 إعادة المحاولة", color = Color.White, fontSize = 15.sp)
+                Icon(
+                    imageVector = Icons.Default.Refresh,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp),
+                )
+                Text(
+                    text = "إعادة المحاولة",
+                    color = Color.White,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
             }
         }
     }
@@ -457,12 +397,24 @@ private fun ErrorView(message: String, onRetry: () -> Unit) {
 @Composable
 private fun EmptyStateView() {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("📭", fontSize = 64.sp)
-            Spacer(Modifier.height(16.dp))
-            Text("لا يوجد محتوى", color = Color.White, fontSize = 20.sp)
-            Spacer(Modifier.height(8.dp))
-            Text("أضف مصدرًا من الإعدادات", color = Color(0xFF8B949E), fontSize = 14.sp)
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(Spacing.md),
+        ) {
+            Text("📭", fontSize = 72.sp)
+            Spacer(Modifier.height(Spacing.sm))
+            Text(
+                text = "لا يوجد محتوى بعد",
+                color = TvText,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                text = "أضف مصدرًا من الإعدادات لتبدأ المشاهدة",
+                color = TvTextSecondary,
+                fontSize = 14.sp,
+                textAlign = TextAlign.Center,
+            )
         }
     }
 }
