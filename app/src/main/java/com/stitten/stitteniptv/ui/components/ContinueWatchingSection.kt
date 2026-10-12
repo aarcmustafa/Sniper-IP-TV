@@ -19,12 +19,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.LiveTv
-import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -32,7 +28,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -41,14 +36,22 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.stitten.stitteniptv.database.entity.WatchHistoryEntity
 import com.stitten.stitteniptv.ui.theme.AppIcons
+import com.stitten.stitteniptv.ui.theme.Radius
+import com.stitten.stitteniptv.ui.theme.Spacing
+import com.stitten.stitteniptv.ui.theme.TvLive
+import com.stitten.stitteniptv.ui.theme.TvPrimary
+import com.stitten.stitteniptv.ui.theme.TvSuccess
+import com.stitten.stitteniptv.ui.theme.TvText
+import com.stitten.stitteniptv.ui.theme.TvTextSecondary
+import com.stitten.stitteniptv.ui.theme.TvWarning
 
 /**
- * قسم "متابعة المشاهدة" — تصميم محسّن مع:
- *  - أيقونة نوع المحتوى (LIVE/MOVIE/EPISODE)
- *  - شريط تقدم عريض
- *  - الوقت المتبقي بصيغة أنيقة
- *  - زر إزالة عند التركيز
- *  - خلفية متدرجة لقراءة النص
+ * قسم "متابعة المشاهدة" — نسخة احترافية:
+ *  - شارة نوع المحتوى مع أيقونة ولون
+ *  - نسبة التقدم الظاهرة على الشارة
+ *  - شريط تقدم أنيق مع توهج
+ *  - الوقت المتبقي بصيغة نظيفة (س/د)
+ *  - زر حذف دائري أنيق
  */
 @Composable
 fun ContinueWatchingSection(
@@ -60,23 +63,18 @@ fun ContinueWatchingSection(
 
     Column(modifier = Modifier.fillMaxWidth()) {
 
-        // ═══════════════════════════════════════════════════════
-        //  العنوان
-        // ═══════════════════════════════════════════════════════
         SectionHeader(
             title = "متابعة المشاهدة",
+            subtitle = "أكمل من حيث توقفت",
             icon = Icons.Default.PlayArrow,
             count = items.size,
         )
 
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(Spacing.md))
 
-        // ═══════════════════════════════════════════════════════
-        //  الصف الأفقي
-        // ═══════════════════════════════════════════════════════
         LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-            contentPadding = PaddingValues(horizontal = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.lg),
+            contentPadding = PaddingValues(horizontal = Spacing.xxl),
         ) {
             items(items, key = { "continue_${it.contentId}" }) { item ->
                 ContinueWatchingCard(
@@ -99,44 +97,45 @@ private fun ContinueWatchingCard(
     onClick: () -> Unit,
     onRemove: () -> Unit,
 ) {
-    // حساب النسبة والوقت المتبقي
+    // ─── حساب التقدم ───
     val progress = if (item.durationMs > 0) {
         (item.positionMs.toFloat() / item.durationMs).coerceIn(0f, 1f)
     } else 0f
 
-    val minutesLeft = if (item.durationMs > item.positionMs) {
-        ((item.durationMs - item.positionMs) / 60_000).toInt()
-    } else 0
+    val progressPercent = (progress * 100).toInt()
 
-    // نوع المحتوى
+    val remainingMs = (item.durationMs - item.positionMs).coerceAtLeast(0)
+    val remainingText = formatRemainingTime(remainingMs)
+
+    // ─── تحديد نوع المحتوى واللون ───
     val contentType = item.contentType.uppercase()
-    val (icon, label, accentColor) = when {
-        contentType.contains("LIVE") -> Triple(
-            AppIcons.LiveTv,
-            "بث مباشر",
-            Color(0xFFF85149),
+    val meta = when {
+        contentType.contains("LIVE") -> ContentMeta(
+            icon = AppIcons.LiveTv,
+            label = "بث مباشر",
+            accent = TvLive,
         )
-        contentType.contains("SERIES") || contentType.contains("EPISODE") -> Triple(
-            AppIcons.Series,
-            "حلقة",
-            Color(0xFF8B5CF6),
+        contentType.contains("SERIES") || contentType.contains("EPISODE") -> ContentMeta(
+            icon = AppIcons.Series,
+            label = "حلقة",
+            accent = TvPrimary,
         )
-        else -> Triple(
-            AppIcons.Movies,
-            "فيلم",
-            Color(0xFF1F6FEB),
+        else -> ContentMeta(
+            icon = AppIcons.Movies,
+            label = "فيلم",
+            accent = TvPrimary,
         )
     }
 
     Box(
         modifier = Modifier
-            .width(280.dp)
-            .height(170.dp)
-            .clip(RoundedCornerShape(14.dp))
+            .width(300.dp)
+            .height(180.dp)
+            .clip(RoundedCornerShape(Radius.lg))
             .tvFocusable(onClick = onClick)
     ) {
         // ═══════════════════════════════════════════════════════
-        //  صورة الخلفية
+        //  صورة الخلفية أو Placeholder
         // ═══════════════════════════════════════════════════════
         if (item.poster.isNotBlank()) {
             AsyncImage(
@@ -146,34 +145,39 @@ private fun ContinueWatchingCard(
                 modifier = Modifier.fillMaxSize(),
             )
         } else {
-            // خلفية افتراضية بلون النوع
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(
                         Brush.linearGradient(
                             colors = listOf(
-                                accentColor.copy(alpha = 0.6f),
+                                meta.accent.copy(alpha = 0.5f),
                                 Color(0xFF0D1117),
                             )
                         )
-                    )
-            )
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = meta.icon,
+                    contentDescription = null,
+                    tint = Color.White.copy(alpha = 0.3f),
+                    modifier = Modifier.size(48.dp),
+                )
+            }
         }
 
         // ═══════════════════════════════════════════════════════
-        //  طبقة تعتيم
+        //  طبقة تعتيم (Gradient سفلية)
         // ═══════════════════════════════════════════════════════
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Black.copy(alpha = 0.1f),
-                            Color.Black.copy(alpha = 0.4f),
-                            Color.Black.copy(alpha = 0.92f),
-                        )
+                        0f to Color.Black.copy(alpha = 0.05f),
+                        0.5f to Color.Black.copy(alpha = 0.35f),
+                        1f to Color.Black.copy(alpha = 0.92f),
                     )
                 )
         )
@@ -181,96 +185,85 @@ private fun ContinueWatchingCard(
         // ═══════════════════════════════════════════════════════
         //  زر الإزالة (أعلى اليمين)
         // ═══════════════════════════════════════════════════════
-        Box(
+        RemoveButton(
+            onClick = onRemove,
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(8.dp)
-                .size(32.dp)
-                .clip(CircleShape)
-                .background(Color.Black.copy(alpha = 0.7f))
-                .tvFocusable(onClick = onRemove),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = Icons.Default.Close,
-                contentDescription = "إزالة",
-                tint = Color.White,
-                modifier = Modifier.size(18.dp),
-            )
-        }
+                .padding(Spacing.sm),
+        )
 
         // ═══════════════════════════════════════════════════════
-        //  شارة النوع (أعلى اليسار)
+        //  شارة نوع المحتوى (أعلى اليسار)
         // ═══════════════════════════════════════════════════════
-        Row(
+        ContentTypeBadge(
+            meta = meta,
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .padding(8.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(accentColor.copy(alpha = 0.9f))
-                .padding(horizontal = 10.dp, vertical = 5.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(14.dp),
-            )
-            Spacer(Modifier.width(5.dp))
-            Text(
-                text = label,
-                color = Color.White,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-            )
-        }
+                .padding(Spacing.sm),
+        )
 
         // ═══════════════════════════════════════════════════════
-        //  المحتوى (أسفل البطاقة)
+        //  معلومات أسفل البطاقة
         // ═══════════════════════════════════════════════════════
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .fillMaxWidth()
-                .padding(12.dp),
+                .padding(
+                    start = Spacing.md,
+                    end = Spacing.md,
+                    bottom = Spacing.md + 6.dp,
+                ),
         ) {
-            // العنوان
+            // ─── العنوان ───
             Text(
                 text = item.title,
-                color = Color.White,
+                color = TvText,
                 fontSize = 15.sp,
+                lineHeight = 18.sp,
                 fontWeight = FontWeight.Bold,
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
 
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(Spacing.sm))
 
-            // المدة المتبقية
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            // ─── الوقت المتبقي + النسبة ───
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
                 Icon(
                     imageVector = Icons.Default.PlayArrow,
                     contentDescription = null,
-                    tint = accentColor,
+                    tint = meta.accent,
                     modifier = Modifier.size(14.dp),
                 )
-                Spacer(Modifier.width(5.dp))
                 Text(
-                    text = when {
-                        minutesLeft > 60 -> "متبقي ${minutesLeft / 60}س ${minutesLeft % 60}د"
-                        minutesLeft > 0 -> "متبقي $minutesLeft دقيقة"
-                        else -> "أوشك على الانتهاء"
-                    },
-                    color = Color(0xFFD0D7DE),
+                    text = remainingText,
+                    color = TvTextSecondary,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium,
                 )
+
+                if (progressPercent in 1..99) {
+                    Text(
+                        text = "·",
+                        color = TvTextSecondary,
+                        fontSize = 12.sp,
+                    )
+                    Text(
+                        text = "$progressPercent%",
+                        color = meta.accent,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
             }
         }
 
         // ═══════════════════════════════════════════════════════
-        //  شريط التقدم (أسفل البطاقة — عريض)
+        //  شريط التقدم (أسفل البطاقة)
         // ═══════════════════════════════════════════════════════
         if (progress > 0f) {
             Box(
@@ -278,15 +271,20 @@ private fun ContinueWatchingCard(
                     .align(Alignment.BottomStart)
                     .fillMaxWidth()
                     .height(4.dp)
-                    .background(Color.White.copy(alpha = 0.15f))
+                    .background(Color.White.copy(alpha = 0.12f))
             ) {
-                LinearProgressIndicator(
-                    progress = { progress },
+                Box(
                     modifier = Modifier
                         .fillMaxWidth(progress)
-                        .height(4.dp),
-                    color = accentColor,
-                    trackColor = Color.Transparent,
+                        .height(4.dp)
+                        .background(
+                            Brush.horizontalGradient(
+                                colors = listOf(
+                                    meta.accent.copy(alpha = 0.9f),
+                                    meta.accent,
+                                )
+                            )
+                        )
                 )
             }
         }
@@ -294,41 +292,84 @@ private fun ContinueWatchingCard(
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  عنوان القسم الموحّد
+//  مكونات داخلية
 // ═══════════════════════════════════════════════════════════════
 
+private data class ContentMeta(
+    val icon: androidx.compose.ui.graphics.vector.ImageVector,
+    val label: String,
+    val accent: Color,
+)
+
 @Composable
-private fun SectionHeader(
-    title: String,
-    icon: ImageVector,
-    count: Int? = null,
+private fun ContentTypeBadge(
+    meta: ContentMeta,
+    modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp),
+        modifier = modifier
+            .clip(RoundedCornerShape(Radius.sm))
+            .background(Color.Black.copy(alpha = 0.65f))
+            .padding(horizontal = 8.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Icon(
-            imageVector = icon,
+            imageVector = meta.icon,
             contentDescription = null,
-            tint = Color(0xFF1F6FEB),
-            modifier = Modifier.size(24.dp),
+            tint = meta.accent,
+            modifier = Modifier.size(12.dp),
         )
-        Spacer(Modifier.width(10.dp))
         Text(
-            text = title,
-            color = Color.White,
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Bold,
+            text = meta.label,
+            color = TvText,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold,
         )
-        if (count != null) {
-            Spacer(Modifier.width(8.dp))
-            Text(
-                text = "($count)",
-                color = Color(0xFF8B949E),
-                fontSize = 14.sp,
-            )
-        }
+    }
+}
+
+@Composable
+private fun RemoveButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .size(28.dp)
+            .clip(CircleShape)
+            .background(Color.Black.copy(alpha = 0.6f))
+            .tvFocusable(
+                style = FocusStyle.Button,
+                onClick = onClick,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = Icons.Default.Close,
+            contentDescription = "إزالة",
+            tint = Color.White,
+            modifier = Modifier.size(16.dp),
+        )
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  صيغة الوقت المتبقي
+// ═══════════════════════════════════════════════════════════════
+
+private fun formatRemainingTime(ms: Long): String {
+    if (ms <= 0) return "أوشك على الانتهاء"
+
+    val totalSeconds = (ms / 1000).toInt()
+    val hours = totalSeconds / 3600
+    val minutes = (totalSeconds % 3600) / 60
+
+    return when {
+        hours > 0 && minutes > 0 -> "متبقي $hours س $minutes د"
+        hours > 0 -> "متبقي $hours ساعة"
+        minutes > 0 -> "متبقي $minutes دقيقة"
+        totalSeconds > 0 -> "متبقي أقل من دقيقة"
+        else -> "أوشك على الانتهاء"
     }
 }
