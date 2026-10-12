@@ -4,11 +4,21 @@ import android.net.Uri
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.BaseDataSource
 import androidx.media3.datasource.DataSpec
+import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.TransferListener
-import androidx.media3.datasource.okhttp.OkHttpDataSource
 import com.stitten.stitteniptv.data.HttpClientProvider
 import java.io.IOException
 
+/**
+ * DataSource يعتمد على DefaultHttpDataSource (مضمون أنه يعمل مع Media3)
+ * مع دعم:
+ *  - User-Agent من HttpClientProvider
+ *  - Cookies من CookieJar
+ *  - Referer + Origin + Accept-Language
+ *  - AllowCrossProtocolRedirects (HTTP → HTTPS)
+ *  - Timeouts قصيرة للفشل السريع
+ *  - تبديل تلقائي بين المرشحين
+ */
 @UnstableApi
 class RetryHttpDataSource(
     private val candidates: List<String>,
@@ -16,7 +26,7 @@ class RetryHttpDataSource(
 ) : BaseDataSource(true) {
 
     private var currentIndex = 0
-    private var current: OkHttpDataSource? = null
+    private var current: DefaultHttpDataSource? = null
     private var currentUri: String? = null
     private var bytesRemaining = 0L
 
@@ -34,7 +44,7 @@ class RetryHttpDataSource(
         for (i in startIndex until candidates.size) {
             val url = candidates[i]
             try {
-                val source = buildSource()
+                val source = buildSource(url)
                 val newSpec = dataSpec.withUri(Uri.parse(url))
                 val len = source.open(newSpec)
                 current = source
@@ -57,15 +67,46 @@ class RetryHttpDataSource(
     }
 
     /**
-     * ✅ OkHttpDataSource مع:
-     *  - User-Agent + Cookies + Referer (من HttpClientProvider)
-     *  - مهلة قصيرة (10s) للفشل السريع
-     *  - TCP NoDelay (من streamingClient)
+     * ✅ يبني DefaultHttpDataSource مع:
+     *  - الرؤوس المطلوبة يدويًا (لأن DefaultHttpDataSource لا يعرف Interceptor)
+     *  - مهلة قصيرة
+     *  - تتبع التحويلات بين HTTP و HTTPS
      */
-    private fun buildSource(): OkHttpDataSource {
-        return OkHttpDataSource.Factory(HttpClientProvider.streamingClient)
-            .setConnectTimeoutMs(10_000)   // ← 10 ثوان
-            .setReadTimeoutMs(15_000)      // ← 15 ثانية
+    private fun buildSource(url: String): DefaultHttpDataSource {
+        val ua = HttpClientProvider.getUserAgent()
+
+        val headers = mutableMapOf<String, String>()
+        headers["User-Agent"] = ua
+        headers["Accept"] = "*/*"
+        headers["Accept-Language"] = "ar,en-US;q=0.9,en;q=0.8"
+        headers["Connection"] = "keep-alive"
+        headers["Accept-Encoding"] = "identity"
+
+        // Referer + Origin
+        try {
+            val uri = Uri.parse(url)
+            val host = uri.host
+            val scheme = uri.scheme ?: "http"
+            if (!host.isNullOrBlank()) {
+                headers["Referer"] = "$scheme://$host/"
+                headers["Origin"] = "$scheme://$host"
+            }
+        } catch (_: Exception) { }
+
+        // Cookies
+        try {
+            val cookieHeader = HttpClientProvider.getCookiesHeader(url)
+            if (!cookieHeader.isNullOrBlank()) {
+                headers["Cookie"] = cookieHeader
+            }
+        } catch (_: Exception) { }
+
+        return DefaultHttpDataSource.Factory()
+            .setUserAgent(ua)
+            .setDefaultRequestProperties(headers)
+            .setConnectTimeoutMs(10_000)   // ✅ مدعوم في DefaultHttpDataSource
+            .setReadTimeoutMs(15_000)      // ✅ مدعوم
+            .setAllowCrossProtocolRedirects(true)
             .createDataSource()
     }
 
