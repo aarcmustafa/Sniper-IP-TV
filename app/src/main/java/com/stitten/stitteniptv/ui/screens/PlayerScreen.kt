@@ -62,10 +62,6 @@ fun PlayerScreen(
     }
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  تحديد نوع البث
-// ═══════════════════════════════════════════════════════════════
-
 private fun detectKind(url: String): StreamKind {
     val lower = url.lowercase()
     return when {
@@ -75,54 +71,28 @@ private fun detectKind(url: String): StreamKind {
     }
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  بناء المرشحين — محدود بـ 2 (per PCAP analysis)
-// ═══════════════════════════════════════════════════════════════
-
 private fun buildCandidates(url: String, kind: StreamKind): List<String> {
     if (url.isBlank()) return listOf(url)
 
-    val lower = url.lowercase()
+    val cleanUrl = url.substringBefore("?")
+    val lower = cleanUrl.lowercase()
 
-    // ─── HLS / M3U8 — لا نبدّل شيئًا ───
-    if (lower.substringBefore("?").endsWith(".m3u8") ||
-        lower.substringBefore("?").endsWith(".m3u")
-    ) {
+    if (lower.endsWith(".m3u8") || lower.endsWith(".m3u")) {
         return listOf(url)
     }
+    if (!cleanUrl.contains(".")) return listOf(url)
 
-    val cleanUrl = url.substringBefore("?")
-    val query = url.substringAfter("?", "").let {
-        if (it.isNotEmpty() && it != url) "?$it" else ""
-    }
+    val base = url.substringBeforeLast(".")
+    val query = url.substringAfterLast(".").substringAfter("?", "")
 
-    val hasExt = cleanUrl.contains(".")
-    val base = if (hasExt) cleanUrl.substringBeforeLast(".") else cleanUrl
-    val currentExt = if (hasExt) cleanUrl.substringAfterLast(".").lowercase() else ""
-
+    val alternatives = listOf("mp4", "mkv", "avi", "ts", "m3u8")
     val candidates = mutableListOf(url)
 
-    // ─── القنوات المباشرة: الأصلي + بديل واحد ───
-    if (kind == StreamKind.LIVE) {
-        val alternative = when (currentExt) {
-            "ts" -> "m3u8"
-            "m3u8" -> "ts"
-            else -> "m3u8"
+    alternatives.forEach { ext ->
+        val candidate = if (query.isBlank()) "$base.$ext" else "$base.$ext?$query"
+        if (candidate != url && candidate !in candidates) {
+            candidates.add(candidate)
         }
-        candidates.add("$base.$alternative$query")
-        return candidates
     }
-
-    // ─── الفيلم/المسلسل: الأصلي + بديل واحد ───
-    if (!hasExt) return listOf(url)
-
-    val alternative = when (currentExt) {
-        "mp4" -> "mkv"
-        "mkv" -> "mp4"
-        "ts" -> "m3u8"
-        "m3u8" -> "ts"
-        else -> "mp4"
-    }
-    candidates.add("$base.$alternative$query")
     return candidates
 }
