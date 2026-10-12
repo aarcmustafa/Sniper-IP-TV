@@ -9,22 +9,6 @@ import androidx.media3.datasource.okhttp.OkHttpDataSource
 import com.stitten.stitteniptv.data.HttpClientProvider
 import java.io.IOException
 
-/**
- * DataSource يعتمد على OkHttp بدل DefaultHttpDataSource.
- *
- * الفوائد:
- *  - User-Agent من HttpClientProvider تلقائيًا
- *  - Cookies من CookieJar (نفس المستخدم في API)
- *  - Referer + Origin + Accept-Language
- *  - Logging (في Debug)
- *  - Connection Pool مشترك مع بقية التطبيق
- *  - DNS Cache مخصص
- *  - Ping كل 25 ثانية
- *
- * المنطق:
- *  - يجرّب كل رابط في [candidates] بالترتيب
- *  - إذا فشل واحد → ينتقل للتالي
- */
 @UnstableApi
 class RetryHttpDataSource(
     private val candidates: List<String>,
@@ -35,6 +19,10 @@ class RetryHttpDataSource(
     private var current: OkHttpDataSource? = null
     private var currentUri: String? = null
     private var bytesRemaining = 0L
+
+    init {
+        listener?.let { }
+    }
 
     override fun open(dataSpec: DataSpec): Long {
         var lastError: IOException? = null
@@ -60,7 +48,6 @@ class RetryHttpDataSource(
                 current?.close()
                 current = null
             } catch (e: Exception) {
-                // بعض الأخطاء قد تكون RuntimeException من OkHttp
                 lastError = IOException(e.message, e)
                 current?.close()
                 current = null
@@ -70,11 +57,15 @@ class RetryHttpDataSource(
     }
 
     /**
-     * يبني OkHttpDataSource يعتمد على streamingClient المشترك.
-     * كل الرؤوس (UA, Cookies, Referer) تُضاف تلقائيًا من OkHttpClient.
+     * ✅ OkHttpDataSource مع:
+     *  - User-Agent + Cookies + Referer (من HttpClientProvider)
+     *  - مهلة قصيرة (10s) للفشل السريع
+     *  - TCP NoDelay (من streamingClient)
      */
     private fun buildSource(): OkHttpDataSource {
         return OkHttpDataSource.Factory(HttpClientProvider.streamingClient)
+            .setConnectTimeoutMs(10_000)   // ← 10 ثوان
+            .setReadTimeoutMs(15_000)      // ← 15 ثانية
             .createDataSource()
     }
 
