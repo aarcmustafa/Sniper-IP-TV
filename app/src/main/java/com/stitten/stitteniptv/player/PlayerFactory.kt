@@ -7,8 +7,6 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.datasource.DataSource
-import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
@@ -19,53 +17,32 @@ import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
 enum class StreamKind { LIVE, MOVIE, EPISODE }
 
 /**
- * مصنع مشغل واحد فقط: ExoPlayer/Media3.
- * مُهيّأ ليعطي أداءً يقارب LibVLC على قنوات IPTV:
- *   - User-Agent متوافق مع VLC
- *   - HW + SW decoder fallback
- *   - إعادة محاولة متعددة
+ * مصنع المشغل: ExoPlayer/Media3 فقط.
+ * مُهيّأ ليعطي أداءً يوازي LibVLC على قنوات IPTV:
+ *   - HW decoder + fallback تلقائي إلى SW
+ *   - إعادة محاولة متعددة (LoadErrorHandlingPolicy + listener)
  *   - تسامح مع البث التالف/غير القياسي
  *   - Live latency مضبوط
+ *   - Wake mode لمنع نوم الشاشة أثناء البث
+ *
+ * ملاحظة: User-Agent يُدار عبر RetryHttpDataSource + HttpClientProvider.
  */
 @UnstableApi
 object PlayerFactory {
 
-    // ═══════════════════════════════════════════════════════════
-    //  User-Agent المتوافق مع VLC
-    //  بعض السيرفرات تُرشّح الاتصال حسب UA وتقبل فقط:
-    //    VLC/3.x.x LibVLC/3.x.x
-    //  هذا هو أهم سبب لعمل قنوات معينة مع VLC وفشلها بدونه.
-    // ═══════════════════════════════════════════════════════════
-    const val VLC_USER_AGENT = "VLC/3.0.20 LibVLC/3.0.20"
-
-    // عدد محاولات إعادة الاتصال
     private const val MAX_RETRIES = 8
-
-    // زمن انتظار الشبكة
-    private const val CONNECT_TIMEOUT_MS = 15_000
-    private const val READ_TIMEOUT_MS = 20_000
 
     fun create(
         context: Context,
         candidates: List<String>,
         kind: StreamKind,
         startPositionMs: Long = 0L,
-        userAgent: String = VLC_USER_AGENT,
     ): ExoPlayer {
 
-        // ─── 1) DataSource مع User-Agent + إعادة محاولة مدمجة ───
-        val upstreamFactory: DataSource.Factory =
-            DefaultHttpDataSource.Factory()
-                .setUserAgent(userAgent)
-                .setConnectTimeoutMs(CONNECT_TIMEOUT_MS)
-                .setReadTimeoutMs(READ_TIMEOUT_MS)
-                .setAllowCrossProtocolRedirects(true)
-                .setKeepPostFor302Redirects(true)
-
-        // نغلّفه بـ RetryHttpDataSource الموجود لديك (يدعم قائمة مرشحين)
-        val retryFactory = RetryHttpDataSource(candidates, upstreamFactory)
-
-        val mediaSourceFactory = DefaultMediaSourceFactory(retryFactory)
+        // ─── 1) DataSource — يستخدم ملفك الحالي كما هو ───
+        //     UA + Cookies يُداران داخله عبر HttpClientProvider
+        val dataSource = RetryHttpDataSource(candidates)
+        val mediaSourceFactory = DefaultMediaSourceFactory { dataSource }
 
         // ─── 2) RenderersFactory — HW مع fallback تلقائي إلى SW ───
         // يعوّض: --avcodec-hw=any
@@ -77,6 +54,7 @@ object PlayerFactory {
             .setEnableAudioTrackPlaybackParams(true)
 
         // ─── 3) LoadControl — Caching ذكي حسب نوع البث ───
+        // يعوّض: --network-caching / --live-caching
         val isLive = kind == StreamKind.LIVE
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
@@ -91,6 +69,7 @@ object PlayerFactory {
             .build()
 
         // ─── 4) TrackSelector — تسامح مع الأنواع المختلطة ───
+        // يعوّض VLC في التسامح مع البث غير القياسي
         val trackSelector = DefaultTrackSelector(context).apply {
             setParameters(
                 buildUponParameters()
