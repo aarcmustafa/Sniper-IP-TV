@@ -1,7 +1,6 @@
 package com.stitten.stitteniptv.ui.theme
 
 import android.app.Activity
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
@@ -12,70 +11,55 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
 // ═══════════════════════════════════════════════════════════════
-//  ألوان التطبيق الداكنة (TV Style)
-// ═══════════════════════════════════════════════════════════════
-
-val BackgroundDark = Color(0xFF0D1117)
-val SurfaceDark = Color(0xFF161B22)
-val SurfaceElevated = Color(0xFF1E2536)
-val SurfaceHighlight = Color(0xFF21262D)
-
-val PrimaryAccent = Color(0xFF1F6FEB)
-val SecondaryAccent = Color(0xFF8B5CF6)
-val FocusBorder = Color(0xFF58A6FF)
-val GreenAccent = Color(0xFF238636)
-val RedAccent = Color(0xFFDA3633)
-
-val TextPrimary = Color(0xFFF1F5F9)
-val TextSecondary = Color(0xFF8B949E)
-val TextMuted = Color(0xFF6E7681)
-val Divider = Color(0xFF30363D)
-
-// ═══════════════════════════════════════════════════════════════
-//  Color Scheme — Dark دائمًا (TV)
+//  🎨 Color Scheme — يعتمد على Color.kt كمصدر وحيد
+//  Dark دائمًا (تطبيق TV)
 // ═══════════════════════════════════════════════════════════════
 
 private val DarkColorScheme = darkColorScheme(
     // ─── الألوان الأساسية ───
-    primary = PrimaryAccent,
+    primary = TvPrimary,
     onPrimary = Color.White,
-    primaryContainer = PrimaryAccent.copy(alpha = 0.2f),
-    onPrimaryContainer = TextPrimary,
+    primaryContainer = TvPrimaryDark,
+    onPrimaryContainer = TvText,
 
     // ─── الألوان الثانوية ───
-    secondary = SecondaryAccent,
-    onSecondary = Color.White,
-    secondaryContainer = SecondaryAccent.copy(alpha = 0.2f),
-    onSecondaryContainer = TextPrimary,
+    secondary = TvPrimaryLight,
+    onSecondary = Color.Black,
+    secondaryContainer = TvSurfaceElevated,
+    onSecondaryContainer = TvText,
 
-    // ─── Tertiary ───
-    tertiary = GreenAccent,
-    onTertiary = Color.White,
+    // ─── Tertiary (ذهبي للعناصر المميزة) ───
+    tertiary = TvGold,
+    onTertiary = Color.Black,
+    tertiaryContainer = TvGold.copy(alpha = 0.2f),
+    onTertiaryContainer = TvGold,
 
     // ─── الخلفيات ───
-    background = BackgroundDark,
-    onBackground = TextPrimary,
+    background = TvBackground,
+    onBackground = TvText,
 
     // ─── الأسطح ───
-    surface = SurfaceDark,
-    onSurface = TextPrimary,
-    surfaceVariant = SurfaceHighlight,
-    onSurfaceVariant = TextSecondary,
+    surface = TvSurface,
+    onSurface = TvText,
+    surfaceVariant = TvSurfaceElevated,
+    onSurfaceVariant = TvTextSecondary,
+    surfaceContainer = TvSurfaceHigh,
+    surfaceContainerHigh = TvSurfaceHigh,
 
     // ─── الأخطاء ───
-    error = RedAccent,
+    error = TvError,
     onError = Color.White,
-    errorContainer = RedAccent.copy(alpha = 0.2f),
-    onErrorContainer = TextPrimary,
+    errorContainer = TvError.copy(alpha = 0.2f),
+    onErrorContainer = TvError,
 
     // ─── الحدود ───
-    outline = Divider,
-    outlineVariant = Divider.copy(alpha = 0.5f),
+    outline = TvBorder,
+    outlineVariant = TvBorder.copy(alpha = 0.5f),
 
     // ─── Inverse ───
-    inverseSurface = TextPrimary,
-    inverseOnSurface = BackgroundDark,
-    inversePrimary = PrimaryAccent,
+    inverseSurface = TvText,
+    inverseOnSurface = TvBackground,
+    inversePrimary = TvPrimaryDark,
 )
 
 // ═══════════════════════════════════════════════════════════════
@@ -86,17 +70,16 @@ private val DarkColorScheme = darkColorScheme(
 fun STTITENIPTVTheme(
     content: @Composable () -> Unit
 ) {
-    // TV دائمًا داكن — لا يوجد وضع فاتح
     val colorScheme = DarkColorScheme
 
-    // ضبط شريط الحالة (Status Bar) في الأجهزة اللوحية
+    // ─── ضبط Status Bar / Navigation Bar ───
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
             try {
                 val window = (view.context as? Activity)?.window ?: return@SideEffect
-                window.statusBarColor = BackgroundDark.toArgb()
-                window.navigationBarColor = BackgroundDark.toArgb()
+                window.statusBarColor = TvBackground.toArgb()
+                window.navigationBarColor = TvBackground.toArgb()
                 WindowCompat.getInsetsController(window, view).apply {
                     isAppearanceLightStatusBars = false
                     isAppearanceLightNavigationBars = false
@@ -107,7 +90,7 @@ fun STTITENIPTVTheme(
 
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = AppTypography,     // ✅ خطوط Cairo
+        typography = AppTypography,
         content = content,
     )
 }
