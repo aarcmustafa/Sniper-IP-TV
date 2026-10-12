@@ -56,25 +56,14 @@ class RetryHttpDataSource(
         throw lastError ?: IOException("All stream candidates failed")
     }
 
+    // ✅ DefaultHttpDataSource مع User-Agent فقط (بدون Referer/Origin/Accept-Encoding)
     private fun buildSource(url: String): DefaultHttpDataSource {
         val ua = HttpClientProvider.getUserAgent()
 
         val headers = mutableMapOf<String, String>()
         headers["User-Agent"] = ua
         headers["Accept"] = "*/*"
-        headers["Accept-Language"] = "ar,en-US;q=0.9,en;q=0.8"
         headers["Connection"] = "keep-alive"
-        headers["Accept-Encoding"] = "identity"
-
-        try {
-            val uri = Uri.parse(url)
-            val host = uri.host
-            val scheme = uri.scheme ?: "http"
-            if (!host.isNullOrBlank()) {
-                headers["Referer"] = "$scheme://$host/"
-                headers["Origin"] = "$scheme://$host"
-            }
-        } catch (_: Exception) { }
 
         try {
             val cookieHeader = HttpClientProvider.getCookiesHeader(url)
@@ -86,8 +75,8 @@ class RetryHttpDataSource(
         return DefaultHttpDataSource.Factory()
             .setUserAgent(ua)
             .setDefaultRequestProperties(headers)
-            .setConnectTimeoutMs(10_000)
-            .setReadTimeoutMs(15_000)
+            .setConnectTimeoutMs(8_000)
+            .setReadTimeoutMs(8_000)
             .setAllowCrossProtocolRedirects(true)
             .createDataSource()
     }
