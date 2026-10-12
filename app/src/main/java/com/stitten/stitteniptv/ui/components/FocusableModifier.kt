@@ -31,10 +31,13 @@ import androidx.compose.ui.unit.dp
  * ✅ يعمل بضغطة واحدة من زر OK/Center في الريموت
  * ✅ تأثير Focus واضح (تكبير + حدود زرقاء + خلفية)
  * ✅ يمنع النقر المزدوج عبر debounce 300ms
+ *
+ * ⚠️ ملاحظة: `shape` يجب أن يكون قبل `onClick` حتى يعمل trailing lambda
+ *    بالشكل: `Modifier.tvFocusable { onClick() }`
  */
 fun Modifier.tvFocusable(
-    onClick: () -> Unit,
     shape: RoundedCornerShape = RoundedCornerShape(12.dp),
+    onClick: () -> Unit,
 ): Modifier = composed {
     var isFocused by remember { mutableStateOf(false) }
     var lastClickTime by remember { mutableLongStateOf(0L) }
