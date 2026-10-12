@@ -17,15 +17,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import coil.request.CachePolicy
 
 /**
  * بطاقة موحّدة تُستخدم للأفلام، المسلسلات، والقنوات.
- * تعتمد على [tvFocusable] لإبراز العنصر عند التركيز بالريموت.
  */
 @Composable
 fun PosterCard(
@@ -34,8 +36,8 @@ fun PosterCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     subtitle: String? = null,
-    progress: Float? = null,   // 0f..1f لشريط "متابعة المشاهدة"
-    isChannel: Boolean = false // شكل مختلف قليلًا للقنوات
+    progress: Float? = null,
+    isChannel: Boolean = false
 ) {
     val cardWidth = if (isChannel) 220.dp else 200.dp
     val cardHeight = if (isChannel) 130.dp else 300.dp
@@ -52,16 +54,32 @@ fun PosterCard(
                 .fillMaxWidth()
                 .height(cardHeight)
                 .clip(cornerRadius)
+                .background(Color(0xFF161B22))  // ✅ خلفية ثابتة قبل تحميل الصورة
         ) {
             // ===== الصورة =====
-            AsyncImage(
-                model = imageUrl,
-                contentDescription = title,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
+            if (!imageUrl.isNullOrBlank()) {
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(imageUrl)
+                        // ✅ مفتاح Cache ثابت — يمنع إعادة التحميل عند recomposition
+                        .memoryCacheKey(imageUrl)
+                        .diskCacheKey(imageUrl)
+                        // ✅ Crossfade ناعم عند الظهور
+                        .crossfade(true)
+                        // ✅ سياسة Cache صارمة
+                        .memoryCachePolicy(CachePolicy.ENABLED)
+                        .diskCachePolicy(CachePolicy.ENABLED)
+                        .networkCachePolicy(CachePolicy.ENABLED)
+                        // ✅ حجم محدّد لتقليل إعادة القياس
+                        .size(512, 512)
+                        .build(),
+                    contentDescription = title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
 
-            // ===== تدرج أسود أسفل الصورة لقراءة النص =====
+            // ===== تدرج أسود أسفل الصورة =====
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
