@@ -15,9 +15,6 @@ import dagger.hilt.components.SingletonComponent
 @InstallIn(SingletonComponent::class)
 interface PlayerEntryPoint {
 
-    // ═══════════════════════════════════════════════════════════
-    //  المدراء الأصليون (كانوا موجودين قبل تعديلي)
-    // ═══════════════════════════════════════════════════════════
     fun watchHistoryManager(): WatchHistoryManager
     fun sourceManager(): SourceManager
     fun errorLogger(): ErrorLogger
@@ -25,8 +22,6 @@ interface PlayerEntryPoint {
     fun favoritesSyncManager(): FavoritesSyncManager
     fun channelRepository(): ChannelRepository
 
-    // ═══════════════════════════════════════════════════════════
-    //  ✅ جديد: مدير إعدادات المشغل (لاختيار ExoPlayer / VLC)
-    // ═══════════════════════════════════════════════════════════
+    // ✅ جديد: لاختيار ExoPlayer / VLC
     fun playerSettingsManager(): PlayerSettingsManager
 }
