@@ -11,7 +11,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -24,9 +29,26 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+/**
+ * دائرة تحميل موحّدة تدعم وضعين:
+ *
+ *  1️⃣ Determinate — عند تمرير [progress] بين 0f و 1f
+ *      → تعرض دائرة نسبية مع النسبة المئوية
+ *
+ *  2️⃣ Indeterminate — عند تمرير [progress] = null
+ *      → تعرض دائرة دوّارة بدون نسبة
+ *
+ * @param progress  القيمة بين 0f و 1f أو null للدائرة الدوّارة
+ * @param label     نص يظهر أسفل الدائرة (اختياري)
+ * @param size      قطر الدائرة
+ * @param strokeWidth سماكة الخط
+ * @param color     لون الدائرة الأمامية
+ * @param trackColor لون الخلفية
+ * @param modifier  معدِّل Compose
+ */
 @Composable
 fun LoadingProgress(
-    progress: Float,
+    progress: Float?,
     label: String? = null,
     size: Dp = 140.dp,
     strokeWidth: Dp = 10.dp,
@@ -34,11 +56,36 @@ fun LoadingProgress(
     trackColor: Color = Color(0xFF21262D),
     modifier: Modifier = Modifier,
 ) {
-    val animated by animateFloatAsState(
-        targetValue = progress.coerceIn(0f, 1f),
+    val isIndeterminate = progress == null
+
+    // ═══════════════════════════════════════════════════════════
+    //  الوضع 1: Determinate (نسبة %)
+    // ═══════════════════════════════════════════════════════════
+    val animatedProgress by animateFloatAsState(
+        targetValue = (progress ?: 0f).coerceIn(0f, 1f),
         animationSpec = tween(durationMillis = 300),
         label = "loadingProgress",
     )
+
+    // ═══════════════════════════════════════════════════════════
+    //  الوضع 2: Indeterminate (دائرة دوّارة)
+    // ═══════════════════════════════════════════════════════════
+    var spinAngle by remember { mutableFloatStateOf(0f) }
+
+    if (isIndeterminate) {
+        LaunchedEffect(Unit) {
+            var lastFrame = 0L
+            while (true) {
+                withFrameMillis { now ->
+                    if (lastFrame != 0L) {
+                        val delta = now - lastFrame
+                        spinAngle = (spinAngle + delta * 0.36f) % 360f
+                    }
+                    lastFrame = now
+                }
+            }
+        }
+    }
 
     Column(
         modifier = modifier,
@@ -58,6 +105,7 @@ fun LoadingProgress(
                 )
                 val arcSize = Size(radius * 2, radius * 2)
 
+                // ═══ الحلقة الخلفية (ثابتة في الوضعين) ═══
                 drawArc(
                     color = trackColor,
                     startAngle = -90f,
@@ -68,23 +116,40 @@ fun LoadingProgress(
                     size = arcSize,
                 )
 
-                drawArc(
-                    color = color,
-                    startAngle = -90f,
-                    sweepAngle = 360f * animated,
-                    useCenter = false,
-                    style = Stroke(width = strokePx, cap = StrokeCap.Round),
-                    topLeft = topLeft,
-                    size = arcSize,
-                )
+                if (isIndeterminate) {
+                    // ═══ الوضع 2: قوس دوّار (90 درجة فقط) ═══
+                    drawArc(
+                        color = color,
+                        startAngle = spinAngle - 90f,
+                        sweepAngle = 90f,
+                        useCenter = false,
+                        style = Stroke(width = strokePx, cap = StrokeCap.Round),
+                        topLeft = topLeft,
+                        size = arcSize,
+                    )
+                } else {
+                    // ═══ الوضع 1: قوس بنسبة progress ═══
+                    drawArc(
+                        color = color,
+                        startAngle = -90f,
+                        sweepAngle = 360f * animatedProgress,
+                        useCenter = false,
+                        style = Stroke(width = strokePx, cap = StrokeCap.Round),
+                        topLeft = topLeft,
+                        size = arcSize,
+                    )
+                }
             }
 
-            Text(
-                text = "${(animated * 100).toInt()}%",
-                color = Color.White,
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Bold,
-            )
+            // ═══ النسبة المئوية (فقط في الوضع Determinate) ═══
+            if (!isIndeterminate) {
+                Text(
+                    text = "${(animatedProgress * 100).toInt()}%",
+                    color = Color.White,
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
         }
 
         if (!label.isNullOrBlank()) {
