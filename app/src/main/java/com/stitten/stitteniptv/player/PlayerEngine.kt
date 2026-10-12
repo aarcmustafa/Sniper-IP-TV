@@ -4,7 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 
 /**
- * واجهة موحدة لكل محركات التشغيل (ExoPlayer / libvlc).
+ * واجهة موحدة لمحركات التشغيل (ExoPlayer).
  */
 interface PlayerEngine {
 
@@ -14,10 +14,8 @@ interface PlayerEngine {
     val durationMs: Long
     val positionMs: Long
 
-    /** تشغيل قائمة مرشحين (روابط احتياطية) + نوع البث */
     fun prepare(candidates: List<String>, kind: StreamKind)
 
-    /** اختصار لرابط واحد (افتراضيًا LIVE) */
     fun prepare(url: String) = prepare(listOf(url), StreamKind.LIVE)
 
     fun play()
