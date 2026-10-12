@@ -40,11 +40,11 @@ import com.stitten.stitteniptv.database.entity.ChannelEntity
 import com.stitten.stitteniptv.database.entity.MovieEntity
 import com.stitten.stitteniptv.database.entity.SeriesEntity
 import com.stitten.stitteniptv.database.entity.WatchHistoryEntity
+import com.stitten.stitteniptv.ui.components.AppLoadingScreen
 import com.stitten.stitteniptv.ui.components.ContentRow
 import com.stitten.stitteniptv.ui.components.ContinueWatchingSection
 import com.stitten.stitteniptv.ui.components.FocusStyle
 import com.stitten.stitteniptv.ui.components.HeroBanner
-import com.stitten.stitteniptv.ui.components.LoadingProgress
 import com.stitten.stitteniptv.ui.components.PosterCard
 import com.stitten.stitteniptv.ui.components.SkeletonHomeScreen
 import com.stitten.stitteniptv.ui.components.tvFocusable
@@ -92,27 +92,33 @@ fun DashboardScreen(
             )
     ) {
         when {
-            // 1️⃣ التحميل الكامل مع Skeleton احترافي
-            showFullLoading -> SkeletonHomeScreen()
+            // ═══════════════════════════════════════════════════════
+            //  1️⃣ تحميل المصدر الكامل (M3U/Xtream) — شاشة كاملة مع %
+            // ═══════════════════════════════════════════════════════
+            showFullLoading -> AppLoadingScreen(
+                progress = (mainState.loadingProgress / 100f)
+                    .coerceIn(0f, 1f)
+                    .takeIf { it > 0f },
+                message = mainState.loadingMessage.ifBlank { "جارٍ تحميل المحتوى..." },
+                subtitle = "قد يستغرق هذا دقيقة حسب حجم المصدر",
+            )
 
-            // 2️⃣ تحميل بيانات الواجهة
-            state.isLoading -> Box(
-                Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center,
-            ) {
-                LoadingProgress(
-                    progress = null,
-                    label = "جارٍ تجهيز الواجهة...",
-                )
-            }
+            // ═══════════════════════════════════════════════════════
+            //  2️⃣ تجهيز الواجهة (سريع) — Skeleton
+            // ═══════════════════════════════════════════════════════
+            state.isLoading -> SkeletonHomeScreen()
 
-            // 3️⃣ خطأ
+            // ═══════════════════════════════════════════════════════
+            //  3️⃣ خطأ
+            // ═══════════════════════════════════════════════════════
             state.errorMessage != null -> ErrorView(
                 message = state.errorMessage!!,
                 onRetry = viewModel::retry,
             )
 
-            // 4️⃣ المحتوى
+            // ═══════════════════════════════════════════════════════
+            //  4️⃣ المحتوى
+            // ═══════════════════════════════════════════════════════
             else -> DashboardContent(
                 state = state,
                 onMovieClick = { movie ->
@@ -165,7 +171,7 @@ private fun DashboardContent(
 ) {
     Row(modifier = Modifier.fillMaxSize()) {
 
-        // ═══════ الشريط الجانبي (من ملف منفصل) ═══════
+        // ═══════ الشريط الجانبي ═══════
         DashboardSidebar(
             onMoviesClick = onMoviesClick,
             onSeriesListClick = onSeriesListClick,
