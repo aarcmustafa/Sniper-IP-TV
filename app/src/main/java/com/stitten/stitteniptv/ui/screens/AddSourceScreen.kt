@@ -12,12 +12,17 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -45,14 +50,21 @@ import androidx.navigation.NavHostController
 import com.stitten.stitteniptv.R
 import com.stitten.stitteniptv.data.ContentRepository
 import com.stitten.stitteniptv.data.M3uParser
+import com.stitten.stitteniptv.data.SourceManager
+import com.stitten.stitteniptv.data.XtreamApi
 import com.stitten.stitteniptv.database.entity.SourceEntity
+import com.stitten.stitteniptv.ui.components.PasswordField
 import com.stitten.stitteniptv.ui.components.tvFocusable
 import com.stitten.stitteniptv.ui.navigation.Routes
 import com.stitten.stitteniptv.ui.theme.Radius
 import com.stitten.stitteniptv.ui.theme.Spacing
+import com.stitten.stitteniptv.ui.theme.TvPrimary
 import com.stitten.stitteniptv.ui.theme.TvSurfaceHigh
+import com.stitten.stitteniptv.ui.theme.TvText
+import com.stitten.stitteniptv.ui.theme.TvTextSecondary
 import com.stitten.stitteniptv.viewmodel.MainViewModel
 import dagger.hilt.android.EntryPointAccessors
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 @Composable
@@ -193,7 +205,6 @@ fun AddSourceScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-
         Image(
             painter = painterResource(id = R.drawable.bg_main),
             contentDescription = null,
@@ -240,8 +251,7 @@ fun AddSourceScreen(
                 AddSourceTabButton("Xtream API", mode == 2, !isBusy) { mode = 2 }
             }
             Spacer(Modifier.height(24.dp))
-
-            when (mode) {
+                        when (mode) {
 
                 // ═══════════════════════════════════════════════════
                 //  M3U من رابط
@@ -254,7 +264,6 @@ fun AddSourceScreen(
                         onEpgUrlChange = { epgUrl = it },
                         name = name,
                         isBusy = isBusy,
-                        message = message,
                         onMessageChange = { message = it },
                         onSourceReady = { newSource ->
                             pendingNavigate = true
@@ -294,7 +303,6 @@ fun AddSourceScreen(
                         onPassChange = { pass = it },
                         name = name,
                         isBusy = isBusy,
-                        message = message,
                         onMessageChange = { message = it },
                         onSourceReady = { newSource ->
                             pendingNavigate = true
@@ -348,6 +356,309 @@ fun AddSourceScreen(
                     .tvFocusable(onClick = { navController.popBackStack() })
                     .background(TvSurfaceHigh, RoundedCornerShape(Radius.md))
                     .padding(horizontal = Spacing.xxl, vertical = Spacing.md)
+            )
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  M3U Form
+// ═══════════════════════════════════════════════════════════════
+
+@Composable
+internal fun M3uForm(
+    m3uUrl: String,
+    onM3uUrlChange: (String) -> Unit,
+    epgUrl: String,
+    onEpgUrlChange: (String) -> Unit,
+    name: String,
+    isBusy: Boolean,
+    onMessageChange: (String) -> Unit,
+    onSourceReady: (SourceEntity) -> Unit,
+    onNavigateDirect: () -> Unit,
+    sourceMgr: SourceManager,
+    scope: CoroutineScope,
+    onLocalLoadingChange: (Boolean) -> Unit,
+) {
+    OutlinedTextField(
+        value = m3uUrl,
+        onValueChange = onM3uUrlChange,
+        label = { Text("رابط M3U / M3U8") },
+        placeholder = { Text("http://example.com/list.m3u") },
+        modifier = Modifier.width(600.dp),
+        singleLine = true,
+        enabled = !isBusy
+    )
+    Spacer(Modifier.height(12.dp))
+    OutlinedTextField(
+        value = epgUrl,
+        onValueChange = onEpgUrlChange,
+        label = { Text("رابط EPG (اختياري)") },
+        placeholder = { Text("http://example.com/epg.xml") },
+        modifier = Modifier.width(600.dp),
+        singleLine = true,
+        enabled = !isBusy
+    )
+    Spacer(Modifier.height(20.dp))
+    Button(
+        onClick = {
+            if (m3uUrl.isBlank()) {
+                onMessageChange("أدخل الرابط")
+                return@Button
+            }
+            onMessageChange("")
+            scope.launch {
+                onLocalLoadingChange(true)
+                try {
+                    val channels = M3uParser.loadFromUrl(m3uUrl)
+                    if (channels.isEmpty()) {
+                        onMessageChange("فشل تحميل القنوات — تحقق من الرابط")
+                        onLocalLoadingChange(false)
+                        return@launch
+                    }
+                    ContentRepository.channels = channels
+
+                    val detectedType = if (m3uUrl.lowercase().contains(".m3u8"))
+                        "M3U8" else "M3U"
+
+                    val newId = sourceMgr.add(
+                        SourceEntity(
+                            name = name.ifBlank {
+                                "$detectedType: ${m3uUrl.takeLast(30)}"
+                            },
+                            type = detectedType,
+                            url = m3uUrl,
+                            epgUrl = epgUrl,
+                            isActive = false
+                        )
+                    )
+                    sourceMgr.setActive(newId)
+                    onLocalLoadingChange(false)
+
+                    val newSource = sourceMgr.getById(newId)
+                    if (newSource != null) {
+                        onSourceReady(newSource)
+                    } else {
+                        onNavigateDirect()
+                    }
+                } catch (e: Exception) {
+                    onMessageChange("خطأ: ${e.message}")
+                    onLocalLoadingChange(false)
+                }
+            }
+        },
+        modifier = Modifier.width(300.dp).height(56.dp),
+        enabled = !isBusy
+    ) { Text("حفظ وتحميل", fontSize = 18.sp) }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  File Picker Form
+// ═══════════════════════════════════════════════════════════════
+
+@Composable
+internal fun FilePickerForm(
+    isBusy: Boolean,
+    onPickFile: () -> Unit,
+) {
+    Text(
+        "اختر ملف M3U من ذاكرة التلفاز الداخلية أو USB",
+        color = Color.White,
+        fontSize = 18.sp,
+        textAlign = TextAlign.Center
+    )
+    Spacer(Modifier.height(20.dp))
+    Button(
+        onClick = onPickFile,
+        modifier = Modifier.width(400.dp).height(56.dp),
+        enabled = !isBusy
+    ) { Text("📂 فتح منتقي الملفات", fontSize = 18.sp) }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Xtream Form
+// ═══════════════════════════════════════════════════════════════
+
+@Composable
+internal fun XtreamForm(
+    server: String,
+    onServerChange: (String) -> Unit,
+    user: String,
+    onUserChange: (String) -> Unit,
+    pass: String,
+    onPassChange: (String) -> Unit,
+    name: String,
+    isBusy: Boolean,
+    onMessageChange: (String) -> Unit,
+    onSourceReady: (SourceEntity) -> Unit,
+    onNavigateDirect: () -> Unit,
+    sourceMgr: SourceManager,
+    scope: CoroutineScope,
+    onLocalLoadingChange: (Boolean) -> Unit,
+) {
+    OutlinedTextField(
+        value = server,
+        onValueChange = onServerChange,
+        label = { Text("Server URL") },
+        placeholder = { Text("http://example.com:8080") },
+        modifier = Modifier.width(600.dp),
+        singleLine = true,
+        enabled = !isBusy
+    )
+    Spacer(Modifier.height(4.dp))
+    Text(
+        "أدخل اسم السيرفر كاملاً: http://اسم-السيرفر:المنفذ",
+        color = Color.LightGray,
+        fontSize = 12.sp,
+        modifier = Modifier.width(600.dp)
+    )
+    Spacer(Modifier.height(12.dp))
+    OutlinedTextField(
+        value = user,
+        onValueChange = onUserChange,
+        label = { Text("Username") },
+        modifier = Modifier.width(600.dp),
+        singleLine = true,
+        enabled = !isBusy
+    )
+    Spacer(Modifier.height(12.dp))
+
+    PasswordField(
+        value = pass,
+        onValueChange = onPassChange,
+        label = "Password",
+        placeholder = "أدخل كلمة المرور",
+        enabled = !isBusy,
+        modifier = Modifier.width(600.dp),
+    )
+
+    Spacer(Modifier.height(20.dp))
+    Button(
+        onClick = {
+            if (server.isBlank() || user.isBlank() || pass.isBlank()) {
+                onMessageChange("املأ كل الحقول")
+                return@Button
+            }
+            if (!server.contains(".")) {
+                onMessageChange("أدخل اسم سيرفر صحيح")
+                return@Button
+            }
+            onMessageChange("")
+            scope.launch {
+                onLocalLoadingChange(true)
+                val valid = XtreamApi.validate(server, user, pass)
+                if (!valid) {
+                    onMessageChange("بيانات Xtream غير صحيحة أو السيرفر غير متاح")
+                    onLocalLoadingChange(false)
+                    return@launch
+                }
+                val newId = sourceMgr.add(
+                    SourceEntity(
+                        name = name.ifBlank { "Xtream: $user" },
+                        type = "XTREAM",
+                        url = server,
+                        username = user,
+                        password = pass,
+                        isActive = false
+                    )
+                )
+                sourceMgr.setActive(newId)
+                onLocalLoadingChange(false)
+
+                val newSource = sourceMgr.getById(newId)
+                if (newSource != null) {
+                    onSourceReady(newSource)
+                } else {
+                    onNavigateDirect()
+                }
+            }
+        },
+        modifier = Modifier.width(300.dp).height(56.dp),
+        enabled = !isBusy
+    ) { Text("حفظ وتحميل", fontSize = 18.sp) }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Tab Button
+// ═══════════════════════════════════════════════════════════════
+
+@Composable
+internal fun AddSourceTabButton(
+    label: String,
+    selected: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    Text(
+        text = label,
+        color = if (selected) Color.White else TvTextSecondary,
+        fontSize = 15.sp,
+        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+        modifier = Modifier
+            .tvFocusable(onClick = { if (enabled) onClick() })
+            .background(
+                color = if (selected) TvPrimary else TvSurfaceHigh,
+                shape = RoundedCornerShape(Radius.md)
+            )
+            .padding(horizontal = Spacing.lg, vertical = Spacing.sm)
+    )
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Progress Card
+// ═══════════════════════════════════════════════════════════════
+
+@Composable
+internal fun AddSourceProgressCard(
+    progress: Int,
+    message: String,
+) {
+    Box(
+        modifier = Modifier
+            .width(600.dp)
+            .background(
+                color = Color(0xFF161B22),
+                shape = RoundedCornerShape(Radius.lg)
+            )
+            .padding(Spacing.xl),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+            ) {
+                CircularProgressIndicator(
+                    color = TvPrimary,
+                    modifier = Modifier.size(28.dp),
+                    strokeWidth = 3.dp,
+                )
+                Text(
+                    text = "$progress%",
+                    color = TvText,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+
+            Spacer(Modifier.height(Spacing.md))
+
+            Text(
+                text = message.ifBlank { "جارٍ التحميل..." },
+                color = TvTextSecondary,
+                fontSize = 14.sp,
+                textAlign = TextAlign.Center,
+            )
+
+            Spacer(Modifier.height(Spacing.md))
+
+            LinearProgressIndicator(
+                progress = { progress / 100f },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(6.dp),
+                color = TvPrimary,
+                trackColor = TvSurfaceHigh,
             )
         }
     }
