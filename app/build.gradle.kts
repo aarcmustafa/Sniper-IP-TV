@@ -54,6 +54,12 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            // ✅ استثناءات إضافية لتجنب تعارض مكتبات libvlc
+            excludes += "/META-INF/DEPENDENCIES"
+            excludes += "/META-INF/LICENSE"
+            excludes += "/META-INF/LICENSE.txt"
+            excludes += "/META-INF/NOTICE"
+            excludes += "/META-INF/NOTICE.txt"
         }
         // ✅ ضمان تضمين مكتبات native في APK
         jniLibs {
@@ -63,6 +69,12 @@ android {
 }
 
 dependencies {
+    // ═══════════════════════════════════════════════════════════
+    //  LibVLC (محرك VLC لتشغيل البث)
+    // ═══════════════════════════════════════════════════════════
+    // المكتبة الرسمية من VideoLAN
+    implementation("org.videolan.android:libvlc-all:3.7.5")
+
     // ═══════════════════════════════════════════════════════════
     //  Compose
     // ═══════════════════════════════════════════════════════════
