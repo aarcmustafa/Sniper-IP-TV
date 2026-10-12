@@ -71,9 +71,10 @@ android {
 dependencies {
 
     // ═══════════════════════════════════════════════════════════
-    //  LibVLC (محرك VLC لتشغيل البث)  ← 🆕 أُضيف حديثًا
+    //  LibVLC (محرك VLC لتشغيل البث)
+    //  الإصدار 3.6.0 متوافق مع compileSdk 35
     // ═══════════════════════════════════════════════════════════
-    implementation("org.videolan.android:libvlc-all:3.7.5")
+    implementation("org.videolan.android:libvlc-all:3.6.0")
 
     // ═══════════════════════════════════════════════════════════
     //  Compose
