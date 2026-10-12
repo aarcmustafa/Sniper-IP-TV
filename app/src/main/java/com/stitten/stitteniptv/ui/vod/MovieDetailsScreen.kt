@@ -8,10 +8,10 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Icon
@@ -25,7 +25,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -84,6 +83,10 @@ fun MovieDetailsScreen(
     }
 }
 
+// ═══════════════════════════════════════════════════════════════
+//  المحتوى الرئيسي
+// ═══════════════════════════════════════════════════════════════
+
 @Composable
 private fun MovieDetailsContent(
     movie: MovieEntity,
@@ -101,7 +104,7 @@ private fun MovieDetailsContent(
         contentPadding = PaddingValues(bottom = Spacing.xxxl),
     ) {
         // ═══════════════════════════════════════════════════════
-        //  Hero Section
+        //  Hero
         // ═══════════════════════════════════════════════════════
         item(key = "hero") {
             MovieHero(
@@ -119,10 +122,12 @@ private fun MovieDetailsContent(
         item(key = "tabs") {
             Row(
                 modifier = Modifier
-                    .fillMaxWidth()
+                    .fillMaxSize()
                     .padding(
-                        horizontal = Spacing.xxxl,
-                        vertical = Spacing.lg,
+                        start = Spacing.xxxl,
+                        end = Spacing.xxxl,
+                        top = Spacing.lg,
+                        bottom = Spacing.lg,
                     ),
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
@@ -177,11 +182,10 @@ private fun MovieDetailsContent(
 @Composable
 private fun MovieDetailsSkeleton() {
     Column(modifier = Modifier.fillMaxSize()) {
-        // Hero skeleton
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .height(500.dp)
+                .fillMaxSize()
+                .padding(bottom = Spacing.xxl)
                 .background(
                     Brush.linearGradient(
                         colors = listOf(
@@ -191,7 +195,6 @@ private fun MovieDetailsSkeleton() {
                     )
                 )
         )
-        Spacer(Modifier.height(Spacing.xxl))
     }
 }
 
@@ -210,7 +213,7 @@ private fun DetailsErrorView(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(Spacing.lg),
             modifier = Modifier
-                .clip(androidx.compose.foundation.shape.RoundedCornerShape(Radius.lg))
+                .clip(RoundedCornerShape(Radius.lg))
                 .background(TvSurfaceHigh)
                 .padding(Spacing.xxxl),
         ) {
@@ -240,11 +243,7 @@ private fun DetailsErrorView(
                             style = FocusStyle.Button,
                             onClick = onRetry,
                         )
-                        .clip(
-                            androidx.compose.foundation.shape.RoundedCornerShape(
-                                Radius.md
-                            )
-                        )
+                        .clip(RoundedCornerShape(Radius.md))
                         .background(TvPrimary)
                         .padding(
                             horizontal = Spacing.xxl,
@@ -278,11 +277,7 @@ private fun DetailsErrorView(
                             style = FocusStyle.Button,
                             onClick = onBack,
                         )
-                        .clip(
-                            androidx.compose.foundation.shape.RoundedCornerShape(
-                                Radius.md
-                            )
-                        )
+                        .clip(RoundedCornerShape(Radius.md))
                         .background(TvSurfaceHigh)
                         .padding(
                             horizontal = Spacing.xxl,
