@@ -211,6 +211,7 @@ private fun PersonChip(name: String, role: String) {
 @Composable
 fun EpisodeRow(
     episode: Episode,
+    episodeNumber: Int,
     onClick: () -> Unit,
 ) {
     Row(
@@ -246,7 +247,7 @@ fun EpisodeRow(
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                text = "${episode.number}",
+                text = "$episodeNumber",
                 color = Color.White,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.ExtraBold,
