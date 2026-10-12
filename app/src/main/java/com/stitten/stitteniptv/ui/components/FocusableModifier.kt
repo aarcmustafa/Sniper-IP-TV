@@ -1,7 +1,9 @@
 package com.stitten.stitteniptv.ui.components
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -15,6 +17,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -23,72 +26,187 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.stitten.stitteniptv.ui.theme.Radius
+import com.stitten.stitteniptv.ui.theme.TvFocus
+import com.stitten.stitteniptv.ui.theme.TvFocusGlow
+import com.stitten.stitteniptv.ui.theme.TvSurfaceHigh
+
+// ═══════════════════════════════════════════════════════════════
+//  أنماط التركيز الجاهزة
+// ═══════════════════════════════════════════════════════════════
 
 /**
- * Modifier موحّد للعناصر القابلة للتركيز في Android TV.
- *
- * ✅ يعمل بضغطة واحدة من زر OK/Center في الريموت
- * ✅ تأثير Focus واضح (تكبير + حدود زرقاء + خلفية)
- * ✅ يمنع النقر المزدوج عبر debounce 300ms
- *
- * ⚠️ يوجد نسختان (overloads) للتوافق مع كل أنماط الاستدعاء:
- *    1. `Modifier.tvFocusable { onClick() }`         ← الأكثر استخدامًا
- *    2. `Modifier.tvFocusable(shape) { onClick() }`  ← مع شكل مخصص
+ * أنماط تركيز جاهزة — اختر حسب نوع العنصر.
  */
+object FocusStyle {
+    /** بطاقة كبيرة (فيلم، مسلسل) — تكبير واضح */
+    val Card = FocusConfig(
+        scaleFocused = 1.06f,
+        borderWidth = 3.dp,
+        shape = RoundedCornerShape(Radius.md),
+        showGlow = true,
+    )
+
+    /** قناة مباشرة — تكبير معتدل */
+    val Channel = FocusConfig(
+        scaleFocused = 1.05f,
+        borderWidth = 3.dp,
+        shape = RoundedCornerShape(Radius.md),
+        showGlow = true,
+    )
+
+    /** زر Action — تكبير خفيف */
+    val Button = FocusConfig(
+        scaleFocused = 1.04f,
+        borderWidth = 2.dp,
+        shape = RoundedCornerShape(Radius.sm),
+        showGlow = false,
+    )
+
+    /** Chip تصنيف — تكبير طفيف */
+    val Chip = FocusConfig(
+        scaleFocused = 1.05f,
+        borderWidth = 2.dp,
+        shape = RoundedCornerShape(Radius.pill),
+        showGlow = false,
+    )
+
+    /** عنصر تنقل جانبي */
+    val NavItem = FocusConfig(
+        scaleFocused = 1.08f,
+        borderWidth = 2.dp,
+        shape = RoundedCornerShape(Radius.md),
+        showGlow = true,
+    )
+}
+
+/**
+ * إعدادات التركيز.
+ */
+data class FocusConfig(
+    val scaleFocused: Float = 1.06f,
+    val borderWidth: Dp = 3.dp,
+    val shape: RoundedCornerShape = RoundedCornerShape(Radius.md),
+    val showGlow: Boolean = true,
+    val borderColor: Color = TvFocus,
+    val glowColor: Color = TvFocusGlow,
+    val backgroundFocused: Color = Color.Transparent,
+)
 
 // ═══════════════════════════════════════════════════════════════
-//  النسخة 1: onClick فقط (نفس التوقيع القديم - توافق 100%)
+//  Overload 1: onClick فقط (توافق كامل مع القديم)
 // ═══════════════════════════════════════════════════════════════
 fun Modifier.tvFocusable(onClick: () -> Unit): Modifier =
-    tvFocusable(RoundedCornerShape(12.dp), onClick)
+    tvFocusable(config = FocusStyle.Card, onClick = onClick)
 
 // ═══════════════════════════════════════════════════════════════
-//  النسخة 2: shape + onClick (عند الحاجة لشكل مخصص)
+//  Overload 2: shape + onClick (للتوافق مع القديم)
 // ═══════════════════════════════════════════════════════════════
 fun Modifier.tvFocusable(
     shape: RoundedCornerShape,
+    onClick: () -> Unit,
+): Modifier = tvFocusable(
+    config = FocusStyle.Card.copy(shape = shape),
+    onClick = onClick,
+)
+
+// ═══════════════════════════════════════════════════════════════
+//  Overload 3: نمط جاهز + onClick (الطريقة الاحترافية)
+// ═══════════════════════════════════════════════════════════════
+fun Modifier.tvFocusable(
+    style: FocusConfig,
+    onClick: () -> Unit,
+): Modifier = tvFocusable(config = style, onClick = onClick)
+
+// ═══════════════════════════════════════════════════════════════
+//  التنفيذ الأساسي
+// ═══════════════════════════════════════════════════════════════
+fun Modifier.tvFocusable(
+    config: FocusConfig,
     onClick: () -> Unit,
 ): Modifier = composed {
     var isFocused by remember { mutableStateOf(false) }
     var lastClickTime by remember { mutableLongStateOf(0L) }
 
+    // ─── Animations (spring لحياة أكثر) ───
     val scale by animateFloatAsState(
-        targetValue = if (isFocused) 1.08f else 1f,
-        label = "scale"
+        targetValue = if (isFocused) config.scaleFocused else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMediumLow
+        ),
+        label = "focus_scale"
     )
+
     val borderColor by animateColorAsState(
-        targetValue = if (isFocused) Color(0xFF1F6FEB) else Color.Transparent,
-        label = "border"
+        targetValue = if (isFocused) config.borderColor else Color.Transparent,
+        label = "focus_border"
     )
-    val bgColor by animateColorAsState(
-        targetValue = if (isFocused) Color(0xFF21262D) else Color.Transparent,
-        label = "bg"
+
+    val backgroundColor by animateColorAsState(
+        targetValue = if (isFocused) config.backgroundFocused else Color.Transparent,
+        label = "focus_bg"
+    )
+
+    val glowAlpha by animateFloatAsState(
+        targetValue = if (isFocused && config.showGlow) 0.6f else 0f,
+        label = "focus_glow"
     )
 
     val interaction = remember { MutableInteractionSource() }
 
-    /** نقرة موحّدة مع حماية من التكرار */
+    /** نقرة موحّدة مع حماية من التكرار (200ms) */
     fun safeClick() {
         val now = System.currentTimeMillis()
-        if (now - lastClickTime > 300L) {
+        if (now - lastClickTime > 200L) {
             lastClickTime = now
             onClick()
         }
     }
 
     this
+        // ═══════════════════════════════════════════════════
+        //  التأثيرات الرسومية
+        // ═══════════════════════════════════════════════════
         .graphicsLayer(
             scaleX = scale,
             scaleY = scale,
-            shape = shape,
-            clip = false
+            shape = config.shape,
+            clip = false,
         )
-        .background(color = bgColor, shape = shape)
-        .border(width = 3.dp, color = borderColor, shape = shape)
+        // ─── Glow (توهج خارجي) ───
+        .drawBehind {
+            if (glowAlpha > 0f) {
+                val glowWidth = 8.dp.toPx()
+                drawRoundRect(
+                    color = config.glowColor.copy(alpha = glowAlpha * 0.35f),
+                    size = size,
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(
+                        config.shape.topStart.toPx(size, this),
+                        config.shape.topStart.toPx(size, this)
+                    ),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(
+                        width = glowWidth
+                    )
+                )
+            }
+        }
+        // ─── خلفية التركيز ───
+        .background(color = backgroundColor, shape = config.shape)
+        // ─── حدود التركيز ───
+        .border(
+            width = config.borderWidth,
+            color = borderColor,
+            shape = config.shape
+        )
+        // ─── مراقبة حالة التركيز ───
         .onFocusChanged { isFocused = it.isFocused }
 
-        // ✅ استقبال أزرار الريموت مباشرة — الحل الأساسي للنقرة المزدوجة
+        // ═══════════════════════════════════════════════════
+        //  استقبال أزرار الريموت — الحل الأساسي لـ Android TV
+        // ═══════════════════════════════════════════════════
         .onKeyEvent { event ->
             if (event.type != KeyEventType.KeyUp) return@onKeyEvent false
 
@@ -103,10 +221,11 @@ fun Modifier.tvFocusable(
                 else -> false
             }
         }
-
         .focusable(interactionSource = interaction)
 
-        // ✅ clickable يبقى للمس (للدعم على الأجهزة اللمسية)
+        // ═══════════════════════════════════════════════════
+        //  clickable للمس (للأجهزة اللمسية)
+        // ═══════════════════════════════════════════════════
         .clickable(
             interactionSource = interaction,
             indication = null,
