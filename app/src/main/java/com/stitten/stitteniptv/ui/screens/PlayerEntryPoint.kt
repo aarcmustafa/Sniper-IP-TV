@@ -1,6 +1,11 @@
 package com.stitten.stitteniptv.ui.screens
 
+import com.stitten.stitteniptv.data.ChannelRepository
+import com.stitten.stitteniptv.data.ErrorLogger
+import com.stitten.stitteniptv.data.FavoritesSyncManager
+import com.stitten.stitteniptv.data.ParentalControlManager
 import com.stitten.stitteniptv.data.PlayerSettingsManager
+import com.stitten.stitteniptv.data.SourceManager
 import com.stitten.stitteniptv.data.WatchHistoryManager
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
@@ -10,8 +15,18 @@ import dagger.hilt.components.SingletonComponent
 @InstallIn(SingletonComponent::class)
 interface PlayerEntryPoint {
 
+    // ═══════════════════════════════════════════════════════════
+    //  المدراء الأصليون (كانوا موجودين قبل تعديلي)
+    // ═══════════════════════════════════════════════════════════
     fun watchHistoryManager(): WatchHistoryManager
+    fun sourceManager(): SourceManager
+    fun errorLogger(): ErrorLogger
+    fun parentalControlManager(): ParentalControlManager
+    fun favoritesSyncManager(): FavoritesSyncManager
+    fun channelRepository(): ChannelRepository
 
-    // ✅ مُضاف حديثًا لدعم اختيار المحرك (ExoPlayer / VLC / AUTO)
+    // ═══════════════════════════════════════════════════════════
+    //  ✅ جديد: مدير إعدادات المشغل (لاختيار ExoPlayer / VLC)
+    // ═══════════════════════════════════════════════════════════
     fun playerSettingsManager(): PlayerSettingsManager
 }
