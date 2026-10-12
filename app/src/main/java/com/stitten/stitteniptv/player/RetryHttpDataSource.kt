@@ -5,6 +5,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.BaseDataSource
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.HttpDataSource
 import androidx.media3.datasource.TransferListener
 import com.stitten.stitteniptv.data.HttpClientProvider
 import java.io.IOException
@@ -43,6 +44,31 @@ class RetryHttpDataSource(
                 bytesRemaining = len
                 transferStarted(dataSpec)
                 return len
+            } catch (e: HttpDataSource.InvalidResponseCodeException) {
+                val code = e.responseCode
+
+                // ✅ إيقاف الحلقة عند 502/503 — السيرفر رفض، لا فائدة من تجربة أخرى
+                if (code == 502 || code == 503) {
+                    current?.close()
+                    current = null
+                    throw IOException("Stream unavailable (HTTP $code)", e)
+                }
+
+                // ✅ إيقاف الحلقة عند 401/403 — رفض دائم
+                if (code == 401 || code == 403) {
+                    current?.close()
+                    current = null
+                    throw IOException("Access denied (HTTP $code)", e)
+                }
+
+                // باقي الأكواد (404، …) → جرّب المرشح التالي
+                lastError = e
+                current?.close()
+                current = null
+            } catch (e: HttpDataSource.HttpDataSourceException) {
+                lastError = e
+                current?.close()
+                current = null
             } catch (e: IOException) {
                 lastError = e
                 current?.close()
@@ -62,19 +88,8 @@ class RetryHttpDataSource(
         val headers = mutableMapOf<String, String>()
         headers["User-Agent"] = ua
         headers["Accept"] = "*/*"
-        headers["Accept-Language"] = "ar,en-US;q=0.9,en;q=0.8"
-        headers["Connection"] = "keep-alive"
-        headers["Accept-Encoding"] = "identity"
-
-        try {
-            val uri = Uri.parse(url)
-            val host = uri.host
-            val scheme = uri.scheme ?: "http"
-            if (!host.isNullOrBlank()) {
-                headers["Referer"] = "$scheme://$host/"
-                headers["Origin"] = "$scheme://$host"
-            }
-        } catch (_: Exception) { }
+        // ✅ لا Accept-Encoding → يسمح بالضغط
+        // ✅ لا Referer / لا Origin → بعض اللوحات ترفضهما
 
         try {
             val cookieHeader = HttpClientProvider.getCookiesHeader(url)
