@@ -18,9 +18,20 @@ android {
         versionName = "1.0.0"
         resourceConfigurations += listOf("ar", "en", "fr")
 
-        // ✅ دعم معماريتين في APK واحد
+        // ✅ نبقي المعماريتين فقط (كل الأجهزة الحديثة والقديمة)
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+        }
+    }
+
+    // ✅ ABI Splits: كل APK يحمل معمارية واحدة فقط
+    //    حجم كل APK ينزل بشكل كبير
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a")
+            isUniversalApk = false
         }
     }
 
@@ -54,14 +65,12 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
-            // ✅ استثناءات إضافية لتجنب تعارض مكتبات libvlc
             excludes += "/META-INF/DEPENDENCIES"
             excludes += "/META-INF/LICENSE"
             excludes += "/META-INF/LICENSE.txt"
             excludes += "/META-INF/NOTICE"
             excludes += "/META-INF/NOTICE.txt"
         }
-        // ✅ ضمان تضمين مكتبات native في APK
         jniLibs {
             useLegacyPackaging = false
         }
@@ -71,10 +80,9 @@ android {
 dependencies {
 
     // ═══════════════════════════════════════════════════════════
-    //  LibVLC (محرك VLC لتشغيل البث)
-    //  الإصدار 3.6.0 متوافق مع compileSdk 35
+    //  ❌ تم حذف LibVLC بالكامل
+    //     implementation("org.videolan.android:libvlc-all:3.6.0")
     // ═══════════════════════════════════════════════════════════
-    implementation("org.videolan.android:libvlc-all:3.6.0")
 
     // ═══════════════════════════════════════════════════════════
     //  Compose
@@ -100,7 +108,7 @@ dependencies {
     implementation("androidx.leanback:leanback:1.0.0")
 
     // ═══════════════════════════════════════════════════════════
-    //  Media3 (ExoPlayer)
+    //  Media3 (ExoPlayer) — المشغل الوحيد الآن
     // ═══════════════════════════════════════════════════════════
     val media3 = "1.5.1"
     implementation("androidx.media3:media3-exoplayer:$media3")
