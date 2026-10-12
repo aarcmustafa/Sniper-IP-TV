@@ -76,7 +76,7 @@ private fun detectKind(url: String): StreamKind {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  بناء المرشحين
+//  بناء المرشحين — محدود بـ 2 (per PCAP analysis)
 // ═══════════════════════════════════════════════════════════════
 
 private fun buildCandidates(url: String, kind: StreamKind): List<String> {
@@ -84,14 +84,13 @@ private fun buildCandidates(url: String, kind: StreamKind): List<String> {
 
     val lower = url.lowercase()
 
-    // ─── HLS / M3U8 — نُبقي الرابط كما هو ───
+    // ─── HLS / M3U8 — لا نبدّل شيئًا ───
     if (lower.substringBefore("?").endsWith(".m3u8") ||
-        lower.substringBefore("?").endsWith(".m3u"))
-    {
+        lower.substringBefore("?").endsWith(".m3u")
+    ) {
         return listOf(url)
     }
 
-    // استخراج الأجزاء
     val cleanUrl = url.substringBefore("?")
     val query = url.substringAfter("?", "").let {
         if (it.isNotEmpty() && it != url) "?$it" else ""
@@ -101,52 +100,29 @@ private fun buildCandidates(url: String, kind: StreamKind): List<String> {
     val base = if (hasExt) cleanUrl.substringBeforeLast(".") else cleanUrl
     val currentExt = if (hasExt) cleanUrl.substringAfterLast(".").lowercase() else ""
 
-    // ─── القنوات المباشرة ───
+    val candidates = mutableListOf(url)
+
+    // ─── القنوات المباشرة: الأصلي + بديل واحد ───
     if (kind == StreamKind.LIVE) {
-        val candidates = mutableListOf<String>()
-
-        // 1) الأصلي أولًا
-        candidates.add(url)
-
-        // 2) بدائل حسب الامتداد
-        val alternatives = when (currentExt) {
-            "ts" -> listOf("m3u8", "mp4", "")       // إذا فشل ts → m3u8, ثم بدون امتداد
-            "m3u8" -> listOf("ts", "mp4", "")        // إذا فشل m3u8 → ts, ثم بدون امتداد
-            "mp4" -> listOf("ts", "m3u8", "")        // ...
-            else -> listOf("ts", "m3u8", "mp4")      // لو بدون امتداد → جرّب الكل
+        val alternative = when (currentExt) {
+            "ts" -> "m3u8"
+            "m3u8" -> "ts"
+            else -> "m3u8"
         }
-
-        alternatives.forEach { ext ->
-            val candidate = if (ext.isBlank()) {
-                "$base$query"
-            } else {
-                "$base.$ext$query"
-            }
-            if (candidate != url && candidate !in candidates) {
-                candidates.add(candidate)
-            }
-        }
-
-        // 3) بديل: بدون /live/ (بعض السيرفرات لا تستخدمه)
-        if (url.contains("/live/")) {
-            val withoutLive = url.replace("/live/", "/")
-            if (withoutLive !in candidates) candidates.add(withoutLive)
-        }
-
+        candidates.add("$base.$alternative$query")
         return candidates
     }
 
-    // ─── الفيلم/المسلسل ───
+    // ─── الفيلم/المسلسل: الأصلي + بديل واحد ───
     if (!hasExt) return listOf(url)
 
-    val videoExts = listOf("mp4", "mkv", "avi", "ts", "m3u8")
-    val candidates = mutableListOf(url)
-
-    videoExts.forEach { ext ->
-        val candidate = "$base.$ext$query"
-        if (candidate != url && candidate !in candidates) {
-            candidates.add(candidate)
-        }
+    val alternative = when (currentExt) {
+        "mp4" -> "mkv"
+        "mkv" -> "mp4"
+        "ts" -> "m3u8"
+        "m3u8" -> "ts"
+        else -> "mp4"
     }
+    candidates.add("$base.$alternative$query")
     return candidates
 }
